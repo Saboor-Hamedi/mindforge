@@ -355,6 +355,10 @@ impl NeovimClient {
                 Value::Array(vec![Value::from(path_string)]),
             ],
         )?;
+        self.notify(
+            "nvim_command",
+            vec![Value::from("set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler")],
+        )?;
         self.config_modified = modified;
         Ok(true)
     }

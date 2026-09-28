@@ -30,6 +30,7 @@ pub struct VimBackend {
     row_layouts: Vec<Option<(u64, Arc<egui::Galley>)>>,
     layout_font_size: u32,
     cursor_render_initialized: bool,
+    line_numbers_enabled: Option<bool>,
 }
 
 impl VimBackend {
@@ -46,6 +47,12 @@ impl VimBackend {
         // Attach the embedded grid before installing the app's active note so
         // the first buffer update is rendered directly into our editor pane.
         client.attach_ui(width, height)?;
+        // Keep shared editor navigation options consistent even when the
+        // user's init.lua has absolute numbers or cursorline disabled.
+        client.request(
+            "nvim_command",
+            vec![Value::from("set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler")],
+        )?;
 
         // Load text async — no blocking round-trip needed here.
         // nvim_buf_set_lines is a notification (fire and forget).
@@ -87,6 +94,7 @@ impl VimBackend {
             row_layouts: Vec::new(),
             layout_font_size: 0,
             cursor_render_initialized: false,
+            line_numbers_enabled: None,
         })
     }
 
@@ -326,18 +334,19 @@ impl VimBackend {
 
     fn apply_highlight(&mut self, args: &[Value]) {
         let id = num(&args[0]) as u64;
-        let (mut foreground, mut background) = (None, None);
+        let (mut foreground, mut background, mut reverse) = (None, None, false);
         if let Some(attrs) = args[1].as_map() {
             for (key, value) in attrs {
                 let color = value.as_u64().map(|n| n as u32);
                 match key.as_str() {
                     Some("foreground") => foreground = color,
                     Some("background") => background = color,
+                    Some("reverse") => reverse = value.as_bool().unwrap_or(false),
                     _ => {}
                 }
             }
         }
-        self.grid.highlights.insert(id, (foreground, background));
+        self.grid.highlights.insert(id, super::state::HighlightStyle { foreground, background, reverse });
         for revision in &mut self.grid.row_revision {
             *revision = revision.wrapping_add(1);
         }
@@ -574,6 +583,7 @@ impl EditorBackend for VimBackend {
         caret: &mut crate::caret::Caret,
         dt: f32,
         typed: bool,
+        show_line_numbers: bool,
     ) {
         let font = crate::font_manager::editor_font_id(font_size);
         if self.layout_font_size != font_size.to_bits() {
@@ -584,9 +594,35 @@ impl EditorBackend for VimBackend {
         let nvim_row_height = ui.fonts(|fonts| fonts.row_height(&font)).max(1.0);
         // Match the Hybrid editor's content inset so Neovim's grid occupies
         // the same text surface instead of starting at the card's top-left.
-        let origin = Pos2::new(rect.min.x + 24.0, rect.min.y + 10.0);
+        let total_lines = self.lines.len().max(1);
+        let digits = total_lines.to_string().len().max(2);
+        let gutter_w = if show_line_numbers {
+            (digits as f32 * (font_size * 0.55) + 14.0).max(28.0)
+        } else {
+            0.0
+        };
+        let effective_gutter_w = if rect.width() > gutter_w + 40.0 { gutter_w } else { 0.0 };
+        let pad_x = if show_line_numbers { 16.0 } else { 24.0 };
+        let text_left = rect.min.x + effective_gutter_w + pad_x;
+        // Reserve enough native grid cells for relative numbers on large files
+        // (250 lines can require three digits), then draw the visible label in
+        // Hybrid's gutter.
+        let number_columns = if show_line_numbers && effective_gutter_w > 0.0 { 4 } else { 0 };
+        if self.line_numbers_enabled != Some(show_line_numbers) {
+            let options = if show_line_numbers {
+                "set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler"
+            } else {
+                "set nonumber norelativenumber cursorline signcolumn=no laststatus=0 noruler"
+            };
+            let _ = self.client.notify("nvim_command", vec![Value::from(options)]);
+            self.line_numbers_enabled = Some(show_line_numbers);
+        }
+        // Keep Neovim's number cells in its grid, but align document text
+        // with Hybrid and paint the gutter using the app's typography/colors.
+        let origin = Pos2::new(text_left - number_columns as f32 * cell_width, rect.min.y + 10.0);
         let content_rect = Rect::from_min_max(origin, rect.max);
-        let width = (content_rect.width() / cell_width.max(1.0)).floor().max(1.0) as usize;
+        let width = ((rect.max.x - text_left) / cell_width.max(1.0)).floor().max(1.0) as usize
+            + number_columns;
         let height = (content_rect.height() / nvim_row_height).floor().max(1.0) as usize;
         let now = ui.input(|i| i.time);
 
@@ -622,7 +658,7 @@ impl EditorBackend for VimBackend {
 
         if self.grid.width == 0 || self.grid.height == 0 {
             painter.text(
-                origin,
+                    Pos2::new(origin.x + number_columns as f32 * cell_width, origin.y),
                 Align2::LEFT_TOP,
                 self.error.as_deref().unwrap_or("Starting Neovim…"),
                 font.clone(),
@@ -642,7 +678,7 @@ impl EditorBackend for VimBackend {
         if !grid_has_text && self.lines.iter().any(|line| !line.is_empty()) {
             for (row, line) in self.lines.iter().take(height).enumerate() {
                 painter.text(
-                    Pos2::new(origin.x, origin.y + row as f32 * nvim_row_height),
+                    Pos2::new(origin.x + number_columns as f32 * cell_width, origin.y + row as f32 * nvim_row_height),
                     Align2::LEFT_TOP,
                     line,
                     font.clone(),
@@ -659,19 +695,24 @@ impl EditorBackend for VimBackend {
                 .is_none_or(|(cached_revision, _)| *cached_revision != revision)
             {
                 let mut job = egui::text::LayoutJob::default();
-                for cell in row.iter().take(width) {
+                for cell in row.iter().skip(number_columns).take(width.saturating_sub(number_columns)) {
                     let mut foreground = theme.text;
                     let mut format = egui::TextFormat {
                         font_id: font.clone(),
                         color: foreground,
                         ..Default::default()
                     };
-                    if let Some((fg, bg)) = self.grid.highlights.get(&cell.highlight) {
-                        if let Some(color) = fg {
-                            foreground = rgb(*color);
-                        }
-                        if let Some(color) = bg {
-                            format.background = rgb(*color);
+                    if let Some(style) = self.grid.highlights.get(&cell.highlight) {
+                        if style.reverse {
+                            foreground = style.background.map(rgb).unwrap_or(theme.bg);
+                            format.background = style.foreground.map(rgb).unwrap_or(theme.text);
+                        } else {
+                            if let Some(color) = style.foreground {
+                                foreground = rgb(color);
+                            }
+                            if let Some(color) = style.background {
+                                format.background = rgb(color);
+                            }
                         }
                     }
                     format.color = foreground;
@@ -681,10 +722,41 @@ impl EditorBackend for VimBackend {
             }
             if let Some((_, galley)) = &self.row_layouts[row_idx] {
                 painter.galley(
-                    Pos2::new(origin.x, origin.y + row_idx as f32 * nvim_row_height),
+                    Pos2::new(text_left, origin.y + row_idx as f32 * nvim_row_height),
                     Arc::clone(galley),
                     theme.text,
                 );
+            }
+            if number_columns > 0 {
+                let number = row.iter().take(number_columns).map(|cell| cell.text.as_str()).collect::<String>();
+                let number = number.trim();
+                let current = row_idx == self.grid.cursor.row;
+                let number_color = if current {
+                    theme.accent
+                } else if theme.is_light() {
+                    theme.muted
+                } else {
+                    Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 100)
+                };
+                let gutter_painter = painter.with_clip_rect(Rect::from_min_max(
+                    rect.min,
+                    Pos2::new(rect.min.x + gutter_w, rect.max.y),
+                ));
+                let label = if number.is_empty() {
+                    let has_text = row.iter().skip(number_columns).any(|cell| !cell.text.trim().is_empty());
+                    if has_text { "·" } else { "" }
+                } else {
+                    number
+                };
+                if !label.is_empty() {
+                    gutter_painter.text(
+                        Pos2::new(rect.min.x + gutter_w - 4.0, origin.y + row_idx as f32 * nvim_row_height),
+                        Align2::RIGHT_TOP,
+                        label,
+                        crate::font_manager::editor_font_id(font_size * 0.82),
+                        number_color,
+                    );
+                }
             }
         }
 
@@ -719,16 +791,8 @@ impl EditorBackend for VimBackend {
             }
         }
 
-        // Command line & messages rendered within editor surface
-        if !self.grid.command_line.is_empty() {
-            painter.text(
-                Pos2::new(origin.x, rect.max.y - nvim_row_height),
-                Align2::LEFT_TOP,
-                &self.grid.command_line,
-                font.clone(),
-                theme.text,
-            );
-        }
+        // The app's LunaLine owns command entry; do not paint Neovim's
+        // captured command line beneath the editor as a second prompt.
         if !self.grid.message.is_empty() {
             painter.text(
                 Pos2::new(origin.x, rect.max.y - nvim_row_height),

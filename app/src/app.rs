@@ -55,6 +55,7 @@ pub struct App {
     pub doc_ed: Editor,
     pub cmd_ed: Editor,
     pub in_command: bool,
+    pub cmd_prefix: char,
     pub cmd_selected_idx: usize,
     pub cmd_navigated: bool,
     pub command_history: Vec<String>,

@@ -9,6 +9,7 @@ pub struct LunaLineRenderParams<'a> {
     pub painter: &'a egui::Painter,
     pub dock_rect: Rect,
     pub in_command: bool,
+    pub cmd_prefix: char,
     pub cmd_text: &'a str,
     pub cmd_cur: usize,
     pub cmd_selection: Option<(usize, usize)>,
@@ -306,13 +307,17 @@ pub fn render_lunaline(params: LunaLineRenderParams) -> bool {
 
     if params.in_command {
         // Active Command Mode Input Box
-        let cmd_prompt = ":CMD";
+        let cmd_prompt = if params.cmd_prefix == ':' {
+            ":CMD".to_string()
+        } else {
+            format!("{} FIND", params.cmd_prefix)
+        };
         let prompt_w = cmd_prompt.len() as f32 * 7.5 + 16.0;
         let prompt_rect = Rect::from_min_size(pos2(left_x, bar_center_y - 11.0), vec2(prompt_w, 22.0));
         let (cmd_bg, cmd_fg) = get_mode_colors("CMD", config.color_mode, theme);
 
         painter.rect(prompt_rect, 5.0, cmd_bg, Stroke::NONE, egui::StrokeKind::Inside);
-        painter.text(prompt_rect.center(), Align2::CENTER_CENTER, cmd_prompt, FontId::monospace(11.0), cmd_fg);
+        painter.text(prompt_rect.center(), Align2::CENTER_CENTER, &cmd_prompt, FontId::monospace(11.0), cmd_fg);
         left_x += prompt_w + 10.0;
 
         let cmd_avail_w = (right_boundary_x - left_x - 10.0).max(40.0);
@@ -484,6 +489,7 @@ pub fn render_lunaline_preview(
         painter,
         dock_rect: preview_rect,
         in_command: false,
+        cmd_prefix: ':',
         cmd_text: "",
         cmd_cur: 0,
         cmd_selection: None,

@@ -62,6 +62,8 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
     }
 
     let mut typed = false;
+    let vim_normal_mode = app.editor_controller.mode == crate::app::EditorInputMode::Vim
+        && app.vim_runtime.backend.as_ref().is_none_or(|backend| !backend.is_insert_mode());
 
     // 2. Dispatch events for either command bar, focused terminal, or active editor
     ctx.input(|i| {
@@ -72,6 +74,7 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         let has_colon_text = i.events.iter().any(|event| {
             matches!(event, egui::Event::Text(text) if text.contains(':'))
         });
+        let has_text_event = i.events.iter().any(|event| matches!(event, egui::Event::Text(text) if !text.is_empty()));
         for ev in &i.events {
             let command_surface_active = app.mode == Mode::Normal
                 && !app.show_welcome
@@ -83,18 +86,31 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                 && !app.delete_confirm_open
                 && !app.accent_dropdown_open
                 && !app.wikilink_autocomplete.is_active;
-            let typed_colon = match ev {
-                egui::Event::Text(text) if text == ":" => command_surface_active,
+            let command_prefix = match ev {
+                egui::Event::Text(text) if text == ":"
+                    && (app.editor_controller.mode != crate::app::EditorInputMode::Vim || vim_normal_mode) => Some(':'),
+                egui::Event::Text(text) if text == "/" && vim_normal_mode => Some('/'),
+                egui::Event::Text(text) if text == "?"
+                    && vim_normal_mode => Some('?'),
                 egui::Event::Key { key: egui::Key::Semicolon, pressed: true, modifiers, .. }
-                    if modifiers.shift && !modifiers.ctrl && !modifiers.alt && !has_colon_text => command_surface_active,
-                _ => false,
+                    if modifiers.shift && !modifiers.ctrl && !modifiers.alt && !has_colon_text => Some(':'),
+                egui::Event::Key { key: egui::Key::Slash, pressed: true, modifiers, .. }
+                    if !has_text_event && !modifiers.ctrl && !modifiers.alt
+                        && vim_normal_mode =>
+                    Some(if modifiers.shift { '?' } else { '/' }),
+                _ => None,
             };
-            if !app.in_command && typed_colon {
+            if !app.in_command && command_surface_active && command_prefix.is_some() {
                 app.in_command = true;
+                app.cmd_prefix = command_prefix.unwrap_or(':');
                 app.cmd_ed.clear();
                 app.cmd_selected_idx = 0;
                 app.cmd_navigated = false;
-                app.showcmd.set_command("", now);
+                if app.cmd_prefix == ':' {
+                    app.showcmd.set_command("", now);
+                } else {
+                    app.showcmd.set_search(&app.cmd_prefix.to_string(), "", now);
+                }
                 typed = true;
                 continue;
             }
@@ -125,7 +141,7 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                 if let Some(ref mut pane) = app.term_pane {
                     pane.feed_event(ev, i.modifiers);
                 }
-            } else if let Some(vim_typed) = crate::vim::input::handle_event(app, ev, now, has_colon_text) {
+            } else if let Some(vim_typed) = crate::vim::input::handle_event(app, ev, now, has_text_event, has_colon_text) {
                 typed |= vim_typed;
             } else if app.mode == Mode::Normal && (app.show_welcome || app.open_notes.is_empty()) {
                 // When on Welcome dashboard, hotkeys are handled directly by the dashboard or modals

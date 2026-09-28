@@ -146,6 +146,9 @@ fn lookup_catalog_desc(cmd: &str) -> Option<&'static str> {
 /// Intercepts suggestion-specific keyboard shortcuts (navigation, completion, execution).
 /// Returns `true` if the key was handled, allowing `input.rs` to remain clean and DRY.
 pub fn handle_suggestion_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64) -> bool {
+    if app.cmd_prefix != ':' {
+        return false;
+    }
     let suggestions = get_filtered_suggestions(&app.cmd_ed.text(), &app.command_history);
 
     match key {
@@ -237,7 +240,7 @@ pub fn render_command_suggestions_overlay(
     dock_rect: Rect,
     now: f64,
 ) {
-    if !app.in_command {
+    if !app.in_command || app.cmd_prefix != ':' {
         return;
     }
 

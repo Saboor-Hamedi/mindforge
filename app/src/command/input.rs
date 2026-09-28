@@ -4,6 +4,27 @@ use crate::app::App;
 use crate::command::command_suggestion;
 use eframe::egui::{Key, Modifiers};
 
+fn update_command_hud(app: &mut App, now: f64) {
+    if app.cmd_prefix == ':' {
+        app.showcmd.set_command(&app.cmd_ed.text(), now);
+    } else {
+        app.showcmd.set_search(&app.cmd_prefix.to_string(), &app.cmd_ed.text(), now);
+    }
+}
+
+fn send_search_to_vim(app: &mut App, prefix: char, query: &str, now: f64) {
+    if query.is_empty() {
+        return;
+    }
+    if let Some(backend) = app.vim_runtime.backend.as_mut() {
+        if let Err(error) = backend.send_input(&format!("{}{}<CR>", prefix, query)) {
+            app.set_status(&format!("Neovim search failed: {error}"), now);
+        }
+    } else {
+        app.set_status("Neovim is still starting; search was not sent", now);
+    }
+}
+
 /// Handles pasting text into the command bar buffer.
 pub fn handle_command_paste(app: &mut App, s: &str, now: f64) {
     for c in s.chars() {
@@ -13,7 +34,7 @@ pub fn handle_command_paste(app: &mut App, s: &str, now: f64) {
     }
     app.cmd_selected_idx = 0;
     app.cmd_navigated = false;
-    app.showcmd.set_command(&app.cmd_ed.text(), now);
+    update_command_hud(app, now);
     app.last_char_time = now;
 }
 
@@ -24,12 +45,22 @@ pub fn handle_command_text(app: &mut App, s: &str, now: f64) {
     }
     app.cmd_selected_idx = 0;
     app.cmd_navigated = false;
-    app.showcmd.set_command(&app.cmd_ed.text(), now);
+    update_command_hud(app, now);
     app.last_char_time = now;
 }
 
 /// Dispatches keystrokes in command mode: autocompletion, cursor movement, editing.
 pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64) {
+    if app.cmd_prefix != ':' && key == Key::Enter {
+        let prefix = app.cmd_prefix;
+        let query = app.cmd_ed.text();
+        app.in_command = false;
+        app.cmd_ed.clear();
+        app.cmd_prefix = ':';
+        app.showcmd.record_action(&format!("{}{}", prefix, query), now);
+        send_search_to_vim(app, prefix, &query, now);
+        return;
+    }
     // 1. Suggestion navigation & execution (Enter, Tab, Ctrl+J/K, ArrowUp/Down)
     if command_suggestion::handle_suggestion_key(app, key, modifiers, now) {
         return;
@@ -43,12 +74,13 @@ pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f6
             app.cmd_selected_idx = 0;
             app.cmd_ed.clear();
             app.showcmd.clear();
+            app.cmd_prefix = ':';
         }
         Key::Backspace if modifiers.ctrl => {
             app.cmd_ed.delete_word();
             app.cmd_selected_idx = 0;
             app.cmd_navigated = false;
-            app.showcmd.set_command(&app.cmd_ed.text(), now);
+            update_command_hud(app, now);
         }
         Key::Backspace => {
             if app.cmd_ed.cur == 0 && !app.cmd_ed.has_selection() {
@@ -56,24 +88,25 @@ pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f6
                 app.cmd_selected_idx = 0;
                 app.cmd_navigated = false;
                 app.showcmd.clear();
+                app.cmd_prefix = ':';
             } else {
                 app.cmd_ed.backspace();
                 app.cmd_selected_idx = 0;
                 app.cmd_navigated = false;
-                app.showcmd.set_command(&app.cmd_ed.text(), now);
+                update_command_hud(app, now);
             }
         }
         Key::Delete if modifiers.ctrl => {
             app.cmd_ed.delete_word_forward();
             app.cmd_selected_idx = 0;
             app.cmd_navigated = false;
-            app.showcmd.set_command(&app.cmd_ed.text(), now);
+            update_command_hud(app, now);
         }
         Key::Delete => {
             app.cmd_ed.delete();
             app.cmd_selected_idx = 0;
             app.cmd_navigated = false;
-            app.showcmd.set_command(&app.cmd_ed.text(), now);
+            update_command_hud(app, now);
         }
         Key::ArrowLeft if modifiers.ctrl && modifiers.shift => {
             app.cmd_ed.word_left_select();

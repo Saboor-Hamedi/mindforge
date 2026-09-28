@@ -7,6 +7,13 @@ pub struct GridCell {
     pub highlight: u64,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HighlightStyle {
+    pub foreground: Option<u32>,
+    pub background: Option<u32>,
+    pub reverse: bool,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct GridState {
     pub width: usize,
@@ -17,7 +24,7 @@ pub struct GridState {
     pub row_revision: Vec<u64>,
     pub cursor: CursorPosition,
     pub mode: String,
-    pub highlights: HashMap<u64, (Option<u32>, Option<u32>)>,
+    pub highlights: HashMap<u64, HighlightStyle>,
     pub command_line: String,
     pub popup_items: Vec<String>,
     pub popup_selected: Option<usize>,

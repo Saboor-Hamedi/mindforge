@@ -301,6 +301,7 @@ impl App {
             painter: &painter,
             dock_rect: cmd_bar_rect,
             in_command: self.in_command,
+            cmd_prefix: self.cmd_prefix,
             cmd_text: &self.cmd_ed.text(),
             cmd_cur: self.cmd_ed.cur,
             cmd_selection: self.cmd_ed.selected_range(),

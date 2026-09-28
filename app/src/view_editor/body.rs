@@ -299,6 +299,19 @@ pub fn render_editor_body(
         let gutter_painter = painter.with_clip_rect(gutter_rect);
         let num_font = FontId::monospace(font_size * 0.82);
 
+        // Match Neovim's `number relativenumber`: show the absolute number on
+        // the cursor line and distance from it on every other physical line.
+        let current_line_start = visual_lines
+            .get(row)
+            .map(|line| line.char_start)
+            .unwrap_or(0)
+            .min(ed.buf.len());
+        let current_physical_line = ed.buf[..current_line_start]
+            .iter()
+            .filter(|&&character| character == '\n')
+            .count()
+            + 1;
+
         // Compute physical line number for each visual line
         let mut physical_line = 1;
 
@@ -311,9 +324,13 @@ pub fn render_editor_body(
             }
 
             if line_y + lh >= editor_rect.min.y && line_y <= editor_rect.max.y {
-                let is_current = r == row;
+                let is_current = physical_line == current_physical_line;
                 if is_new_physical {
-                    let num_str = physical_line.to_string();
+                    let num_str = if is_current {
+                        physical_line.to_string()
+                    } else {
+                        physical_line.abs_diff(current_physical_line).to_string()
+                    };
                     let color = if is_current {
                         theme.accent
                     } else if theme.is_light() {

@@ -480,13 +480,14 @@ impl App {
                             }
                         }
                     }
-                } else if self.editor_controller.mode == EditorInputMode::Vim && self.mode == Mode::Normal && self.vim_runtime.backend.is_none() {
+                } else if self.editor_controller.mode == EditorInputMode::Vim
+                    && self.mode == Mode::Normal
+                    && self.vim_runtime.backend.is_none()
+                    && self.vim_runtime.start_error.is_some()
+                {
                     ui.vertical_centered(|ui| {
                         if let Some(error) = &self.vim_runtime.start_error {
                             ui.colored_label(self.theme.highlight, format!("Neovim could not start: {error}"));
-                        } else {
-                            ui.spinner();
-                            ui.label("Starting embedded Neovim…");
                         }
                     });
                 } else if self.vim_runtime.backend.is_some() && self.editor_controller.mode == EditorInputMode::Vim {
@@ -501,6 +502,7 @@ impl App {
                             &mut self.caret,
                             dt,
                             typed,
+                            self.show_line_numbers,
                         );
                     }
                 } else if self.inline_mode {

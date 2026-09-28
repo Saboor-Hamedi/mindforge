@@ -33,6 +33,7 @@ impl App {
             doc_ed: Editor::new(),
             cmd_ed: Editor::new(),
             in_command: false,
+            cmd_prefix: ':',
             cmd_selected_idx: 0,
             cmd_navigated: false,
             command_history: Vec::new(),

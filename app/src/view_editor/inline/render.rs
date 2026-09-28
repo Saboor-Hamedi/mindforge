@@ -493,7 +493,11 @@ pub fn render_inline_editor(
             let line_y = ed_origin.y + line.y_offset;
             if line_y + line.height >= editor_rect.min.y && line_y <= editor_rect.max.y {
                 let is_current = i == active_line_idx;
-                let num_str = (i + 1).to_string();
+                let num_str = if is_current {
+                    (i + 1).to_string()
+                } else {
+                    (i + 1).abs_diff(active_line_idx + 1).to_string()
+                };
                 let color = if is_current {
                     theme.accent
                 } else if theme.is_light() {

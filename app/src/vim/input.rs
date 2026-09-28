@@ -8,7 +8,13 @@ use eframe::egui::{self, Event};
 
 /// Route an event to Neovim when its editor surface owns focus.
 /// `None` means the event belongs to another app surface or to Hybrid.
-pub fn handle_event(app: &mut App, event: &Event, now: f64, has_colon_text: bool) -> Option<bool> {
+pub fn handle_event(
+    app: &mut App,
+    event: &Event,
+    now: f64,
+    has_text_event: bool,
+    has_colon_text: bool,
+) -> Option<bool> {
     let owns_input = app.mode == Mode::Normal
         && app.editor_controller.mode == EditorInputMode::Vim
         && !app.show_welcome
@@ -25,23 +31,11 @@ pub fn handle_event(app: &mut App, event: &Event, now: f64, has_colon_text: bool
 
     let typed = match event {
         Event::Paste(text) => {
-            if let Some(backend) = app.vim_runtime.backend.as_mut() {
-                if let Err(error) = backend.paste(text) {
-                    app.set_status(&format!("Neovim input failed: {error}"), now);
-                }
-            } else if !app.vim_runtime.queue_input(PendingVimInput::Paste(text.clone())) {
-                app.set_status("Neovim startup is taking too long; input queue is full", now);
-            }
+            send_paste(app, text, now);
             true
         }
         Event::Text(text) => {
-            if let Some(backend) = app.vim_runtime.backend.as_mut() {
-                if let Err(error) = backend.handle_text(text) {
-                    app.set_status(&format!("Neovim input failed: {error}"), now);
-                }
-            } else if !app.vim_runtime.queue_input(PendingVimInput::Text(text.clone())) {
-                app.set_status("Neovim startup is taking too long; input queue is full", now);
-            }
+            send_text(app, text, now);
             true
         }
         Event::Key { key, pressed: true, modifiers, .. } => {
@@ -67,6 +61,13 @@ pub fn handle_event(app: &mut App, event: &Event, now: f64, has_colon_text: bool
                 if is_special || modifiers.ctrl || modifiers.command || modifiers.alt {
                     send_key(app, EditorKeyEvent { key: *key, modifiers: *modifiers }, now);
                     true
+                } else if !has_text_event {
+                    if let Some(text) = literal_key_text(*key, modifiers.shift) {
+                        send_text(app, &text, now);
+                        true
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
@@ -77,7 +78,44 @@ pub fn handle_event(app: &mut App, event: &Event, now: f64, has_colon_text: bool
     Some(typed)
 }
 
+fn literal_key_text(key: egui::Key, shifted: bool) -> Option<String> {
+    let name = format!("{key:?}");
+    if name.len() == 1 && name.as_bytes()[0].is_ascii_alphabetic() {
+        return Some(if shifted { name.to_uppercase() } else { name.to_lowercase() });
+    }
+    let pair = match name.as_str() {
+        "OpenBracket" => ('[', '{'),
+        "CloseBracket" => (']', '}'),
+        "Semicolon" => (';', ':'),
+        "Comma" => (',', '<'),
+        "Period" => ('.', '>'),
+        "Slash" => ('/', '?'),
+        "Backslash" => ('\\', '|'),
+        "Backtick" => ('`', '~'),
+        "Minus" => ('-', '_'),
+        "Equals" => ('=', '+'),
+        "Quote" => ('\'', '"'),
+        _ => return None,
+    };
+    Some(if shifted { pair.1 } else { pair.0 }.to_string())
+}
+
 fn send_text(app: &mut App, text: &str, now: f64) {
+    if !text.is_empty() {
+        app.sound.play();
+        app.last_char_time = now;
+        let normal_mode = app.vim_runtime.backend.as_ref().is_some_and(|backend| !backend.is_insert_mode());
+        if normal_mode {
+            if app.showcmd.is_pending && app.showcmd.kind == crate::showcmd::ShowCmdKind::Keystroke {
+                let sequence = format!("{}{}", app.showcmd.text, text);
+                app.showcmd.record_action(&sequence, now);
+            } else if matches!(text, "d" | "c" | "y" | "g" | "z") {
+                app.showcmd.set_pending(text, now);
+            } else {
+                app.showcmd.record_action(text, now);
+            }
+        }
+    }
     if let Some(backend) = app.vim_runtime.backend.as_mut() {
         if let Err(error) = backend.handle_text(text) {
             app.set_status(&format!("Neovim input failed: {error}"), now);
@@ -87,7 +125,26 @@ fn send_text(app: &mut App, text: &str, now: f64) {
     }
 }
 
+fn send_paste(app: &mut App, text: &str, now: f64) {
+    if !text.is_empty() {
+        app.sound.play();
+        app.last_char_time = now;
+    }
+    if let Some(backend) = app.vim_runtime.backend.as_mut() {
+        if let Err(error) = backend.paste(text) {
+            app.set_status(&format!("Neovim input failed: {error}"), now);
+        }
+    } else if !app.vim_runtime.queue_input(PendingVimInput::Paste(text.into())) {
+        app.set_status("Neovim startup is taking too long; input queue is full", now);
+    }
+}
+
 fn send_key(app: &mut App, event: EditorKeyEvent, now: f64) {
+    app.sound.play();
+    app.last_char_time = now;
+    if app.vim_runtime.backend.as_ref().is_some_and(|backend| !backend.is_insert_mode()) {
+        app.showcmd.record_action(&format!("{:?}", event.key), now);
+    }
     if let Some(backend) = app.vim_runtime.backend.as_mut() {
         if let Err(error) = backend.handle_key(event) {
             app.set_status(&format!("Neovim input failed: {error}"), now);

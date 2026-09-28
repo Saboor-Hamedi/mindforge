@@ -927,6 +927,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
         if app.in_command {
             app.in_command = false;
             app.cmd_ed.clear();
+            app.cmd_prefix = ':';
             return Some(false);
         }
         if app.mode == Mode::ScanReport || app.mode == Mode::ScanHistory {

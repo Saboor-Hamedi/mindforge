@@ -25,6 +25,7 @@ pub trait EditorBackend {
         caret: &mut crate::caret::Caret,
         dt: f32,
         typed: bool,
+        show_line_numbers: bool,
     );
     fn tick(&mut self);
     fn mode(&self) -> EditorMode;

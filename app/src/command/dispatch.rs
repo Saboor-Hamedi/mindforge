@@ -476,10 +476,16 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                     }
                 }
                 _ => {
-                    app.set_status(
-                        format!("Unknown option: :set {}. Try :set nu / :set titlebar / :set sidebar / :set tabs / :set zen / :set ai / :set blur", opt),
-                        now,
-                    );
+                    if app.editor_controller.mode == crate::app::EditorInputMode::Vim {
+                        if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                            let _ = backend.send_input(&format!(":set {}<CR>", opt));
+                        }
+                    } else {
+                        app.set_status(
+                            format!("Unknown option: :set {}. Try :set nu / :set titlebar / :set sidebar / :set tabs / :set zen / :set ai / :set blur", opt),
+                            now,
+                        );
+                    }
                 }
             }
         }
@@ -1307,7 +1313,13 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
             std::process::exit(0);
         }
         _ => {
-            app.set_status(format!("Unknown command: :{}. Type :help", cmd), now);
+            if app.editor_controller.mode == crate::app::EditorInputMode::Vim {
+                if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                    let _ = backend.send_input(&format!(":{}<CR>", trimmed));
+                }
+            } else {
+                app.set_status(format!("Unknown command: :{}. Type :help", cmd), now);
+            }
         }
     }
 }
