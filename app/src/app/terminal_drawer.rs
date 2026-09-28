@@ -21,7 +21,7 @@ impl App {
             let panel_left = divider_rect.min.x;
             let panel_right = divider_rect.max.x;
             let knob_mid = pos2((panel_left + panel_right) * 0.5, mid_y);
-            let is_dragging = self.is_dragging_terminal_splitter;
+            let is_dragging = self.terminal.dragging_splitter;
             let knob_w = 36.0;
             let knob_h = if is_dragging { 6.0 } else { 4.0 };
             let knob_rect = Rect::from_center_size(knob_mid, vec2(knob_w, knob_h));
@@ -32,26 +32,26 @@ impl App {
             let primary_pressed = ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary));
 
             if is_knob_hovered && primary_pressed {
-                self.is_dragging_terminal_splitter = true;
+                self.terminal.dragging_splitter = true;
             }
 
-            if self.is_dragging_terminal_splitter {
+            if self.terminal.dragging_splitter {
                 if primary_down {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeRow);
                     if let Some(pos) = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos())) {
                         let term_pixel_h = editor_panel_rect.max.y - pos.y;
                         let raw_ratio = term_pixel_h / available_h;
-                        self.terminal_split_ratio = raw_ratio.clamp(0.12, 0.85);
+                        self.terminal.split_ratio = raw_ratio.clamp(0.12, 0.85);
                         ui.ctx().request_repaint();
                     }
                 } else {
-                    self.is_dragging_terminal_splitter = false;
+                    self.terminal.dragging_splitter = false;
                 }
             } else if is_knob_hovered {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeRow);
             }
 
-            let is_active = is_knob_hovered || self.is_dragging_terminal_splitter;
+            let is_active = is_knob_hovered || self.terminal.dragging_splitter;
 
             // Render tactile knob only — no harsh full-width line
             let active_knob_rect = if is_active {
@@ -63,13 +63,13 @@ impl App {
                 active_knob_rect,
                 2.5,
                 if is_active {
-                    self.theme.accent
+                    self.misc.theme.accent
                 } else {
-                    Color32::from_rgba_unmultiplied(self.theme.muted.r(), self.theme.muted.g(), self.theme.muted.b(), 100)
+                    Color32::from_rgba_unmultiplied(self.misc.theme.muted.r(), self.misc.theme.muted.g(), self.misc.theme.muted.b(), 100)
                 },
             );
 
-            let grip_color = self.theme.bg;
+            let grip_color = self.misc.theme.bg;
             for dx in [-5.0, 0.0, 5.0] {
                 painter.line_segment(
                     [pos2(knob_mid.x + dx, knob_mid.y - 1.2), pos2(knob_mid.x + dx, knob_mid.y + 1.2)],
@@ -77,26 +77,26 @@ impl App {
                 );
             }
 
-            if self.term_pane.is_none() {
-                self.term_pane = crate::ui::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.theme).ok();
+            if self.terminal.pane.is_none() {
+                self.terminal.pane = crate::ui::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.misc.theme).ok();
             }
-            if let Some(ref mut pane) = self.term_pane {
-                let action = pane.ui(ui, term_rect, &self.theme, self.font_size, self.terminal_focused, self.opacity);
+            if let Some(ref mut pane) = self.terminal.pane {
+                let action = pane.ui(ui, term_rect, &self.misc.theme, self.misc.font_size, self.terminal.focused, self.misc.opacity);
                 match action {
                     crate::ui::terminal_pane::TerminalAction::Close => {
-                        self.terminal_open = false;
-                        self.terminal_focused = false;
+                        self.terminal.open = false;
+                        self.terminal.focused = false;
                         self.set_status("Terminal closed", now);
                         ui.ctx().request_repaint();
                     }
                     crate::ui::terminal_pane::TerminalAction::RequestFocus => {
-                        self.terminal_focused = true;
+                        self.terminal.focused = true;
                     }
                     crate::ui::terminal_pane::TerminalAction::None => {}
                 }
             }
         } else {
-            self.is_dragging_terminal_splitter = false;
+            self.terminal.dragging_splitter = false;
         }
     }
 }

@@ -12,17 +12,17 @@ impl App {
         painter: &Painter,
         editor_panel_rect: Rect,
     ) {
-        match self.mode {
+        match self.misc.mode {
             Mode::ScanReport => {
                 crate::views::scan::render_scan_view(
                     ui,
                     painter,
                     editor_panel_rect,
-                    self.active_scan_result.as_ref(),
-                    self.active_scan_error.as_ref().map(|(u, e)| (u.as_str(), e.as_str())),
-                    &mut self.scan_report_scroll_y,
-                    &self.theme,
-                    self.font_size,
+                    self.scan.active_scan_result.as_ref(),
+                    self.scan.active_scan_error.as_ref().map(|(u, e)| (u.as_str(), e.as_str())),
+                    &mut self.scan.scan_report_scroll_y,
+                    &self.misc.theme,
+                    self.misc.font_size,
                 );
             }
             Mode::ScanHistory => {
@@ -30,14 +30,14 @@ impl App {
                     ui,
                     painter,
                     editor_panel_rect,
-                    &self.past_scans,
-                    &mut self.scan_history_selected,
-                    &mut self.scan_history_scroll_y,
-                    &self.theme,
-                    self.font_size,
+                    &self.scan.past_scans,
+                    &mut self.scan.scan_history_selected,
+                    &mut self.scan.scan_history_scroll_y,
+                    &self.misc.theme,
+                    self.misc.font_size,
                 );
                 if let Some(idx) = opened_idx {
-                    if let Some(record) = self.past_scans.get(idx) {
+                    if let Some(record) = self.scan.past_scans.get(idx) {
                         let findings: Vec<webscan::Finding> = serde_json::from_str(&record.findings_json).unwrap_or_default();
                         let result = webscan::ScanResult {
                             url: record.url.clone(),
@@ -49,10 +49,10 @@ impl App {
                             note: record.note.clone(),
                             findings,
                         };
-                        self.active_scan_result = Some(result);
-                        self.active_scan_error = None;
-                        self.scan_report_scroll_y = 0.0;
-                        self.mode = Mode::ScanReport;
+                        self.scan.active_scan_result = Some(result);
+                        self.scan.active_scan_error = None;
+                        self.scan.scan_report_scroll_y = 0.0;
+                        self.misc.mode = Mode::ScanReport;
                     }
                 }
             }

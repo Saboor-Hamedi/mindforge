@@ -53,20 +53,20 @@ impl VimRuntime {
 /// Run Vim startup, RPC synchronization, and shutdown at the app frame boundary.
 pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start: EditorInputMode) {
     let entering_vim = mode_at_frame_start == EditorInputMode::Vim
-        && app.editor_controller.last_observed_mode != EditorInputMode::Vim;
+        && app.services.editor_controller.last_observed_mode != EditorInputMode::Vim;
     if entering_vim {
-        app.caret.clear_transient_effects();
-        app.vim_runtime.start_error = None;
+        app.misc.caret.clear_transient_effects();
+        app.services.vim_runtime.start_error = None;
     }
 
     let mut vim_started_this_frame = false;
-    let startup_result = app.vim_runtime.start_rx.as_ref().map(|rx| rx.try_recv());
+    let startup_result = app.services.vim_runtime.start_rx.as_ref().map(|rx| rx.try_recv());
     match startup_result {
         Some(Ok(Ok(mut backend))) => {
             vim_started_this_frame = true;
-            app.vim_runtime.start_rx = None;
-            if app.editor_controller.mode == EditorInputMode::Vim {
-                let pending = std::mem::take(&mut app.vim_runtime.pending_input);
+            app.services.vim_runtime.start_rx = None;
+            if app.services.editor_controller.mode == EditorInputMode::Vim {
+                let pending = std::mem::take(&mut app.services.vim_runtime.pending_input);
                 for event in pending {
                     match event {
                         PendingVimInput::Text(text) => { let _ = backend.handle_text(&text); }
@@ -74,51 +74,51 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
                         PendingVimInput::Key(event) => { let _ = backend.handle_key(event); }
                     }
                 }
-                app.vim_runtime.backend = Some(backend);
-                app.vim_runtime.note_id = app.vim_runtime.start_note_id;
-                app.vim_runtime.tab_index = app.vim_runtime.start_tab_index;
+                app.services.vim_runtime.backend = Some(backend);
+                app.services.vim_runtime.note_id = app.services.vim_runtime.start_note_id;
+                app.services.vim_runtime.tab_index = app.services.vim_runtime.start_tab_index;
             } else {
                 backend.shutdown();
             }
         }
         Some(Ok(Err(error))) => {
-            app.vim_runtime.start_rx = None;
-            app.vim_runtime.start_error = Some(error.clone());
+            app.services.vim_runtime.start_rx = None;
+            app.services.vim_runtime.start_error = Some(error.clone());
             app.set_status(&format!("Neovim could not start: {error}"), now);
         }
         Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => {
-            app.vim_runtime.start_rx = None;
+            app.services.vim_runtime.start_rx = None;
             let error = "Neovim startup worker stopped unexpectedly".to_string();
-            app.vim_runtime.start_error = Some(error.clone());
+            app.services.vim_runtime.start_error = Some(error.clone());
             app.set_status(&error, now);
         }
         _ => {}
     }
 
-    if app.editor_controller.mode == EditorInputMode::Hybrid {
+    if app.services.editor_controller.mode == EditorInputMode::Hybrid {
         replay_pending_hybrid_input(app, now);
-        if let Some(mut backend) = app.vim_runtime.backend.take() {
+        if let Some(mut backend) = app.services.vim_runtime.backend.take() {
             backend.shutdown();
         }
     }
 
-    let vim_active = app.mode == Mode::Normal
-        && app.editor_controller.mode == EditorInputMode::Vim
-        && !app.show_welcome
+    let vim_active = app.misc.mode == Mode::Normal
+        && app.services.editor_controller.mode == EditorInputMode::Vim
+        && !app.misc.show_welcome
         && !app.open_notes.is_empty();
     if vim_active
-        && app.vim_runtime.backend.is_none()
-        && app.vim_runtime.start_rx.is_none()
-        && app.vim_runtime.start_error.is_none()
+        && app.services.vim_runtime.backend.is_none()
+        && app.services.vim_runtime.start_rx.is_none()
+        && app.services.vim_runtime.start_error.is_none()
     {
-        let text = app.ed.text();
-        let (row, column) = app.ed.row_col();
-        let note_id = app.active_note_id;
-        let tab_index = app.active_tab;
+        let text = app.editor.ed.text();
+        let (row, column) = app.editor.ed.row_col();
+        let note_id = app.notes.active_note_id;
+        let tab_index = app.tabs.active_tab;
         let (tx, rx) = std::sync::mpsc::channel();
-        app.vim_runtime.start_rx = Some(rx);
-        app.vim_runtime.start_note_id = note_id;
-        app.vim_runtime.start_tab_index = Some(tab_index);
+        app.services.vim_runtime.start_rx = Some(rx);
+        app.services.vim_runtime.start_note_id = note_id;
+        app.services.vim_runtime.start_tab_index = Some(tab_index);
         let start_context = ctx.clone();
         let repaint_context = ctx.clone();
         let spawn = std::thread::Builder::new()
@@ -129,35 +129,35 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
                 repaint_context.request_repaint();
             });
         if let Err(error) = spawn {
-            app.vim_runtime.start_rx = None;
-            app.vim_runtime.start_error = Some(error.to_string());
+            app.services.vim_runtime.start_rx = None;
+            app.services.vim_runtime.start_error = Some(error.to_string());
             app.set_status(&format!("Neovim worker could not start: {error}"), now);
         }
-    } else if vim_active && app.vim_runtime.backend.is_some() {
-        let switched_document = app.vim_runtime.note_id != app.active_note_id
-            || app.vim_runtime.tab_index != Some(app.active_tab);
+    } else if vim_active && app.services.vim_runtime.backend.is_some() {
+        let switched_document = app.services.vim_runtime.note_id != app.notes.active_note_id
+            || app.services.vim_runtime.tab_index != Some(app.tabs.active_tab);
         if switched_document || (entering_vim && !vim_started_this_frame) {
             if entering_vim {
-                if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     backend.tick();
                     let _ = backend.take_text_update();
                 }
             } else {
                 sync_neovim_changes(app, now);
             }
-            let (row, column) = app.ed.row_col();
-            if let Some(backend) = app.vim_runtime.backend.as_mut() {
-                let _ = backend.set_document(&app.ed.text(), row, column);
+            let (row, column) = app.editor.ed.row_col();
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                let _ = backend.set_document(&app.editor.ed.text(), row, column);
             }
-            app.vim_runtime.note_id = app.active_note_id;
-            app.vim_runtime.tab_index = Some(app.active_tab);
+            app.services.vim_runtime.note_id = app.notes.active_note_id;
+            app.services.vim_runtime.tab_index = Some(app.tabs.active_tab);
         }
     }
     sync_neovim_changes(app, now);
 }
 
 fn replay_pending_hybrid_input(app: &mut App, now: f64) {
-    let pending = std::mem::take(&mut app.vim_runtime.pending_input);
+    let pending = std::mem::take(&mut app.services.vim_runtime.pending_input);
     for event in pending {
         match event {
             PendingVimInput::Text(text) => crate::input::editor::handle_editor_text(app, &text, now),
@@ -168,23 +168,23 @@ fn replay_pending_hybrid_input(app: &mut App, now: f64) {
 }
 
 fn sync_neovim_changes(app: &mut App, now: f64) {
-    if app.editor_controller.mode != EditorInputMode::Vim {
+    if app.services.editor_controller.mode != EditorInputMode::Vim {
         return;
     }
     let (update, cursor, tab_index, note_id) = {
-        let Some(backend) = app.vim_runtime.backend.as_mut() else { return };
+        let Some(backend) = app.services.vim_runtime.backend.as_mut() else { return };
         backend.tick();
         let update = backend.take_text_update();
         let cursor = update.as_ref().map(|_| backend.cursor_char_index());
-        (update, cursor, app.vim_runtime.tab_index, app.vim_runtime.note_id)
+        (update, cursor, app.services.vim_runtime.tab_index, app.services.vim_runtime.note_id)
     };
     let changed = update.is_some();
-    if tab_index == Some(app.active_tab) && note_id == app.active_note_id {
-        if let Some(text) = update { app.ed.set_text(&text); }
-        if let Some(cursor) = cursor { app.ed.cur = cursor.min(app.ed.buf.len()); }
+    if tab_index == Some(app.tabs.active_tab) && note_id == app.notes.active_note_id {
+        if let Some(text) = update { app.editor.ed.set_text(&text); }
+        if let Some(cursor) = cursor { app.editor.ed.cur = cursor.min(app.editor.ed.buf.len()); }
         if changed {
-            app.is_dirty = true;
-            app.last_char_time = now;
+            app.editor.is_dirty = true;
+            app.misc.last_char_time = now;
         }
     } else if let Some(tab) = tab_index.and_then(|idx| app.open_notes.get_mut(idx)) {
         if note_id.is_none() || tab.id == note_id.unwrap_or_default() {

@@ -15,16 +15,16 @@ pub fn handle_event(
     has_text_event: bool,
     has_colon_text: bool,
 ) -> Option<bool> {
-    let owns_input = app.mode == Mode::Normal
-        && app.editor_controller.mode == EditorInputMode::Vim
-        && !app.show_welcome
+    let owns_input = app.misc.mode == Mode::Normal
+        && app.services.editor_controller.mode == EditorInputMode::Vim
+        && !app.misc.show_welcome
         && !app.open_notes.is_empty()
-        && !app.search_open
-        && !app.settings_open
-        && !app.rename_open
-        && !app.delete_confirm_open
-        && !app.accent_dropdown_open
-        && !app.wikilink_autocomplete.is_active;
+        && !app.modal.search_open
+        && !app.modal.settings_open
+        && !app.modal.rename_open
+        && !app.modal.delete_confirm_open
+        && !app.misc.accent_dropdown_open
+        && !app.services.wikilink_autocomplete.is_active;
     if !owns_input {
         return None;
     }
@@ -102,54 +102,54 @@ fn literal_key_text(key: egui::Key, shifted: bool) -> Option<String> {
 
 fn send_text(app: &mut App, text: &str, now: f64) {
     if !text.is_empty() {
-        app.sound.play();
-        app.last_char_time = now;
-        let normal_mode = app.vim_runtime.backend.as_ref().is_some_and(|backend| !backend.is_insert_mode());
+        app.misc.sound.play();
+        app.misc.last_char_time = now;
+        let normal_mode = app.services.vim_runtime.backend.as_ref().is_some_and(|backend| !backend.is_insert_mode());
         if normal_mode {
-            if app.showcmd.is_pending && app.showcmd.kind == crate::ui::showcmd::ShowCmdKind::Keystroke {
-                let sequence = format!("{}{}", app.showcmd.text, text);
-                app.showcmd.record_action(&sequence, now);
+            if app.misc.showcmd.is_pending && app.misc.showcmd.kind == crate::ui::showcmd::ShowCmdKind::Keystroke {
+                let sequence = format!("{}{}", app.misc.showcmd.text, text);
+                app.misc.showcmd.record_action(&sequence, now);
             } else if matches!(text, "d" | "c" | "y" | "g" | "z") {
-                app.showcmd.set_pending(text, now);
+                app.misc.showcmd.set_pending(text, now);
             } else {
-                app.showcmd.record_action(text, now);
+                app.misc.showcmd.record_action(text, now);
             }
         }
     }
-    if let Some(backend) = app.vim_runtime.backend.as_mut() {
+    if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
         if let Err(error) = backend.handle_text(text) {
             app.set_status(&format!("Neovim input failed: {error}"), now);
         }
-    } else if !app.vim_runtime.queue_input(PendingVimInput::Text(text.into())) {
+    } else if !app.services.vim_runtime.queue_input(PendingVimInput::Text(text.into())) {
         app.set_status("Neovim startup is taking too long; input queue is full", now);
     }
 }
 
 fn send_paste(app: &mut App, text: &str, now: f64) {
     if !text.is_empty() {
-        app.sound.play();
-        app.last_char_time = now;
+        app.misc.sound.play();
+        app.misc.last_char_time = now;
     }
-    if let Some(backend) = app.vim_runtime.backend.as_mut() {
+    if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
         if let Err(error) = backend.paste(text) {
             app.set_status(&format!("Neovim input failed: {error}"), now);
         }
-    } else if !app.vim_runtime.queue_input(PendingVimInput::Paste(text.into())) {
+    } else if !app.services.vim_runtime.queue_input(PendingVimInput::Paste(text.into())) {
         app.set_status("Neovim startup is taking too long; input queue is full", now);
     }
 }
 
 fn send_key(app: &mut App, event: EditorKeyEvent, now: f64) {
-    app.sound.play();
-    app.last_char_time = now;
-    if app.vim_runtime.backend.as_ref().is_some_and(|backend| !backend.is_insert_mode()) {
-        app.showcmd.record_action(&format!("{:?}", event.key), now);
+    app.misc.sound.play();
+    app.misc.last_char_time = now;
+    if app.services.vim_runtime.backend.as_ref().is_some_and(|backend| !backend.is_insert_mode()) {
+        app.misc.showcmd.record_action(&format!("{:?}", event.key), now);
     }
-    if let Some(backend) = app.vim_runtime.backend.as_mut() {
+    if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
         if let Err(error) = backend.handle_key(event) {
             app.set_status(&format!("Neovim input failed: {error}"), now);
         }
-    } else if !app.vim_runtime.queue_input(PendingVimInput::Key(event)) {
+    } else if !app.services.vim_runtime.queue_input(PendingVimInput::Key(event)) {
         app.set_status("Neovim startup is taking too long; input queue is full", now);
     }
 }

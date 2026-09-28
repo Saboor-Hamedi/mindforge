@@ -3,6 +3,7 @@
 mod app;
 pub mod accent;
 mod caret;
+pub mod state;
 pub mod command;
 mod editor;
 mod input;
@@ -61,7 +62,7 @@ fn main() -> eframe::Result<()> {
         options,
         Box::new(|cc| {
             let app = App::new();
-            services::font_manager::apply_font(&cc.egui_ctx, &app.selected_font);
+            services::font_manager::apply_font(&cc.egui_ctx, &app.misc.selected_font);
             Ok(Box::new(app))
         }),
     )

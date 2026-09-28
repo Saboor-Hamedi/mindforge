@@ -5,12 +5,12 @@ use crate::command::command_suggestion;
 use eframe::egui::{Key, Modifiers};
 
 fn update_command_hud(app: &mut App, now: f64) {
-    if app.cmd_prefix == ':' {
-        app.showcmd.set_command(&app.cmd_ed.text(), now);
+    if app.command_bar.prefix == ':' {
+        app.misc.showcmd.set_command(&app.editor.cmd_ed.text(), now);
     } else {
-        app.showcmd.set_search(&app.cmd_prefix.to_string(), &app.cmd_ed.text(), now);
-        if let Some(backend) = app.vim_runtime.backend.as_mut() {
-            if let Err(error) = backend.preview_search(&app.cmd_ed.text()) {
+        app.misc.showcmd.set_search(&app.command_bar.prefix.to_string(), &app.editor.cmd_ed.text(), now);
+        if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+            if let Err(error) = backend.preview_search(&app.editor.cmd_ed.text()) {
                 app.set_status(&format!("Neovim search preview failed: {error}"), now);
             }
         }
@@ -21,7 +21,7 @@ fn send_search_to_vim(app: &mut App, prefix: char, query: &str, now: f64) {
     if query.is_empty() {
         return;
     }
-    if let Some(backend) = app.vim_runtime.backend.as_mut() {
+    if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
         if let Err(error) = backend.search(query, prefix == '?') {
             app.set_status(&format!("Neovim search failed: {error}"), now);
         }
@@ -34,36 +34,36 @@ fn send_search_to_vim(app: &mut App, prefix: char, query: &str, now: f64) {
 pub fn handle_command_paste(app: &mut App, s: &str, now: f64) {
     for c in s.chars() {
         if c != '\n' && c != '\r' {
-            app.cmd_ed.insert(c);
+            app.editor.cmd_ed.insert(c);
         }
     }
-    app.cmd_selected_idx = 0;
-    app.cmd_navigated = false;
+    app.command_bar.selected_idx = 0;
+    app.command_bar.navigated = false;
     update_command_hud(app, now);
-    app.last_char_time = now;
+    app.misc.last_char_time = now;
 }
 
 /// Handles character typing into the command bar buffer.
 pub fn handle_command_text(app: &mut App, s: &str, now: f64) {
     for c in s.chars() {
-        app.cmd_ed.insert(c);
+        app.editor.cmd_ed.insert(c);
     }
-    app.cmd_selected_idx = 0;
-    app.cmd_navigated = false;
+    app.command_bar.selected_idx = 0;
+    app.command_bar.navigated = false;
     update_command_hud(app, now);
-    app.last_char_time = now;
+    app.misc.last_char_time = now;
 }
 
 /// Dispatches keystrokes in command mode: autocompletion, cursor movement, editing.
 pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64) {
-    if app.cmd_prefix != ':' && key == Key::Enter {
-        let prefix = app.cmd_prefix;
-        let query = app.cmd_ed.text();
-        app.in_command = false;
-        app.cmd_ed.clear();
-        app.cmd_prefix = ':';
-        app.showcmd.record_action(&format!("{}{}", prefix, query), now);
-        if let Some(backend) = app.vim_runtime.backend.as_mut() {
+    if app.command_bar.prefix != ':' && key == Key::Enter {
+        let prefix = app.command_bar.prefix;
+        let query = app.editor.cmd_ed.text();
+        app.command_bar.in_command = false;
+        app.editor.cmd_ed.clear();
+        app.command_bar.prefix = ':';
+        app.misc.showcmd.record_action(&format!("{}{}", prefix, query), now);
+        if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
             let _ = backend.clear_preview_search();
         }
         send_search_to_vim(app, prefix, &query, now);
@@ -77,87 +77,87 @@ pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f6
     // 2. Standard command line editing & navigation
     match key {
         Key::Escape => {
-            app.in_command = false;
-            app.cmd_navigated = false;
-            app.cmd_selected_idx = 0;
-            app.cmd_ed.clear();
-            app.showcmd.clear();
-            app.cmd_prefix = ':';
-            if let Some(backend) = app.vim_runtime.backend.as_mut() {
+            app.command_bar.in_command = false;
+            app.command_bar.navigated = false;
+            app.command_bar.selected_idx = 0;
+            app.editor.cmd_ed.clear();
+            app.misc.showcmd.clear();
+            app.command_bar.prefix = ':';
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                 let _ = backend.clear_preview_search();
             }
         }
         Key::Backspace if modifiers.ctrl => {
-            app.cmd_ed.delete_word();
-            app.cmd_selected_idx = 0;
-            app.cmd_navigated = false;
+            app.editor.cmd_ed.delete_word();
+            app.command_bar.selected_idx = 0;
+            app.command_bar.navigated = false;
             update_command_hud(app, now);
         }
         Key::Backspace => {
-            if app.cmd_ed.cur == 0 && !app.cmd_ed.has_selection() {
-                app.in_command = false;
-                app.cmd_selected_idx = 0;
-                app.cmd_navigated = false;
-                app.showcmd.clear();
-                app.cmd_prefix = ':';
-                if let Some(backend) = app.vim_runtime.backend.as_mut() {
+            if app.editor.cmd_ed.cur == 0 && !app.editor.cmd_ed.has_selection() {
+                app.command_bar.in_command = false;
+                app.command_bar.selected_idx = 0;
+                app.command_bar.navigated = false;
+                app.misc.showcmd.clear();
+                app.command_bar.prefix = ':';
+                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     let _ = backend.clear_preview_search();
                 }
             } else {
-                app.cmd_ed.backspace();
-                app.cmd_selected_idx = 0;
-                app.cmd_navigated = false;
+                app.editor.cmd_ed.backspace();
+                app.command_bar.selected_idx = 0;
+                app.command_bar.navigated = false;
                 update_command_hud(app, now);
             }
         }
         Key::Delete if modifiers.ctrl => {
-            app.cmd_ed.delete_word_forward();
-            app.cmd_selected_idx = 0;
-            app.cmd_navigated = false;
+            app.editor.cmd_ed.delete_word_forward();
+            app.command_bar.selected_idx = 0;
+            app.command_bar.navigated = false;
             update_command_hud(app, now);
         }
         Key::Delete => {
-            app.cmd_ed.delete();
-            app.cmd_selected_idx = 0;
-            app.cmd_navigated = false;
+            app.editor.cmd_ed.delete();
+            app.command_bar.selected_idx = 0;
+            app.command_bar.navigated = false;
             update_command_hud(app, now);
         }
         Key::ArrowLeft if modifiers.ctrl && modifiers.shift => {
-            app.cmd_ed.word_left_select();
+            app.editor.cmd_ed.word_left_select();
         }
         Key::ArrowLeft if modifiers.ctrl => {
-            app.cmd_ed.word_left();
+            app.editor.cmd_ed.word_left();
         }
         Key::ArrowLeft if modifiers.shift => {
-            app.cmd_ed.left_select();
+            app.editor.cmd_ed.left_select();
         }
         Key::ArrowLeft => {
-            app.cmd_ed.left();
+            app.editor.cmd_ed.left();
         }
         Key::ArrowRight if modifiers.ctrl && modifiers.shift => {
-            app.cmd_ed.word_right_select();
+            app.editor.cmd_ed.word_right_select();
         }
         Key::ArrowRight if modifiers.ctrl => {
-            app.cmd_ed.word_right();
+            app.editor.cmd_ed.word_right();
         }
         Key::ArrowRight if modifiers.shift => {
-            app.cmd_ed.right_select();
+            app.editor.cmd_ed.right_select();
         }
         Key::ArrowRight => {
-            app.cmd_ed.right();
+            app.editor.cmd_ed.right();
         }
         Key::Home => {
-            app.cmd_ed.home();
+            app.editor.cmd_ed.home();
         }
         Key::End => {
-            app.cmd_ed.end();
+            app.editor.cmd_ed.end();
         }
         Key::A if modifiers.ctrl => {
-            app.cmd_ed.select_all();
+            app.editor.cmd_ed.select_all();
         }
         Key::C if modifiers.ctrl => {
-            if let Some(t) = app.cmd_ed.selected_text() {
-                app.clipboard_text = Some(t.clone());
+            if let Some(t) = app.editor.cmd_ed.selected_text() {
+                app.misc.clipboard_text = Some(t.clone());
                 crate::input::global::set_win32_clipboard(&t);
             }
         }
@@ -177,47 +177,47 @@ mod tests {
     #[test]
     fn test_command_text_and_backspace() {
         let mut app = App::new();
-        app.in_command = true;
+        app.command_bar.in_command = true;
         handle_command_text(&mut app, "set nu", 0.0);
-        assert_eq!(app.cmd_ed.text(), "set nu");
-        assert_eq!(app.showcmd.text, ":set nu");
+        assert_eq!(app.editor.cmd_ed.text(), "set nu");
+        assert_eq!(app.misc.showcmd.text, ":set nu");
 
         handle_command_key(&mut app, Key::Backspace, Modifiers::NONE, 0.0);
-        assert_eq!(app.cmd_ed.text(), "set n");
+        assert_eq!(app.editor.cmd_ed.text(), "set n");
 
         handle_command_key(&mut app, Key::Escape, Modifiers::NONE, 0.0);
-        assert!(!app.in_command);
-        assert_eq!(app.cmd_ed.text(), "");
+        assert!(!app.command_bar.in_command);
+        assert_eq!(app.editor.cmd_ed.text(), "");
     }
 
     #[test]
     fn test_command_colon_input_no_freeze() {
         let mut app = App::new();
-        app.in_command = true;
+        app.command_bar.in_command = true;
         handle_command_text(&mut app, ":", 0.0);
-        assert_eq!(app.cmd_ed.text(), ":");
+        assert_eq!(app.editor.cmd_ed.text(), ":");
         handle_command_text(&mut app, "w", 0.0);
-        assert_eq!(app.cmd_ed.text(), ":w");
+        assert_eq!(app.editor.cmd_ed.text(), ":w");
     }
 
     #[test]
     fn test_command_navigation_and_tab_complete() {
         let mut app = App::new();
-        app.in_command = true;
+        app.command_bar.in_command = true;
         handle_command_text(&mut app, "s", 0.0);
 
         // Ctrl+J navigates down
         handle_command_key(&mut app, Key::J, Modifiers::CTRL, 0.0);
-        assert!(app.cmd_navigated);
+        assert!(app.command_bar.navigated);
 
         // Tab completes the selection
         handle_command_key(&mut app, Key::Tab, Modifiers::NONE, 0.0);
-        assert!(!app.cmd_ed.text().is_empty());
-        assert!(app.cmd_ed.text().starts_with("s"));
+        assert!(!app.editor.cmd_ed.text().is_empty());
+        assert!(app.editor.cmd_ed.text().starts_with("s"));
 
         // Enter records to history
         handle_command_key(&mut app, Key::Enter, Modifiers::NONE, 0.0);
-        assert!(!app.in_command);
-        assert!(!app.command_history.is_empty());
+        assert!(!app.command_bar.in_command);
+        assert!(!app.command_bar.history.is_empty());
     }
 }

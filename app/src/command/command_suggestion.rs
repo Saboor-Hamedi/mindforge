@@ -146,39 +146,39 @@ fn lookup_catalog_desc(cmd: &str) -> Option<&'static str> {
 /// Intercepts suggestion-specific keyboard shortcuts (navigation, completion, execution).
 /// Returns `true` if the key was handled, allowing `input.rs` to remain clean and DRY.
 pub fn handle_suggestion_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64) -> bool {
-    if app.cmd_prefix != ':' {
+    if app.command_bar.prefix != ':' {
         return false;
     }
-    let suggestions = get_filtered_suggestions(&app.cmd_ed.text(), &app.command_history);
+    let suggestions = get_filtered_suggestions(&app.editor.cmd_ed.text(), &app.command_bar.history);
 
     match key {
         Key::Enter => {
-            let cmd = if app.cmd_navigated && !suggestions.is_empty() {
-                if let Some(item) = suggestions.get(app.cmd_selected_idx) {
+            let cmd = if app.command_bar.navigated && !suggestions.is_empty() {
+                if let Some(item) = suggestions.get(app.command_bar.selected_idx) {
                     item.text.clone()
                 } else {
-                    app.cmd_ed.text()
+                    app.editor.cmd_ed.text()
                 }
             } else {
-                app.cmd_ed.text()
+                app.editor.cmd_ed.text()
             };
-            app.in_command = false;
-            app.cmd_navigated = false;
-            app.cmd_selected_idx = 0;
-            app.cmd_ed.clear();
-            record_history(&mut app.command_history, &cmd);
-            app.showcmd.record_action(&format!(":{}", cmd), now);
+            app.command_bar.in_command = false;
+            app.command_bar.navigated = false;
+            app.command_bar.selected_idx = 0;
+            app.editor.cmd_ed.clear();
+            record_history(&mut app.command_bar.history, &cmd);
+            app.misc.showcmd.record_action(&format!(":{}", cmd), now);
             execute_command(app, &cmd, now);
             true
         }
         Key::Tab => {
             if !suggestions.is_empty() {
-                let idx = app.cmd_selected_idx.min(suggestions.len() - 1);
+                let idx = app.command_bar.selected_idx.min(suggestions.len() - 1);
                 if let Some(item) = suggestions.get(idx) {
-                    app.cmd_ed.set_text(&item.text);
-                    app.cmd_ed.cur = app.cmd_ed.buf.len();
-                    app.cmd_navigated = false;
-                    app.showcmd.set_command(&app.cmd_ed.text(), now);
+                    app.editor.cmd_ed.set_text(&item.text);
+                    app.editor.cmd_ed.cur = app.editor.cmd_ed.buf.len();
+                    app.command_bar.navigated = false;
+                    app.misc.showcmd.set_command(&app.editor.cmd_ed.text(), now);
                 }
             }
             true
@@ -186,38 +186,38 @@ pub fn handle_suggestion_key(app: &mut App, key: Key, modifiers: Modifiers, now:
         // Down navigation: Ctrl+J or ArrowDown
         Key::J if modifiers.ctrl => {
             if !suggestions.is_empty() {
-                app.cmd_selected_idx = (app.cmd_selected_idx + 1) % suggestions.len();
-                app.cmd_navigated = true;
+                app.command_bar.selected_idx = (app.command_bar.selected_idx + 1) % suggestions.len();
+                app.command_bar.navigated = true;
             }
             true
         }
         Key::ArrowDown => {
             if !suggestions.is_empty() {
-                app.cmd_selected_idx = (app.cmd_selected_idx + 1) % suggestions.len();
-                app.cmd_navigated = true;
+                app.command_bar.selected_idx = (app.command_bar.selected_idx + 1) % suggestions.len();
+                app.command_bar.navigated = true;
             }
             true
         }
         // Up navigation: Ctrl+K or ArrowUp
         Key::K if modifiers.ctrl => {
             if !suggestions.is_empty() {
-                if app.cmd_selected_idx == 0 {
-                    app.cmd_selected_idx = suggestions.len().saturating_sub(1);
+                if app.command_bar.selected_idx == 0 {
+                    app.command_bar.selected_idx = suggestions.len().saturating_sub(1);
                 } else {
-                    app.cmd_selected_idx -= 1;
+                    app.command_bar.selected_idx -= 1;
                 }
-                app.cmd_navigated = true;
+                app.command_bar.navigated = true;
             }
             true
         }
         Key::ArrowUp => {
             if !suggestions.is_empty() {
-                if app.cmd_selected_idx == 0 {
-                    app.cmd_selected_idx = suggestions.len().saturating_sub(1);
+                if app.command_bar.selected_idx == 0 {
+                    app.command_bar.selected_idx = suggestions.len().saturating_sub(1);
                 } else {
-                    app.cmd_selected_idx -= 1;
+                    app.command_bar.selected_idx -= 1;
                 }
-                app.cmd_navigated = true;
+                app.command_bar.navigated = true;
             }
             true
         }
@@ -240,31 +240,31 @@ pub fn render_command_suggestions_overlay(
     dock_rect: Rect,
     now: f64,
 ) {
-    if !app.in_command || app.cmd_prefix != ':' {
+    if !app.command_bar.in_command || app.command_bar.prefix != ':' {
         return;
     }
 
-    let suggestions = get_filtered_suggestions(&app.cmd_ed.text(), &app.command_history);
+    let suggestions = get_filtered_suggestions(&app.editor.cmd_ed.text(), &app.command_bar.history);
     if let Some(action) = render_command_suggestions(
         ui,
         painter,
         dock_rect,
         &suggestions,
-        app.cmd_selected_idx,
-        &app.theme,
+        app.command_bar.selected_idx,
+        &app.misc.theme,
     ) {
         match action {
             SuggestionAction::Select(idx) => {
-                app.cmd_selected_idx = idx;
-                app.cmd_navigated = true;
+                app.command_bar.selected_idx = idx;
+                app.command_bar.navigated = true;
             }
             SuggestionAction::Execute(cmd) => {
-                app.in_command = false;
-                app.cmd_navigated = false;
-                app.cmd_selected_idx = 0;
-                app.cmd_ed.clear();
-                record_history(&mut app.command_history, &cmd);
-                app.showcmd.record_action(&format!(":{}", cmd), now);
+                app.command_bar.in_command = false;
+                app.command_bar.navigated = false;
+                app.command_bar.selected_idx = 0;
+                app.editor.cmd_ed.clear();
+                record_history(&mut app.command_bar.history, &cmd);
+                app.misc.showcmd.record_action(&format!(":{}", cmd), now);
                 execute_command(app, &cmd, now);
             }
         }

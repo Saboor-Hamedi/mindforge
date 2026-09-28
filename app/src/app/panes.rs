@@ -21,7 +21,7 @@ impl App {
         typed: bool,
     ) {
         // Docked bottom terminal layout: splits editor_panel_rect vertically so terminal sits under editor & preview
-        let (top_panel_rect, bottom_terminal_rect, term_splitter_rect_opt) = if self.terminal_open && (self.mode == Mode::Normal || self.mode == Mode::Doc) {
+        let (top_panel_rect, bottom_terminal_rect, term_splitter_rect_opt) = if self.terminal.open && (self.misc.mode == Mode::Normal || self.misc.mode == Mode::Doc) {
             let total_h = editor_panel_rect.height();
             let divider_h = 10.0;
             let tab_bar_h = crate::view_editor::TAB_ROW_H;
@@ -29,7 +29,7 @@ impl App {
             let available_h = (total_h - divider_h).max(min_top_h + 80.0);
             let min_h = 80.0f32;
             let max_h = (total_h - divider_h - min_top_h).max(min_h);
-            let term_h = (available_h * self.terminal_split_ratio).clamp(min_h, max_h);
+            let term_h = (available_h * self.terminal.split_ratio).clamp(min_h, max_h);
 
             let top_split_y = (editor_panel_rect.max.y - term_h - divider_h).max(editor_panel_rect.min.y + min_top_h);
             let top_rect = Rect::from_min_max(
@@ -50,14 +50,14 @@ impl App {
         };
 
         // Detached Editor & Preview Panel Surface (subtle card background & border derived from theme)
-        let is_preview_active = self.preview_open && self.mode == Mode::Normal;
+        let is_preview_active = self.editor.preview_open && self.misc.mode == Mode::Normal;
         let divider_w = 11.0;
         let available_w = (top_panel_rect.width() - divider_w).max(300.0);
         let min_w = 150.0f32;
         let min_right_w = 150.0f32;
         let max_w = (available_w - min_right_w).max(min_w);
         let left_w = if is_preview_active {
-            (available_w * self.split_ratio).clamp(min_w, max_w)
+            (available_w * self.editor.split_ratio).clamp(min_w, max_w)
         } else {
             top_panel_rect.width()
         };
@@ -77,11 +77,11 @@ impl App {
 
         // Draw card surfaces: preserve desktop blur & window opacity across editor and preview
         if let Some(p_card) = preview_card_rect {
-            let p_alpha = ((self.opacity * 255.0) as u8).saturating_sub(15).max(30);
+            let p_alpha = ((self.misc.opacity * 255.0) as u8).saturating_sub(15).max(30);
             let p_bg = Color32::from_rgba_unmultiplied(
-                self.theme.surface().r(),
-                self.theme.surface().g(),
-                self.theme.surface().b(),
+                self.misc.theme.surface().r(),
+                self.misc.theme.surface().g(),
+                self.misc.theme.surface().b(),
                 p_alpha,
             );
             painter.rect(p_card, 5.0, p_bg, Stroke::NONE, egui::StrokeKind::Inside);
@@ -93,14 +93,14 @@ impl App {
             pos2(ed_card_rect.max.x, ed_card_rect.min.y + crate::view_editor::TAB_ROW_H),
         );
 
-        let tab_occluded_rect = if self.settings_open
-            || self.search_open
-            || self.help_open
-            || self.rename_open
-            || self.delete_confirm_open
+        let tab_occluded_rect = if self.modal.settings_open
+            || self.modal.search_open
+            || self.modal.help_open
+            || self.modal.rename_open
+            || self.modal.delete_confirm_open
         {
             Some(bounds)
-        } else if self.accent_dropdown_open {
+        } else if self.misc.accent_dropdown_open {
             let min_x = (accent_anchor_rect.max.x - 320.0).max(8.0);
             let min_y = accent_anchor_rect.max.y + 4.0;
             Some(Rect::from_min_size(pos2(min_x, min_y), vec2(320.0, 400.0)))
@@ -108,9 +108,9 @@ impl App {
             None
         };
 
-        let are_tabs_visible = self.show_tabs;
+        let are_tabs_visible = self.misc.show_tabs;
         if are_tabs_visible {
-            if self.mode == Mode::Normal {
+            if self.misc.mode == Mode::Normal {
                 self.sync_active_tab();
                 let tab_items: Vec<crate::view_editor::TabItem> = self
                     .open_notes
@@ -119,13 +119,13 @@ impl App {
                     .map(|(idx, note)| crate::view_editor::TabItem {
                         title: &note.title,
                         is_dirty: note.is_dirty,
-                        is_active: idx == self.active_tab,
+                        is_active: idx == self.tabs.active_tab,
                     })
                     .collect();
 
-                let active_changed = self.active_tab != self.last_active_tab;
+                let active_changed = self.tabs.active_tab != self.tabs.last_active_tab;
                 if active_changed {
-                    self.last_active_tab = self.active_tab;
+                    self.tabs.last_active_tab = self.tabs.active_tab;
                 }
 
                 if let Some(action) = crate::view_editor::render_tab_bar(
@@ -133,8 +133,8 @@ impl App {
                     painter,
                     tab_bar_rect,
                     &tab_items,
-                    &self.theme,
-                    &mut self.tab_scroll_offset,
+                    &self.misc.theme,
+                    &mut self.tabs.tab_scroll_offset,
                     active_changed,
                     tab_occluded_rect,
                 ) {
@@ -147,10 +147,10 @@ impl App {
                         }
                     }
                 }
-            } else if self.mode == Mode::Doc {
+            } else if self.misc.mode == Mode::Doc {
                 let docs = crate::ui::docs::get_docs();
                 let tab_items: Vec<crate::view_editor::TabItem> = self
-                    .open_doc_tabs
+                    .tabs.open_doc_tabs
                     .iter()
                     .enumerate()
                     .map(|(idx, &doc_idx)| {
@@ -158,14 +158,14 @@ impl App {
                         crate::view_editor::TabItem {
                             title,
                             is_dirty: false,
-                            is_active: idx == self.active_doc_tab,
+                            is_active: idx == self.tabs.active_doc_tab,
                         }
                     })
                     .collect();
 
-                let active_doc_changed = self.active_doc_tab != self.last_active_doc_tab;
+                let active_doc_changed = self.tabs.active_doc_tab != self.tabs.last_active_doc_tab;
                 if active_doc_changed {
-                    self.last_active_doc_tab = self.active_doc_tab;
+                    self.tabs.last_active_doc_tab = self.tabs.active_doc_tab;
                 }
 
                 if let Some(action) = crate::view_editor::render_tab_bar(
@@ -173,8 +173,8 @@ impl App {
                     painter,
                     tab_bar_rect,
                     &tab_items,
-                    &self.theme,
-                    &mut self.doc_tab_scroll_offset,
+                    &self.misc.theme,
+                    &mut self.tabs.doc_tab_scroll_offset,
                     active_doc_changed,
                     tab_occluded_rect,
                 ) {
@@ -187,7 +187,7 @@ impl App {
                         }
                     }
                 }
-            } else if self.mode == Mode::Help {
+            } else if self.misc.mode == Mode::Help {
                 let tab_items = [crate::view_editor::TabItem {
                     title: "⚡ Quick Start",
                     is_dirty: false,
@@ -199,15 +199,15 @@ impl App {
                     painter,
                     tab_bar_rect,
                     &tab_items,
-                    &self.theme,
-                    &mut self.help_tab_scroll_offset,
+                    &self.misc.theme,
+                    &mut self.modal.help_tab_scroll_offset,
                     false,
                     tab_occluded_rect,
                 ) {
                     match action {
                         crate::view_editor::TabAction::Select(_) => {}
                         crate::view_editor::TabAction::Close(_) => {
-                            self.mode = Mode::Normal;
+                            self.misc.mode = Mode::Normal;
                             self.set_status("Closed Quick Start", now);
                         }
                     }
@@ -218,7 +218,7 @@ impl App {
         // Body area below tab strip (for editor, gutter, preview, help)
         let body_rect = if are_tabs_visible
             && !self.open_notes.is_empty()
-            && (self.mode == Mode::Normal || self.mode == Mode::Doc || self.mode == Mode::Help)
+            && (self.misc.mode == Mode::Normal || self.misc.mode == Mode::Doc || self.misc.mode == Mode::Help)
         {
             let body_min_y = tab_bar_rect.max.y;
             let body_max_y = top_panel_rect.max.y.max(body_min_y + 30.0);
@@ -237,7 +237,7 @@ impl App {
             let min_w = 150.0f32;
             let min_right_w = 150.0f32;
             let max_w = (available_w - min_right_w).max(min_w);
-            let left_w = (available_w * self.split_ratio).clamp(min_w, max_w);
+            let left_w = (available_w * self.editor.split_ratio).clamp(min_w, max_w);
 
             let left_rect = Rect::from_min_max(
                 body_rect.min,
@@ -255,58 +255,58 @@ impl App {
         } else {
             (body_rect, None, None)
         };
-        self.last_editor_rect = Some(actual_editor_rect);
+        self.editor.last_editor_rect = Some(actual_editor_rect);
 
-        let modals_open = self.settings_open
-            || self.search_open
-            || self.help_open
-            || self.rename_open
-            || self.delete_confirm_open
-            || self.accent_dropdown_open
-            || self.is_dragging_splitter
-            || self.is_dragging_sidebar_splitter
-            || self.is_dragging_terminal_splitter;
+        let modals_open = self.modal.settings_open
+            || self.modal.search_open
+            || self.modal.help_open
+            || self.modal.rename_open
+            || self.modal.delete_confirm_open
+            || self.misc.accent_dropdown_open
+            || self.editor.dragging_splitter
+            || self.sidebar.dragging_splitter
+            || self.terminal.dragging_splitter;
 
-        if self.mode == Mode::Normal || self.mode == Mode::Doc {
-            if self.zoom.handle_input(ui, actual_editor_rect, now, modals_open) {
-                if self.zoom.level == 1.0 {
+        if self.misc.mode == Mode::Normal || self.misc.mode == Mode::Doc {
+            if self.misc.zoom.handle_input(ui, actual_editor_rect, now, modals_open) {
+                if self.misc.zoom.level == 1.0 {
                     self.set_status("Editor zoom reset to 100% (Ctrl+0)", now);
                 }
             }
         }
 
-        let show_dashboard = self.mode == Mode::Normal && (self.show_welcome || self.open_notes.is_empty());
+        let show_dashboard = self.misc.mode == Mode::Normal && (self.misc.show_welcome || self.open_notes.is_empty());
 
-        let (ed_font_size, ed_cw, ed_lh) = self.zoom.editor_metrics(self.font_size, ui.ctx());
-        self.last_ed_font_size = Some(ed_font_size);
+        let (ed_font_size, ed_cw, ed_lh) = self.misc.zoom.editor_metrics(self.misc.font_size, ui.ctx());
+        self.editor.last_ed_font_size = Some(ed_font_size);
 
         // Keep visual lines updated to exact editor width
-        let target_ed = if self.mode == Mode::Doc { &self.doc_ed } else { &self.ed };
+        let target_ed = if self.misc.mode == Mode::Doc { &self.editor.doc_ed } else { &self.editor.ed };
         let effective_editor_w = actual_editor_rect.width();
 
         // In Vim mode Neovim owns the editor surface — skip the inline layout
         // computation entirely; it's expensive and serves no purpose here.
-        let in_vim_mode = self.editor_controller.mode == EditorInputMode::Vim
-            && self.mode == Mode::Normal;
+        let in_vim_mode = self.services.editor_controller.mode == EditorInputMode::Vim
+            && self.misc.mode == Mode::Normal;
 
-        self.visual_lines = if in_vim_mode {
-            vec![crate::types::VisualLine { char_start: 0, char_end: self.ed.buf.len() }]
-        } else if self.inline_mode {
-            let gutter_w = if self.show_line_numbers {
+        self.editor.visual_lines = if in_vim_mode {
+            vec![crate::types::VisualLine { char_start: 0, char_end: self.editor.ed.buf.len() }]
+        } else if self.editor.inline_mode {
+            let gutter_w = if self.editor.show_line_numbers {
                 let total_lines = (target_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
                 let digits = total_lines.to_string().len().max(2);
                 (digits as f32 * (ed_font_size * 0.55) + 14.0).max(28.0)
             } else {
                 0.0
             };
-            let pad_x = if self.show_line_numbers { 16.0 } else { 24.0 };
+            let pad_x = if self.editor.show_line_numbers { 16.0 } else { 24.0 };
             let pad_y = 10.0;
             let safe_w = effective_editor_w;
             let effective_gutter_w = if safe_w > gutter_w + 40.0 { gutter_w } else { 0.0 };
             let text_left = (actual_editor_rect.min.x + effective_gutter_w + pad_x).min(actual_editor_rect.max.x);
-            let curr_scroll_y = if self.mode == Mode::Doc { self.doc_scroll_y } else { self.scroll_y };
+            let curr_scroll_y = if self.misc.mode == Mode::Doc { self.editor.doc_scroll_y } else { self.editor.scroll_y };
             let ed_origin = pos2(text_left, actual_editor_rect.min.y - curr_scroll_y + pad_y);
-            self.last_ed_origin = Some(ed_origin);
+            self.editor.last_ed_origin = Some(ed_origin);
 
             let wrap_w = (effective_editor_w - effective_gutter_w - pad_x - 24.0).max(120.0);
             let inline_layout = crate::view_editor::inline::compute_inline_layout_ctx(
@@ -314,14 +314,14 @@ impl App {
                 target_ed,
                 wrap_w,
                 ed_font_size,
-                &self.theme,
+                &self.misc.theme,
                 text_left,
             );
             inline_layout.compute_visual_lines()
         } else {
             let total_lines = (target_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
             let digits = total_lines.to_string().len().max(2);
-            let gutter_space = if self.show_line_numbers {
+            let gutter_space = if self.editor.show_line_numbers {
                 (digits as f32 * ed_cw + 10.0).max(22.0) + 14.0
             } else {
                 22.0
@@ -332,16 +332,16 @@ impl App {
         };
 
         // Active View rendering delegated to dedicated view modules
-        match self.mode {
+        match self.misc.mode {
             Mode::Normal | Mode::Doc => {
-                let original_caret_kind = self.caret.kind;
-                let active_vim_mode = if self.editor_controller.mode == EditorInputMode::Vim {
-                    self.vim_runtime.backend.as_ref().map(|b| b.grid.mode.as_str())
+                let original_caret_kind = self.misc.caret.kind;
+                let active_vim_mode = if self.services.editor_controller.mode == EditorInputMode::Vim {
+                    self.services.vim_runtime.backend.as_ref().map(|b| b.grid.mode.as_str())
                 } else {
                     None
                 };
-                self.caret.kind = crate::caret::resolve_caret_kind(
-                    self.editor_controller.mode,
+                self.misc.caret.kind = crate::caret::resolve_caret_kind(
+                    self.services.editor_controller.mode,
                     active_vim_mode,
                     original_caret_kind,
                 );
@@ -352,7 +352,7 @@ impl App {
                     let panel_bottom = top_panel_rect.max.y;
                     let mid_x = divider_rect.center().x;
                     let knob_mid = pos2(mid_x, (panel_top + panel_bottom) * 0.5);
-                    let is_dragging = self.is_dragging_splitter;
+                    let is_dragging = self.editor.dragging_splitter;
                     let knob_w = if is_dragging { 6.0 } else { 4.0 };
                     let knob_h = 36.0;
                     let knob_rect = Rect::from_center_size(knob_mid, vec2(knob_w, knob_h));
@@ -364,26 +364,26 @@ impl App {
                     let primary_pressed = ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary));
 
                     if is_knob_hovered && primary_pressed {
-                        self.is_dragging_splitter = true;
+                        self.editor.dragging_splitter = true;
                     }
 
-                    if self.is_dragging_splitter {
+                    if self.editor.dragging_splitter {
                         if primary_down {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeColumn);
                             if let Some(pos) = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos())) {
                                 let raw_ratio = (pos.x - top_panel_rect.min.x - divider_w * 0.5) / available_w;
                                 let min_ratio = (150.0f32 / available_w).min(0.45);
                                 let max_ratio = (1.0 - 150.0f32 / available_w).max(min_ratio);
-                                self.split_ratio = raw_ratio.clamp(min_ratio, max_ratio);
+                                self.editor.split_ratio = raw_ratio.clamp(min_ratio, max_ratio);
                             }
                         } else {
-                            self.is_dragging_splitter = false;
+                            self.editor.dragging_splitter = false;
                         }
                     } else if is_knob_hovered {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeColumn);
                     }
 
-                    let is_active = is_knob_hovered || self.is_dragging_splitter;
+                    let is_active = is_knob_hovered || self.editor.dragging_splitter;
 
                     // Render tactile knob only — no harsh full-height line
                     let active_knob_rect = if is_active {
@@ -395,13 +395,13 @@ impl App {
                         active_knob_rect,
                         2.5,
                         if is_active {
-                            self.theme.accent
+                            self.misc.theme.accent
                         } else {
-                            Color32::from_rgba_unmultiplied(self.theme.muted.r(), self.theme.muted.g(), self.theme.muted.b(), 100)
+                            Color32::from_rgba_unmultiplied(self.misc.theme.muted.r(), self.misc.theme.muted.g(), self.misc.theme.muted.b(), 100)
                         },
                     );
 
-                    let grip_color = self.theme.bg;
+                    let grip_color = self.misc.theme.bg;
                     for dy in [-5.0, 0.0, 5.0] {
                         painter.line_segment(
                             [pos2(knob_mid.x - 1.2, knob_mid.y + dy), pos2(knob_mid.x + 1.2, knob_mid.y + dy)],
@@ -409,13 +409,13 @@ impl App {
                         );
                     }
                 } else {
-                    self.is_dragging_splitter = false;
+                    self.editor.dragging_splitter = false;
                 }
 
-                let (target_ed_mut, target_scroll_y) = if self.mode == Mode::Doc {
-                    (&mut self.doc_ed, &mut self.doc_scroll_y)
+                let (target_ed_mut, target_scroll_y) = if self.misc.mode == Mode::Doc {
+                    (&mut self.editor.doc_ed, &mut self.editor.doc_scroll_y)
                 } else {
-                    (&mut self.ed, &mut self.scroll_y)
+                    (&mut self.editor.ed, &mut self.editor.scroll_y)
                 };
 
                 let search_matches: Option<(&[usize], usize)> = None;
@@ -425,54 +425,54 @@ impl App {
                         ui,
                         painter,
                         actual_editor_rect,
-                        &self.theme,
-                        self.total_notes_count,
+                        &self.misc.theme,
+                        self.notes.total_notes_count,
                         modals_open,
                     ) {
                         match dash_action {
                             crate::views::dashboard::DashboardAction::NewNote => {
-                                self.show_welcome = false;
+                                self.misc.show_welcome = false;
                                 self.create_new_note(now);
                             }
                             crate::views::dashboard::DashboardAction::FindNote => {
-                                self.search_open = true;
-                                self.search_just_opened = true;
+                                self.modal.search_open = true;
+                                self.modal.search_just_opened = true;
                             }
                             crate::views::dashboard::DashboardAction::OpenRecent(id) => {
-                                self.show_welcome = false;
+                                self.misc.show_welcome = false;
                                 self.open_note_by_id(id, now);
                             }
                             crate::views::dashboard::DashboardAction::OpenTerminal => {
-                                self.terminal_open = true;
-                                self.terminal_focused = true;
+                                self.terminal.open = true;
+                                self.terminal.focused = true;
                             }
                             crate::views::dashboard::DashboardAction::OpenAi => {
-                                self.preview_open = true;
-                                self.right_pane_tab = crate::app::RightPaneTab::AiAgent;
-                                self.agent_state.is_open = true;
+                                self.editor.preview_open = true;
+                                self.right_pane.tab = crate::app::RightPaneTab::AiAgent;
+                                self.services.agent_state.is_open = true;
                             }
                             crate::views::dashboard::DashboardAction::OpenDocs => {
-                                self.show_welcome = false;
-                                self.mode = Mode::Doc;
+                                self.misc.show_welcome = false;
+                                self.misc.mode = Mode::Doc;
                             }
                             crate::views::dashboard::DashboardAction::OpenSettings => {
-                                self.settings_open = true;
-                                self.settings_just_opened = true;
+                                self.modal.settings_open = true;
+                                self.modal.settings_just_opened = true;
                             }
                             crate::views::dashboard::DashboardAction::ToggleZen => {
-                                self.zen_mode = !self.zen_mode;
-                                if self.zen_mode {
-                                    self.show_titlebar = false;
-                                    self.show_tabs = false;
-                                    self.sidebar_open = false;
-                                    self.preview_open = false;
+                                self.misc.zen_mode = !self.misc.zen_mode;
+                                if self.misc.zen_mode {
+                                    self.misc.show_titlebar = false;
+                                    self.misc.show_tabs = false;
+                                    self.sidebar.open = false;
+                                    self.editor.preview_open = false;
                                 } else {
-                                    self.show_titlebar = true;
-                                    self.show_tabs = true;
+                                    self.misc.show_titlebar = true;
+                                    self.misc.show_tabs = true;
                                 }
-                                let _ = self.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
+                                let _ = self.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                                     key: "zen_mode".into(),
-                                    val: if self.zen_mode { "true" } else { "false" }.into(),
+                                    val: if self.misc.zen_mode { "true" } else { "false" }.into(),
                                 });
                             }
                             crate::views::dashboard::DashboardAction::Quit => {
@@ -480,53 +480,53 @@ impl App {
                             }
                         }
                     }
-                } else if self.editor_controller.mode == EditorInputMode::Vim
-                    && self.mode == Mode::Normal
-                    && self.vim_runtime.backend.is_none()
-                    && self.vim_runtime.start_error.is_some()
+                } else if self.services.editor_controller.mode == EditorInputMode::Vim
+                    && self.misc.mode == Mode::Normal
+                    && self.services.vim_runtime.backend.is_none()
+                    && self.services.vim_runtime.start_error.is_some()
                 {
                     ui.vertical_centered(|ui| {
-                        if let Some(error) = &self.vim_runtime.start_error {
-                            ui.colored_label(self.theme.highlight, format!("Neovim could not start: {error}"));
+                        if let Some(error) = &self.services.vim_runtime.start_error {
+                            ui.colored_label(self.misc.theme.highlight, format!("Neovim could not start: {error}"));
                         }
                     });
-                } else if self.vim_runtime.backend.is_some() && self.editor_controller.mode == EditorInputMode::Vim {
-                    if let Some(backend) = self.vim_runtime.backend.as_mut() {
+                } else if self.services.vim_runtime.backend.is_some() && self.services.editor_controller.mode == EditorInputMode::Vim {
+                    if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
                         backend.render_in_rect(
                             ui,
                             actual_editor_rect,
                             ed_font_size,
                             ed_cw,
                             ed_lh,
-                            &self.theme,
-                            &mut self.caret,
+                            &self.misc.theme,
+                            &mut self.misc.caret,
                             dt,
                             typed,
-                            self.show_line_numbers,
+                            self.editor.show_line_numbers,
                         );
                     }
-                } else if self.inline_mode {
+                } else if self.editor.inline_mode {
                     render_inline_editor(
                         ui,
                         painter,
                         bounds,
                         actual_editor_rect,
                         target_ed_mut,
-                        &mut self.caret,
+                        &mut self.misc.caret,
                         target_scroll_y,
-                        &self.theme,
+                        &self.misc.theme,
                         ed_font_size,
                         dt,
                         now,
                         typed,
                         any_modal_open
-                            || self.is_dragging_splitter
-                            || self.is_dragging_sidebar_splitter
-                            || self.hover_wikilink.is_mouse_inside_popup,
+                            || self.editor.dragging_splitter
+                            || self.sidebar.dragging_splitter
+                            || self.services.hover_wikilink.is_mouse_inside_popup,
                         search_matches,
-                        self.show_line_numbers,
-                        &mut self.sound,
-                        &mut self.is_dirty,
+                        self.editor.show_line_numbers,
+                        &mut self.misc.sound,
+                        &mut self.editor.is_dirty,
                     );
                 } else {
                     render_editor_body(
@@ -535,10 +535,10 @@ impl App {
                         bounds,
                         actual_editor_rect,
                         target_ed_mut,
-                        &self.visual_lines,
-                        &mut self.caret,
+                        &self.editor.visual_lines,
+                        &mut self.misc.caret,
                         target_scroll_y,
-                        &self.theme,
+                        &self.misc.theme,
                         ed_font_size,
                         ed_cw,
                         ed_lh,
@@ -546,30 +546,30 @@ impl App {
                         now,
                         typed,
                         any_modal_open
-                            || self.is_dragging_splitter
-                            || self.is_dragging_sidebar_splitter
-                            || self.hover_wikilink.is_mouse_inside_popup,
+                            || self.editor.dragging_splitter
+                            || self.sidebar.dragging_splitter
+                            || self.services.hover_wikilink.is_mouse_inside_popup,
                         search_matches,
-                        self.show_line_numbers,
+                        self.editor.show_line_numbers,
                         active_vim_mode,
                     );
                 }
-                self.caret.kind = original_caret_kind;
+                self.misc.caret.kind = original_caret_kind;
 
                 // Center-editor Zoom Percentage HUD
-                self.zoom.render_hud(ui, painter, actual_editor_rect, &self.theme, now);
+                self.misc.zoom.render_hud(ui, painter, actual_editor_rect, &self.misc.theme, now);
 
                 // Render Right Pane (Markdown Preview, AI Agent, Backlinks, Outline) side-by-side if active
                 self.render_right_pane_tabs(ui, painter, preview_rect_opt, any_modal_open, ed_font_size, now);
 
                 // Floating Keystroke Card (Vim showcmd)
-                if !show_dashboard && self.editor_controller.mode == EditorInputMode::Vim {
+                if !show_dashboard && self.services.editor_controller.mode == EditorInputMode::Vim {
                     let card_anchor = pos2(actual_editor_rect.max.x - 16.0, actual_editor_rect.max.y - 20.0);
-                    self.showcmd.render_card(painter, card_anchor, &self.theme, now);
+                    self.misc.showcmd.render_card(painter, card_anchor, &self.misc.theme, now);
                 }
 
                 if ui.rect_contains_pointer(actual_editor_rect) && ui.input(|i| i.pointer.primary_clicked()) {
-                    self.terminal_focused = false;
+                    self.terminal.focused = false;
                     ui.memory_mut(|m| m.surrender_focus(egui::Id::new("deepseek_prompt_input")));
                 }
 
@@ -588,12 +588,12 @@ impl App {
                     ui,
                     painter,
                     body_rect,
-                    &mut self.help_scroll_y,
-                    &self.theme,
-                    self.font_size,
+                    &mut self.modal.help_scroll_y,
+                    &self.misc.theme,
+                    self.misc.font_size,
                 );
                 if action.should_close {
-                    self.mode = Mode::Normal;
+                    self.misc.mode = Mode::Normal;
                     self.set_status("Closed Quick Start", now);
                 }
             }
@@ -604,13 +604,13 @@ impl App {
                 self.render_scan_panes(ui, painter, editor_panel_rect);
             }
             Mode::Terminal => {
-                if self.term_pane.is_none() {
-                    self.term_pane = crate::ui::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.theme).ok();
+                if self.terminal.pane.is_none() {
+                    self.terminal.pane = crate::ui::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.misc.theme).ok();
                 }
-                if let Some(ref mut pane) = self.term_pane {
-                    let action = pane.ui(ui, editor_panel_rect, &self.theme, self.font_size, true, self.opacity);
+                if let Some(ref mut pane) = self.terminal.pane {
+                    let action = pane.ui(ui, editor_panel_rect, &self.misc.theme, self.misc.font_size, true, self.misc.opacity);
                     if action == crate::ui::terminal_pane::TerminalAction::Close {
-                        self.mode = self.prev_mode_before_term;
+                        self.misc.mode = self.terminal.prev_mode_before_term;
                         self.set_status("Exited terminal", now);
                         ui.ctx().request_repaint();
                     }
@@ -619,8 +619,8 @@ impl App {
                         editor_panel_rect.center(),
                         egui::Align2::CENTER_CENTER,
                         "Failed to initialize terminal session.",
-                        FontId::monospace(self.font_size),
-                        self.theme.muted,
+                        FontId::monospace(self.misc.font_size),
+                        self.misc.theme.muted,
                     );
                 }
             }

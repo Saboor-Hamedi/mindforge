@@ -15,11 +15,11 @@ impl App {
         render_stats(
             ui,
             editor_panel_rect,
-            &self.today_activity,
-            &self.activity_history,
-            self.lifetime_activity,
-            self.total_notes_count,
-            &self.theme,
+            &self.activity.today_activity,
+            &self.activity.activity_history,
+            self.activity.lifetime_activity,
+            self.notes.total_notes_count,
+            &self.misc.theme,
             &today_str,
             &yest_str,
         );

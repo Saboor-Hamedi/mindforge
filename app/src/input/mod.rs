@@ -27,30 +27,30 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         };
         (pressed(egui::Key::P, false), pressed(egui::Key::P, true))
     });
-    let other_modal_open = app.settings_open
-        || app.rename_open
-        || app.delete_confirm_open
-        || app.accent_dropdown_open;
+    let other_modal_open = app.modal.settings_open
+        || app.modal.rename_open
+        || app.modal.delete_confirm_open
+        || app.misc.accent_dropdown_open;
     if !other_modal_open && ctrl_shift_p {
-        if app.search_open && app.search_query.starts_with('>') {
-            app.search_open = false;
+        if app.modal.search_open && app.modal.search_query.starts_with('>') {
+            app.modal.search_open = false;
         } else {
-            app.search_open = true;
-            app.search_query = ">".to_string();
-            app.search_selected = 0;
-            app.search_just_opened = true;
+            app.modal.search_open = true;
+            app.modal.search_query = ">".to_string();
+            app.modal.search_selected = 0;
+            app.modal.search_just_opened = true;
             app.update_search_results();
         }
         return false;
     }
     if !other_modal_open && ctrl_p {
-        if app.search_open && !app.search_query.starts_with('>') {
-            app.search_open = false;
+        if app.modal.search_open && !app.modal.search_query.starts_with('>') {
+            app.modal.search_open = false;
         } else {
-            app.search_open = true;
-            app.search_query.clear();
-            app.search_selected = 0;
-            app.search_just_opened = true;
+            app.modal.search_open = true;
+            app.modal.search_query.clear();
+            app.modal.search_selected = 0;
+            app.modal.search_just_opened = true;
             app.update_search_results();
         }
         return false;
@@ -62,8 +62,8 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
     }
 
     let mut typed = false;
-    let vim_normal_mode = app.editor_controller.mode == crate::app::EditorInputMode::Vim
-        && app.vim_runtime.backend.as_ref().is_none_or(|backend| !backend.is_insert_mode());
+    let vim_normal_mode = app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
+        && app.services.vim_runtime.backend.as_ref().is_none_or(|backend| !backend.is_insert_mode());
 
     // 2. Dispatch events for either command bar, focused terminal, or active editor
     ctx.input(|i| {
@@ -76,19 +76,19 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         });
         let has_text_event = i.events.iter().any(|event| matches!(event, egui::Event::Text(text) if !text.is_empty()));
         for ev in &i.events {
-            let command_surface_active = app.mode == Mode::Normal
-                && !app.show_welcome
+            let command_surface_active = app.misc.mode == Mode::Normal
+                && !app.misc.show_welcome
                 && !app.open_notes.is_empty()
-                && !app.terminal_focused
-                && !app.search_open
-                && !app.settings_open
-                && !app.rename_open
-                && !app.delete_confirm_open
-                && !app.accent_dropdown_open
-                && !app.wikilink_autocomplete.is_active;
+                && !app.terminal.focused
+                && !app.modal.search_open
+                && !app.modal.settings_open
+                && !app.modal.rename_open
+                && !app.modal.delete_confirm_open
+                && !app.misc.accent_dropdown_open
+                && !app.services.wikilink_autocomplete.is_active;
             let command_prefix = match ev {
                 egui::Event::Text(text) if text == ":"
-                    && (app.editor_controller.mode != crate::app::EditorInputMode::Vim || vim_normal_mode) => Some(':'),
+                    && (app.services.editor_controller.mode != crate::app::EditorInputMode::Vim || vim_normal_mode) => Some(':'),
                 egui::Event::Text(text) if text == "/" && vim_normal_mode => Some('/'),
                 egui::Event::Text(text) if text == "?"
                     && vim_normal_mode => Some('?'),
@@ -100,21 +100,21 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                     Some(if modifiers.shift { '?' } else { '/' }),
                 _ => None,
             };
-            if !app.in_command && command_surface_active && command_prefix.is_some() {
-                app.in_command = true;
-                app.cmd_prefix = command_prefix.unwrap_or(':');
-                app.cmd_ed.clear();
-                app.cmd_selected_idx = 0;
-                app.cmd_navigated = false;
-                if app.cmd_prefix == ':' {
-                    app.showcmd.set_command("", now);
+            if !app.command_bar.in_command && command_surface_active && command_prefix.is_some() {
+                app.command_bar.in_command = true;
+                app.command_bar.prefix = command_prefix.unwrap_or(':');
+                app.editor.cmd_ed.clear();
+                app.command_bar.selected_idx = 0;
+                app.command_bar.navigated = false;
+                if app.command_bar.prefix == ':' {
+                    app.misc.showcmd.set_command("", now);
                 } else {
-                    app.showcmd.set_search(&app.cmd_prefix.to_string(), "", now);
+                    app.misc.showcmd.set_search(&app.command_bar.prefix.to_string(), "", now);
                 }
                 typed = true;
                 continue;
             }
-            if app.in_command {
+            if app.command_bar.in_command {
                 match ev {
                     egui::Event::Paste(s) => {
                         crate::command::input::handle_command_paste(app, s, now);
@@ -130,29 +130,29 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                     }
                     _ => {}
                 }
-            } else if app.terminal_open && app.terminal_focused {
+            } else if app.terminal.open && app.terminal.focused {
                 if let egui::Event::Key { key: egui::Key::Escape, pressed: true, modifiers, .. } = ev {
                     if !modifiers.ctrl && !modifiers.shift && !modifiers.alt {
-                        app.terminal_focused = false;
+                        app.terminal.focused = false;
                         app.set_status("Editor focused (Ctrl+J to return to terminal)", now);
                         continue;
                     }
                 }
-                if let Some(ref mut pane) = app.term_pane {
+                if let Some(ref mut pane) = app.terminal.pane {
                     pane.feed_event(ev, i.modifiers);
                 }
             } else if let Some(vim_typed) = crate::vim::input::handle_event(app, ev, now, has_text_event, has_colon_text) {
                 typed |= vim_typed;
-            } else if app.mode == Mode::Normal && (app.show_welcome || app.open_notes.is_empty()) {
+            } else if app.misc.mode == Mode::Normal && (app.misc.show_welcome || app.open_notes.is_empty()) {
                 // When on Welcome dashboard, hotkeys are handled directly by the dashboard or modals
-                if app.editor_controller.mode == crate::app::EditorInputMode::Vim {
+                if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
                     if let egui::Event::Text(ref s) = ev {
                         if s == ":" {
-                            app.in_command = true;
-                            app.cmd_ed.clear();
-                            app.cmd_selected_idx = 0;
-                            app.cmd_navigated = false;
-                            app.showcmd.set_command("", now);
+                            app.command_bar.in_command = true;
+                            app.editor.cmd_ed.clear();
+                            app.command_bar.selected_idx = 0;
+                            app.command_bar.navigated = false;
+                            app.misc.showcmd.set_command("", now);
                             typed = true;
                         }
                     }
@@ -186,7 +186,7 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
     });
 
     if typed && !app.open_notes.is_empty() {
-        app.show_welcome = false;
+        app.misc.show_welcome = false;
     }
 
     typed
