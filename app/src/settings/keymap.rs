@@ -4,7 +4,7 @@
 //! Allows seamless customization or remapping of shortcuts by users without
 //! altering underlying engine or motion logic.
 
-use crate::vim::types::{
+use crate::settings::types::{
     InsertPosition, TextObjectKind, VimAction, VimMotion, VimOperator,
 };
 use eframe::egui::Key;

@@ -1401,3 +1401,9 @@ Neovim
 ```
 
 while leaving the rest of the application completely intact.
+----
+
+
+we already implemented the core bridge between egui, the Rust Vim backend, and Neovim.
+
+we need polish-1.md

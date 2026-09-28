@@ -25,18 +25,13 @@ use crate::sound::SoundEngine;
 use crate::theme::Theme;
 use eframe::egui::{Pos2, Rect};
 use crate::updater::UpdateManager;
-use crate::vim::VimEngine;
 
 use core::{DailyActivity, Database, Note};
 use eframe::egui::{self, Color32, FontId};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EditorInputMode {
-    Hybrid,
-    Vim,
-}
+pub use crate::editor::types::EditorMode as EditorInputMode;
 
 #[derive(Clone)]
 pub struct OpenNote {
@@ -94,7 +89,8 @@ pub struct App {
     pub active_setting_tab: SettingTab,
     pub backup_dir: String,
     pub last_backup_status: Option<String>,
-    pub keybind_capture: Option<crate::vim::keymap::KeybindCapture>,
+    pub keybind_capture: Option<crate::settings::keymap::KeybindCapture>,
+    pub keymap: crate::settings::keymap::VimKeymap,
 
     // Fuzzy search modal (Ctrl+P)
     pub search_open: bool,
@@ -157,9 +153,9 @@ pub struct App {
     pub db_tx: Sender<DbMsg>,
 
     // Active editing mode (Hybrid vs Vim)
-    pub editor_input_mode: EditorInputMode,
+    pub editor_controller: crate::editor::controller::EditorController,
+    pub vim_runtime: crate::vim::VimRuntime,
     pub hybrid: HybridEngine,
-    pub vim: VimEngine,
     pub showcmd: crate::showcmd::ShowCmdState,
 
     // Daily Activity & Writing Story tracking
@@ -267,6 +263,8 @@ impl eframe::App for App {
 
         let now = ctx.input(|i| i.time);
         let dt = ctx.input(|i| i.unstable_dt).clamp(0.0, 0.05);
+        let mode_at_frame_start = self.editor_controller.mode;
+        crate::vim::runtime::update(self, ctx, now, mode_at_frame_start);
 
         // Precompute visual lines so keyboard navigation (ArrowUp, ArrowDown, PageUp, PageDown) uses accurate visual layout
         let (cw, _) = self.cell_size(ctx);
@@ -289,7 +287,10 @@ impl eframe::App for App {
         };
         let (ed_font_size, _, _) = self.zoom.editor_metrics(self.font_size, ctx);
         let active_ed = if self.mode == Mode::Doc { &self.doc_ed } else { &self.ed };
-        self.visual_lines = if self.inline_mode {
+        let in_vim = self.editor_controller.mode == EditorInputMode::Vim && self.mode == Mode::Normal;
+        self.visual_lines = if in_vim {
+            vec![crate::types::VisualLine { char_start: 0, char_end: self.ed.buf.len() }]
+        } else if self.inline_mode {
             let gutter_w = if self.show_line_numbers {
                 let total_lines = (active_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
                 let digits = total_lines.to_string().len().max(2);
@@ -368,11 +369,6 @@ impl eframe::App for App {
             self.sync_save_session();
         }
 
-        // Live fuzzy search filter update
-        if self.search_open {
-            self.update_search_results();
-        }
-
         // Check Webscan background worker channel
         if let Some(ref rx) = self.scan_rx {
             if let Ok(msg) = rx.try_recv() {
@@ -421,12 +417,20 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 self.draw(ui, dt, now, typed);
             });
+        // Defer recording transitions performed during this frame until the
+        // next update, where the newly selected backend can reconcile state.
+        self.editor_controller.last_observed_mode = mode_at_frame_start;
 
         // Repaint gating: animate caret at high rate; command/modal at ~60fps; idle at 100ms.
         // Do NOT call request_repaint() (unbounded) for command mode — it starves the Windows
         // message pump and causes "Not Responding" when `:` is typed.
         let focused = ctx.input(|i| i.focused);
-        if focused && self.caret.is_animating(now) {
+        let caret_animating = self.caret.is_animating(now);
+        if focused && caret_animating {
+            ctx.request_repaint_after(Duration::from_millis(8));
+        } else if focused && typed {
+            // Give queued Neovim input/redraws a quick follow-up frame without
+            // running the egui loop continuously while Vim mode is idle.
             ctx.request_repaint_after(Duration::from_millis(8));
         } else if focused
             && (self.in_command

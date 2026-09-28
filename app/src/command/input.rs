@@ -111,8 +111,6 @@ pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f6
         Key::C if modifiers.ctrl => {
             if let Some(t) = app.cmd_ed.selected_text() {
                 app.clipboard_text = Some(t.clone());
-                app.vim.register = t.clone();
-                app.vim.register_is_line = false;
                 crate::input::global::set_win32_clipboard(&t);
             }
         }

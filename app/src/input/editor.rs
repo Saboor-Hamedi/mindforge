@@ -1,14 +1,13 @@
-//! Editor mode (Normal, Vim, Hybrid, Doc) typing, paste, and navigation routing.
+//! Editor mode typing, paste, and navigation routing for Hybrid mode and Doc mode.
+//! Vim mode input is routed directly to the embedded Neovim backend.
 
 use crate::app::{App, EditorInputMode};
 use crate::mode::Mode;
-use crate::vim::VimSubMode;
 use eframe::egui::{Key, Modifiers};
 
 pub fn handle_mode_enter(app: &mut App, _now: f64) {
     if app.mode == Mode::Normal {
-        // Auto-indent and auto-continuing lists apply in INSERT mode
-        if app.editor_input_mode == EditorInputMode::Vim && app.vim.mode != VimSubMode::Insert {
+        if app.editor_controller.mode == EditorInputMode::Vim {
             return;
         }
         app.ed.handle_enter();
@@ -18,14 +17,15 @@ pub fn handle_mode_enter(app: &mut App, _now: f64) {
 
 pub fn handle_editor_paste(app: &mut App, s: &str, now: f64) -> bool {
     if app.mode == Mode::Normal {
+        if app.editor_controller.mode == EditorInputMode::Vim {
+            return false;
+        }
         for c in s.chars() {
             if c == '\r' {
                 continue;
             }
             app.ed.insert(c);
         }
-        // Play ONE sound for the entire paste — not per character.
-        // Pasting 20k chars must not fire the audio engine 20k times.
         if !s.is_empty() {
             app.sound.play();
         }
@@ -37,130 +37,46 @@ pub fn handle_editor_paste(app: &mut App, s: &str, now: f64) -> bool {
 }
 
 pub fn handle_editor_text(app: &mut App, s: &str, now: f64) -> bool {
-    if app.editor_input_mode == EditorInputMode::Vim && (app.mode == Mode::Normal || app.mode == Mode::Doc) {
-        if s == ":" && app.vim.mode == VimSubMode::Normal {
-            app.in_command = true;
-            app.cmd_ed.clear();
-            app.cmd_selected_idx = 0;
-            app.cmd_navigated = false;
-            app.showcmd.set_command("", now);
-            return true;
-        } else if app.mode == Mode::Doc {
-            let mut typed = false;
-            for c in s.chars() {
-                if c == '\r' || c == '\n' {
-                    continue;
-                }
-                // Only block editing chars when Vim is in Normal sub-mode.
-                // In Visual, Search, or operator-pending modes, chars like 'i', 'a', 'd'
-                // are part of text object sequences (vi', va", diw) and must pass through.
-                let is_vim_normal = app.vim.mode == VimSubMode::Normal;
-                if is_vim_normal && !app.vim.is_searching() {
-                    match c {
-                        'i' | 'I' | 'a' | 'A' | 'o' | 'O' | 's' | 'S' | 'c' | 'C' | 'r' | 'R' | 'd' | 'D' | 'x' | 'X' | 'p' | 'P' | 'u' => {
-                            app.set_status("📖 Documentation is read-only (navigate with j, k, w, b, gg, G, or /)", now);
-                            continue;
-                        }
-                        _ => {}
-                    }
-                }
-                app.vim.pending_keys_time = now;
-                if app.vim.handle_char(&mut app.doc_ed, &app.visual_lines, c) {
-                    typed = true;
-                    app.sound.play();
-                    app.last_char_time = now;
-                    if app.vim.is_searching() {
-                        let sym = if app.vim.search.backward { "?" } else { "/" };
-                        app.showcmd.set_search(sym, &app.vim.search.query, now);
-                    } else if let Some(action_str) = app.vim.last_completed_action.take() {
-                        app.showcmd.record_action(&action_str, now);
-                    } else {
-                        let pending_after = app.vim.pending_keys();
-                        if !pending_after.is_empty() {
-                            app.showcmd.set_pending(pending_after, now);
-                        }
-                    }
-                }
-                if app.vim.mode == VimSubMode::Insert {
-                    app.vim.set_mode(VimSubMode::Normal, &mut app.doc_ed);
-                }
-            }
-            return typed;
+    if app.mode == Mode::Normal && app.editor_controller.mode == EditorInputMode::Vim {
+        return false;
+    }
 
-        } else {
-            let mut typed = false;
-            for c in s.chars() {
-                if c == '\r' || c == '\n' {
-                    continue;
-                }
-                app.vim.pending_keys_time = now;
-                let buf_before = app.ed.buf.clone();
-                if app.vim.handle_char(&mut app.ed, &app.visual_lines, c) {
-                    typed = true;
-                    app.sound.play();
-                    app.last_char_time = now;
-                    if app.ed.buf != buf_before {
-                        app.is_dirty = true;
-                    }
-                    if app.vim.is_searching() {
-                        let sym = if app.vim.search.backward { "?" } else { "/" };
-                        app.showcmd.set_search(sym, &app.vim.search.query, now);
-                    } else if let Some(action_str) = app.vim.last_completed_action.take() {
-                        app.showcmd.record_action(&action_str, now);
-                        if action_str == "ToggleTaskCheckbox" {
-                            app.quick_save_active_note(now);
-                            app.set_status("Toggled task checkbox(es)", now);
-                        }
-                    } else {
-                        let pending_after = app.vim.pending_keys();
-                        if !pending_after.is_empty() {
-                            app.showcmd.set_pending(pending_after, now);
-                        }
-                    }
-                } else if app.vim.mode == VimSubMode::Insert {
-                    app.ed.insert(c);
-                    typed = true;
-                    app.sound.play();
-                    app.last_char_time = now;
-                    app.is_dirty = true;
-                }
-            }
-            return typed;
-        }
-    } else if s == ":" && (app.mode == Mode::Normal || app.mode == Mode::Doc) && app.ed.row_col().1 == 0 {
-        app.in_command = true;
-        app.cmd_ed.clear();
-        app.cmd_selected_idx = 0;
-        app.cmd_navigated = false;
-        return true;
-    } else if app.mode == Mode::Doc {
+    if app.mode == Mode::Doc {
         app.set_status("📖 Documentation is read-only.", now);
         return false;
-    } else {
-        for c in s.chars() {
-            if c == '\n' || c == '\r' {
-                continue;
-            }
-            if app.editor_input_mode == EditorInputMode::Hybrid && app.hybrid.handle_char(&mut app.ed, c) {
-                app.sound.play();
-            } else {
-                app.ed.insert(c);
-                app.sound.play();
-            }
-        }
-        app.last_char_time = now;
-        app.is_dirty = true;
-        return true;
     }
+
+    for c in s.chars() {
+        if c == '\n' || c == '\r' {
+            continue;
+        }
+        if app.editor_controller.mode == EditorInputMode::Hybrid && app.hybrid.handle_char(&mut app.ed, c) {
+            app.sound.play();
+        } else {
+            app.ed.insert(c);
+            app.sound.play();
+        }
+    }
+    app.last_char_time = now;
+    app.is_dirty = true;
+    true
 }
 
 pub fn handle_editor_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64) -> bool {
     let is_doc = app.mode == Mode::Doc;
 
+    if app.mode == Mode::Normal && app.editor_controller.mode == EditorInputMode::Vim {
+        return false;
+    }
+
     // Wikilink Navigation on Enter: when cursor is inside [[link]], hitting Enter follows it
-    if app.mode == Mode::Normal && !app.wikilink_autocomplete.is_active && key == Key::Enter && !modifiers.shift && !modifiers.alt {
-        let is_vim_normal = app.editor_input_mode == EditorInputMode::Vim && app.vim.mode == crate::vim::VimSubMode::Normal;
-        if is_vim_normal || modifiers.ctrl {
+    if app.mode == Mode::Normal
+        && !app.wikilink_autocomplete.is_active
+        && key == Key::Enter
+        && !modifiers.shift
+        && !modifiers.alt
+    {
+        if modifiers.ctrl {
             let text = app.ed.text();
             let links = crate::wikilink::extract_wikilinks(&text);
             if let Some(link) = links.into_iter().find(|l| app.ed.cur >= l.start && app.ed.cur <= l.end) {
@@ -176,55 +92,22 @@ pub fn handle_editor_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64
         }
     }
 
-    // Mode-specific engines (Vim / Hybrid)
-    if app.mode == Mode::Normal || is_doc {
-        let target_ed = if is_doc { &mut app.doc_ed } else { &mut app.ed };
-        if app.editor_input_mode == EditorInputMode::Vim {
-            app.vim.pending_keys_time = now;
-            let buf_before = if !is_doc { Some(target_ed.buf.clone()) } else { None };
-            if app.vim.handle_key(target_ed, &app.visual_lines, key, modifiers) {
-                app.sound.play();
-                app.last_char_time = now;
-                if let Some(ref before) = buf_before {
-                    if target_ed.buf != *before {
-                        app.is_dirty = true;
-                    }
+    let target_ed = if is_doc { &mut app.doc_ed } else { &mut app.ed };
+
+    // Hybrid mode specific key handling
+    if app.editor_controller.mode == EditorInputMode::Hybrid {
+        let buf_before = if !is_doc { Some(target_ed.buf.clone()) } else { None };
+        if app.hybrid.handle_key(target_ed, key, modifiers) {
+            app.sound.play();
+            app.last_char_time = now;
+            if let Some(ref before) = buf_before {
+                if target_ed.buf != *before {
+                    app.is_dirty = true;
                 }
-                if app.vim.is_searching() {
-                    let sym = if app.vim.search.backward { "?" } else { "/" };
-                    app.showcmd.set_search(sym, &app.vim.search.query, now);
-                } else if let Some(action_str) = app.vim.last_completed_action.take() {
-                    app.showcmd.record_action(&action_str, now);
-                    if action_str == "ToggleTaskCheckbox" {
-                        app.quick_save_active_note(now);
-                        app.set_status("Toggled task checkbox(es)", now);
-                    }
-                } else {
-                    let pending_after = app.vim.pending_keys();
-                    if !pending_after.is_empty() {
-                        app.showcmd.set_pending(pending_after, now);
-                    } else if key == Key::Escape {
-                        app.showcmd.clear();
-                    }
-                }
-                return true;
             }
-        } else if app.editor_input_mode == EditorInputMode::Hybrid {
-            let buf_before = if !is_doc { Some(target_ed.buf.clone()) } else { None };
-            if app.hybrid.handle_key(target_ed, key, modifiers) {
-                app.sound.play();
-                app.last_char_time = now;
-                if let Some(ref before) = buf_before {
-                    if target_ed.buf != *before {
-                        app.is_dirty = true;
-                    }
-                }
-                return true;
-            }
+            return true;
         }
     }
-
-    let target_ed = if is_doc { &mut app.doc_ed } else { &mut app.ed };
 
     use Key::*;
     match key {

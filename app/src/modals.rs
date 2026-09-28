@@ -257,6 +257,12 @@ pub fn render_search_modal(
             .margin(vec2(0.0, 2.0))
             .frame(false),
     );
+    if response.changed() {
+        // Search and command results must follow edits to the query field,
+        // including deleting `>` to return from commands to note search.
+        *selected_idx = 0;
+        action.new_query = Some(query.clone());
+    }
 
     // Auto-focus immediately when modal opens and place cursor at the end (e.g. after '>')
     if just_opened || switch_to_cmd {

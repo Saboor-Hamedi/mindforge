@@ -317,7 +317,7 @@ pub fn render_shortcuts_tab(
     }
 
     // Keymap file info footer (pointing to keymap.json in settings directory)
-    let keymap_path = crate::vim::VimKeymap::get_keymap_path();
+    let keymap_path = crate::settings::keymap::VimKeymap::get_keymap_path();
     let footer_rect = Rect::from_min_size(pos2(row_left, cur_y + 8.0), vec2(row_w, 28.0));
     let footer_in_view = footer_rect.max.y >= clip_rect.min.y && footer_rect.min.y <= clip_rect.max.y;
 

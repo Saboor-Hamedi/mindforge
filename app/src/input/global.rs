@@ -1,18 +1,23 @@
 //! Global keyboard shortcuts, clipboard actions, and window resize/drag handlers.
 
 use crate::app::App;
+use crate::editor::backend::EditorBackend;
 use crate::mode::Mode;
 use eframe::egui;
 
 /// Processes global shortcuts (saving, note creation, modals, clipboard, undo/redo).
 /// Returns `Some(typed)` if a global shortcut fully handled the frame, or `None` to continue to typing.
 pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Option<bool> {
+    let palette_shortcut = ctx.input(|i| {
+        let command = i.modifiers.ctrl || i.modifiers.command;
+        command && !i.modifiers.alt && i.modifiers.shift && i.key_pressed(egui::Key::P)
+    });
     // 0. Active Modal Input Priority:
     // When any modal (Search, Settings, Rename, Delete confirmation, Accent dropdown) is active,
     // absorb global shortcuts so that modal dialogs retain 100% focused input context.
     // This prevents global actions (e.g., terminal toggle Ctrl+J, new note Ctrl+N, AI toggle Ctrl+Shift+I)
     // from interrupting or conflicting with modal interaction.
-    if app.search_open {
+    if app.search_open && !palette_shortcut {
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             app.search_open = false;
         }
@@ -177,10 +182,6 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
 
     // When Vim search is active, bypass ALL global shortcuts so every keystroke
     // flows through as a Text event into the search buffer (fixes missing chars).
-    if app.editor_input_mode == crate::app::EditorInputMode::Vim && app.vim.is_searching() {
-        return None;
-    }
-
     // Terminal input priority: when terminal dock is open and focused, protect shell control sequences
     // (Ctrl+C, Ctrl+D, Ctrl+Z, etc.) so they pass directly to the terminal PTY instead of triggering editor commands.
     if app.terminal_open && app.terminal_focused {
@@ -262,7 +263,17 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
             || (i.modifiers.ctrl && i.key_pressed(egui::Key::Y))
     });
     if ctrl_z {
-        if app.in_command {
+        if app.editor_controller.mode == crate::app::EditorInputMode::Vim && app.mode == Mode::Normal && !app.in_command {
+            let modifiers = ctx.input(|i| i.modifiers);
+            if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                let _ = backend.handle_key(crate::editor::events::EditorKeyEvent { key: egui::Key::Z, modifiers });
+            } else {
+                app.vim_runtime.queue_input(crate::vim::PendingVimInput::Key(
+                    crate::editor::events::EditorKeyEvent { key: egui::Key::Z, modifiers },
+                ));
+            }
+            return Some(false);
+        } else if app.in_command {
             app.cmd_ed.undo();
         } else if app.ed.undo() {
             app.is_dirty = true;
@@ -273,7 +284,18 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
         return Some(false);
     }
     if ctrl_redo {
-        if app.in_command {
+        if app.editor_controller.mode == crate::app::EditorInputMode::Vim && app.mode == Mode::Normal && !app.in_command {
+            let modifiers = ctx.input(|i| i.modifiers);
+            let key = if modifiers.shift { egui::Key::Z } else { egui::Key::Y };
+            if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                let _ = backend.handle_key(crate::editor::events::EditorKeyEvent { key, modifiers });
+            } else {
+                app.vim_runtime.queue_input(crate::vim::PendingVimInput::Key(
+                    crate::editor::events::EditorKeyEvent { key, modifiers },
+                ));
+            }
+            return Some(false);
+        } else if app.in_command {
             app.cmd_ed.redo();
         } else if app.ed.redo() {
             app.is_dirty = true;
@@ -288,6 +310,9 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
     let ctrl_indent = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::CloseBracket));
     let ctrl_dedent = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::OpenBracket));
     if ctrl_indent {
+        if app.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.in_command {
+            return None;
+        }
         if !app.in_command {
             app.ed.indent_line();
             app.is_dirty = true;
@@ -297,6 +322,9 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
         }
     }
     if ctrl_dedent {
+        if app.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.in_command {
+            return None;
+        }
         if !app.in_command {
             app.ed.dedent_line();
             app.is_dirty = true;
@@ -329,7 +357,8 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
         }
         if app.mode == Mode::Normal {
             use crate::app::EditorInputMode;
-            if app.sidebar_open && (app.sidebar_focused || (app.editor_input_mode == EditorInputMode::Vim && app.vim.mode == crate::vim::VimSubMode::Normal)) {
+            let nvim_normal = app.vim_runtime.backend.as_ref().is_some_and(|backend| backend.grid.mode.starts_with('n'));
+            if app.sidebar_open && (app.sidebar_focused || (app.editor_controller.mode == EditorInputMode::Vim && nvim_normal)) {
                 app.sidebar_focused = !app.sidebar_focused;
                 let status = if app.sidebar_focused {
                     "Notes Sidebar active (j/k: move • Enter: load • Ctrl+L / l: editor)"
@@ -346,11 +375,12 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
             } else {
                 egui::Modifiers::default()
             };
+            if app.editor_controller.mode == EditorInputMode::Vim {
+                return None;
+            }
             if app.ed.table_nav_tab(!shift_tab_pressed) {
                 // Navigated table cell or appended row
-            } else if app.editor_input_mode == EditorInputMode::Vim {
-                app.vim.handle_key(&mut app.ed, &app.visual_lines, egui::Key::Tab, modifiers);
-            } else if app.editor_input_mode == EditorInputMode::Hybrid {
+            } else if app.editor_controller.mode == EditorInputMode::Hybrid {
                 app.hybrid.handle_key(&mut app.ed, egui::Key::Tab, modifiers);
             } else if shift_tab_pressed {
                 app.ed.dedent();
@@ -367,13 +397,13 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
     // Select All (Ctrl+A)
     let ctrl_a = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::A));
     if ctrl_a {
+        if app.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.in_command {
+            return None;
+        }
         if app.in_command {
             app.cmd_ed.select_all();
         } else {
             app.ed.select_all();
-            if app.editor_input_mode == crate::app::EditorInputMode::Vim {
-                app.vim.set_mode(crate::vim::types::VimSubMode::Visual, &mut app.ed);
-            }
             return Some(true);
         }
         return Some(false);
@@ -382,6 +412,9 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
     // Clipboard Copy (Ctrl+C)
     let ctrl_c = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::C));
     if ctrl_c {
+        if app.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.in_command {
+            return None;
+        }
         let text = if app.in_command {
             app.cmd_ed.selected_text()
         } else if app.search_open {
@@ -395,8 +428,6 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
         };
         if let Some(t) = text {
             app.clipboard_text = Some(t.clone());
-            app.vim.register = t.clone();
-            app.vim.register_is_line = false;
             set_win32_clipboard(&t);
             ctx.copy_text(t);
             app.set_status("Copied selection", now);
@@ -405,7 +436,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
     }
 
     // Checklist Toggle Shortcut: Ctrl+Shift+X (friendly creation/toggle for paragraphs, bullets, tasks)
-    let ctrl_shift_x = app.editor_input_mode != crate::app::EditorInputMode::Vim
+    let ctrl_shift_x = app.editor_controller.mode != crate::app::EditorInputMode::Vim
         && ctx.input(|i| {
             (i.modifiers.ctrl || i.modifiers.command)
                 && i.modifiers.shift
@@ -429,6 +460,9 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
     // Clipboard Cut (Ctrl+X)
     let ctrl_x = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::X));
     if ctrl_x {
+        if app.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.in_command {
+            return None;
+        }
         let text = if app.in_command {
             let t = app.cmd_ed.selected_text();
             app.cmd_ed.delete_selection();
@@ -444,8 +478,6 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
         };
         if let Some(t) = text {
             app.clipboard_text = Some(t.clone());
-            app.vim.register = t.clone();
-            app.vim.register_is_line = false;
             set_win32_clipboard(&t);
             ctx.copy_text(t);
             return Some(true);
@@ -467,6 +499,15 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
                 return Some(true);
             } else if app.rename_open {
                 app.rename_input.push_str(&text);
+                return Some(true);
+            } else if app.editor_controller.mode == crate::app::EditorInputMode::Vim
+                && app.mode == Mode::Normal && !app.in_command
+            {
+                if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                    let _ = backend.paste(&text);
+                } else {
+                    app.vim_runtime.queue_input(crate::vim::PendingVimInput::Paste(text));
+                }
                 return Some(true);
             } else if app.mode == Mode::Normal {
                 if crate::input::editor::handle_editor_paste(app, &text, now) {
@@ -633,17 +674,8 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
 
     let ctrl_e = ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.alt && !i.modifiers.shift && i.key_pressed(egui::Key::E));
     if ctrl_e {
-        app.inline_mode = !app.inline_mode;
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
-            key: "inline_mode".into(),
-            val: if app.inline_mode { "true" } else { "false" }.into(),
-        });
-        let msg = if app.inline_mode {
-            "✨ Inline Live Markdown Mode ON (Ctrl+E to toggle)"
-        } else {
-            "📝 Raw Monospace Mode ON (Ctrl+E to toggle)"
-        };
-        app.set_status(msg, now);
+        app.inline_mode = false;
+        app.set_status("Raw Markdown editing is active", now);
         return Some(false);
     }
 
@@ -780,9 +812,12 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
 
         if sb_edit {
             app.sidebar_focused = false;
-            if app.editor_input_mode == crate::app::EditorInputMode::Vim {
-                app.vim.set_mode(crate::vim::VimSubMode::Insert, &mut app.ed);
-                app.set_status("-- INSERT --", now);
+            if app.editor_controller.mode == crate::app::EditorInputMode::Vim {
+                if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                    let _ = backend.handle_text("i");
+                } else {
+                    app.vim_runtime.queue_input(crate::vim::PendingVimInput::Text("i".into()));
+                }
             }
             return Some(false);
         }
@@ -879,15 +914,12 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
     }
 
     if escape {
-        app.showcmd.clear();
-        app.vim.search.clear_matches();
-        if app.editor_input_mode == crate::app::EditorInputMode::Vim && app.vim.mode != crate::vim::VimSubMode::Normal {
-            if app.vim.is_searching() {
-                app.vim.search.cancel(&mut app.ed);
-            }
-            app.vim.set_mode(crate::vim::VimSubMode::Normal, &mut app.ed);
-            return Some(true);
+        if app.editor_controller.mode == crate::app::EditorInputMode::Vim
+            && app.mode == Mode::Normal && !app.in_command
+        {
+            return None;
         }
+        app.showcmd.clear();
         if app.ed.has_selection() {
             app.ed.clear_selection();
             return Some(true);
@@ -1121,9 +1153,6 @@ pub fn get_clipboard_text(app: &App) -> Option<String> {
         if !text.is_empty() {
             return Some(text);
         }
-    }
-    if !app.vim.register.is_empty() {
-        return Some(app.vim.register.clone());
     }
     if let Some(ref text) = app.clipboard_text {
         if !text.is_empty() {

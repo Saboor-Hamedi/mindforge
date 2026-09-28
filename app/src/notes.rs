@@ -4,13 +4,17 @@ use crate::app::App;
 use chrono::Local;
 use core::Note;
 
-/// Saves the active note directly to SQLite and updates in-memory notes_list immediately.
+/// SQLite is the application's authoritative persistence layer in both editor
+/// modes; Vim snapshots are synchronized from Neovim before this function runs.
 pub fn quick_save_active_note(app: &mut App, now: f64) {
     let content = app.ed.text();
     if let Some(ref db) = app.db {
         if let Some(id) = app.active_note_id {
             let _ = db.update_note(id, &content);
             app.is_dirty = false;
+            if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                backend.mark_saved();
+            }
             app.last_saved_time = now;
             app.pending_edited += 1;
             if let Some(n) = app.notes_list.iter_mut().find(|n| n.id == id) {
@@ -161,7 +165,7 @@ pub fn update_search_results(app: &mut App) {
         app.sound.profile,
         app.caret.kind,
         &app.selected_font,
-        app.editor_input_mode,
+        app.editor_controller.mode,
         app.lunaline_config.style,
     );
     if app.search_selected >= app.search_results.len() {

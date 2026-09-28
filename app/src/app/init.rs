@@ -10,7 +10,6 @@ use crate::settings::SettingTab;
 use crate::sound::{SoundEngine, SoundProfile};
 use crate::theme::{Theme, ThemeKind};
 use crate::updater::UpdateManager;
-use crate::vim::VimEngine;
 
 use chrono::Local;
 use core::{DailyActivity, Database};
@@ -67,6 +66,7 @@ impl App {
             backup_dir: default_backup_dir().to_string_lossy().to_string(),
             last_backup_status: None,
             keybind_capture: None,
+            keymap: crate::settings::keymap::VimKeymap::load_or_init(),
             search_open: false,
             search_query: String::new(),
             search_results: Vec::new(),
@@ -99,7 +99,7 @@ impl App {
             doc_scroll_y: 0.0,
             preview_scroll_y: 0.0,
             preview_open: false,
-            inline_mode: true,
+            inline_mode: false,
             split_ratio: 0.5,
             is_dragging_splitter: false,
             show_line_numbers: true,
@@ -107,9 +107,11 @@ impl App {
             last_saved_time: 0.0,
             db,
             db_tx: tx,
-            editor_input_mode: EditorInputMode::Hybrid,
+            // Neovim is the default editing engine; Hybrid remains available
+            // through the editor mode command/settings.
+            editor_controller: crate::editor::controller::EditorController::new(EditorInputMode::Hybrid),
+            vim_runtime: crate::vim::VimRuntime::default(),
             hybrid: HybridEngine::new(),
-            vim: VimEngine::new(),
             showcmd: crate::showcmd::ShowCmdState::new(true),
             pending_secs: 0.0,
             pending_keys: 0,
@@ -374,9 +376,9 @@ impl App {
             }
             if let Ok(Some(m)) = db.get_setting("editor_mode") {
                 if m == "vim" {
-                    self.editor_input_mode = EditorInputMode::Vim;
+                    self.editor_controller.mode = EditorInputMode::Vim;
                 } else {
-                    self.editor_input_mode = EditorInputMode::Hybrid;
+                    self.editor_controller.mode = EditorInputMode::Hybrid;
                 }
             }
             if let Ok(Some(s)) = db.get_setting("showcmd") {
@@ -388,9 +390,13 @@ impl App {
             if let Ok(Some(p)) = db.get_setting("preview") {
                 self.preview_open = p == "on" || p == "true";
             }
-            if let Ok(Some(im)) = db.get_setting("inline_mode") {
-                self.inline_mode = im != "off" && im != "false";
-            }
+            // Live inline Markdown is disabled: its whole-document layout pass
+            // was running on the UI thread and is not needed for raw editing.
+            self.inline_mode = false;
+            let _ = self.db_tx.send(DbMsg::SaveSetting {
+                key: "inline_mode".into(),
+                val: "false".into(),
+            });
             if let Ok(Some(sb)) = db.get_setting("sidebar") {
                 self.sidebar_open = sb == "on" || sb == "true";
             }

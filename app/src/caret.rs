@@ -35,7 +35,6 @@ pub use particles::{Bolt, Particle, Ripple};
 use std::collections::VecDeque;
 use eframe::egui::{Color32, Painter, Pos2};
 use crate::app::EditorInputMode;
-use crate::vim::VimSubMode;
 
 /// Selectable caret appearance styles.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -133,14 +132,11 @@ impl CaretKind {
 /// consistently across Normal, Insert, Visual, and VisualLine modes.
 pub fn resolve_caret_kind(
     input_mode: EditorInputMode,
-    vim_submode: Option<VimSubMode>,
+    _vim_mode: Option<&str>,
     custom_kind: CaretKind,
 ) -> CaretKind {
     match input_mode {
-        EditorInputMode::Vim => {
-            let _ = vim_submode;
-            custom_kind
-        }
+        EditorInputMode::Vim => custom_kind,
         EditorInputMode::Hybrid => custom_kind,
     }
 }
@@ -192,6 +188,15 @@ impl Caret {
             kind,
             ..Self::default()
         }
+    }
+
+    /// Drop transient animation state when another editor backend owns cursor rendering.
+    pub fn clear_transient_effects(&mut self) {
+        self.gliding = false;
+        self.particles.clear();
+        self.ripples.clear();
+        self.bolts.clear();
+        self.trail.clear();
     }
 
     /// Whether any dynamic elements or ambient animations require ongoing frame repainting.

@@ -288,7 +288,7 @@ fn test_caret_kind_on_whitespace() {
     assert_eq!(r0, 0);
     let style_row0 = crate::caret::resolve_caret_kind(
         crate::app::EditorInputMode::Vim,
-        Some(crate::vim::VimSubMode::Normal),
+        Some("normal"),
         crate::caret::CaretKind::Block,
     );
 
@@ -298,7 +298,7 @@ fn test_caret_kind_on_whitespace() {
     assert_eq!(r1, 1);
     let style_row1 = crate::caret::resolve_caret_kind(
         crate::app::EditorInputMode::Vim,
-        Some(crate::vim::VimSubMode::Normal),
+        Some("normal"),
         crate::caret::CaretKind::Block,
     );
 
@@ -308,7 +308,7 @@ fn test_caret_kind_on_whitespace() {
     assert_eq!(r2, 2);
     let style_row2 = crate::caret::resolve_caret_kind(
         crate::app::EditorInputMode::Vim,
-        Some(crate::vim::VimSubMode::Normal),
+        Some("normal"),
         crate::caret::CaretKind::Block,
     );
 
@@ -323,22 +323,22 @@ fn test_vim_caret_consistent_across_submodes() {
     let custom = crate::caret::CaretKind::Neon;
     let normal = crate::caret::resolve_caret_kind(
         crate::app::EditorInputMode::Vim,
-        Some(crate::vim::VimSubMode::Normal),
+        Some("normal"),
         custom,
     );
     let insert = crate::caret::resolve_caret_kind(
         crate::app::EditorInputMode::Vim,
-        Some(crate::vim::VimSubMode::Insert),
+        Some("insert"),
         custom,
     );
     let visual = crate::caret::resolve_caret_kind(
         crate::app::EditorInputMode::Vim,
-        Some(crate::vim::VimSubMode::Visual),
+        Some("visual"),
         custom,
     );
     let visual_line = crate::caret::resolve_caret_kind(
         crate::app::EditorInputMode::Vim,
-        Some(crate::vim::VimSubMode::VisualLine),
+        Some("visual_line"),
         custom,
     );
 
@@ -591,39 +591,39 @@ fn test_caret_cell_empty_line() {
 #[test]
 fn test_caret_cell_normal_on_last_char() {
     let line = VisualLine { char_start: 0, char_end: 3 };
-    assert_eq!(caret_cell(2, &line, Some(crate::vim::VimSubMode::Normal)), 2);
+    assert_eq!(caret_cell(2, &line, Some("normal")), 2);
 }
 
 #[test]
 fn test_caret_cell_normal_at_end() {
     let line = VisualLine { char_start: 0, char_end: 3 };
-    assert_eq!(caret_cell(3, &line, Some(crate::vim::VimSubMode::Normal)), 3);
+    assert_eq!(caret_cell(3, &line, Some("normal")), 3);
 }
 
 #[test]
 fn test_caret_cell_insert_at_end_sits_past_last_char() {
     let line = VisualLine { char_start: 0, char_end: 3 };
-    assert_eq!(caret_cell(3, &line, Some(crate::vim::VimSubMode::Insert)), 3);
+    assert_eq!(caret_cell(3, &line, Some("insert")), 3);
 }
 
 #[test]
 fn test_caret_cell_insert_mid_line() {
     let line = VisualLine { char_start: 0, char_end: 3 };
-    assert_eq!(caret_cell(2, &line, Some(crate::vim::VimSubMode::Insert)), 2);
+    assert_eq!(caret_cell(2, &line, Some("insert")), 2);
 }
 
 #[test]
 fn test_caret_cell_visual_modes() {
     let line = VisualLine { char_start: 0, char_end: 3 };
-    assert_eq!(caret_cell(3, &line, Some(crate::vim::VimSubMode::Visual)), 3);
-    assert_eq!(caret_cell(3, &line, Some(crate::vim::VimSubMode::VisualLine)), 3);
+    assert_eq!(caret_cell(3, &line, Some("visual")), 3);
+    assert_eq!(caret_cell(3, &line, Some("visual_line")), 3);
 }
 
 #[test]
 fn test_caret_cell_empty_line_all_modes() {
     let line = VisualLine { char_start: 5, char_end: 5 };
-    assert_eq!(caret_cell(5, &line, Some(crate::vim::VimSubMode::Normal)), 0);
-    assert_eq!(caret_cell(5, &line, Some(crate::vim::VimSubMode::Insert)), 0);
+    assert_eq!(caret_cell(5, &line, Some("normal")), 0);
+    assert_eq!(caret_cell(5, &line, Some("insert")), 0);
     assert_eq!(caret_cell(5, &line, None), 0);
 }
 
@@ -651,7 +651,7 @@ fn test_end_visual_reaches_end_of_line() {
     ed.cur = 0;
     ed.end_visual(&lines);
     assert_eq!(ed.cur, 5);
-    let col = caret_cell(ed.cur, &lines[0], Some(crate::vim::VimSubMode::Normal));
+    let col = caret_cell(ed.cur, &lines[0], Some("normal"));
     assert_eq!(col, 5);
 }
 

@@ -1,8 +1,8 @@
 //! VSCode-style dynamic keybinding configuration settings tab.
 
 use crate::theme::Theme;
-use crate::vim::keymap::{key_stroke_display, KeyStroke, KeybindCapture, KeymapMode, VimKeymap};
-use crate::vim::types::{InsertPosition, VimAction, VimMotion, VimOperator};
+use crate::settings::keymap::{key_stroke_display, KeyStroke, KeybindCapture, KeymapMode, VimKeymap};
+use crate::settings::types::{InsertPosition, VimAction, VimMotion, VimOperator};
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Id, Key, Pos2, Rect, Sense, Stroke};
 
 pub fn render_keybindings_tab(

@@ -24,6 +24,7 @@ pub struct RightSidebarState {
     pub backlinks_selected_idx: usize,
     pub cached_headings: Vec<OutlineHeading>,
     pub cached_backlinks: Vec<BacklinkItem>,
+    pub cached_backlinks_target: Option<(String, Option<i64>)>,
 }
 
 pub enum RightSidebarAction {
@@ -43,8 +44,13 @@ pub fn render_right_sidebar(
     notes_list: &[core::Note],
     active_note_id: Option<i64>,
 ) -> Option<RightSidebarAction> {
-    // Keep backlinks index fresh with all incoming references to active note
-    state.cached_backlinks = crate::wikilink::find_backlinks(active_note_title, notes_list, active_note_id);
+    // Build the backlinks list only when the selected note changes. This
+    // function runs on every UI frame; rescanning every note here stalls input.
+    let target_key = (active_note_title.to_owned(), active_note_id);
+    if state.cached_backlinks_target.as_ref() != Some(&target_key) {
+        state.cached_backlinks = crate::wikilink::find_backlinks(active_note_title, notes_list, active_note_id);
+        state.cached_backlinks_target = Some(target_key);
+    }
 
     let painter = ui.painter();
 

@@ -5,6 +5,8 @@ pub mod backup;
 pub mod carets;
 pub mod editor_mode;
 pub mod keybindings_tab;
+pub mod keymap;
+pub mod types;
 pub mod setting_font;
 pub mod shortcuts;
 pub mod sounds;
@@ -43,8 +45,8 @@ pub fn render_setting_panel(
     updater: &UpdateManager,
     api_key_enc: &mut String,
     deepseek_model: &mut String,
-    keymap: &mut crate::vim::keymap::VimKeymap,
-    keybind_capture: &mut Option<crate::vim::keymap::KeybindCapture>,
+    keymap: &mut crate::settings::keymap::VimKeymap,
+    keybind_capture: &mut Option<crate::settings::keymap::KeybindCapture>,
     selected_font: &mut String,
     font_size: &mut f32,
     opacity: &mut f32,

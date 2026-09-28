@@ -28,12 +28,17 @@ impl App {
                 p_rect.max,
             );
 
-            // Keep cached backlinks fresh
-            self.right_sidebar_state.cached_backlinks = crate::wikilink::find_backlinks(
-                &self.active_note_title,
-                &self.notes_list,
-                self.active_note_id,
-            );
+            // Backlinks are cached by active note in RightSidebarState. Avoid
+            // scanning every Markdown note during every frame.
+            let target_key = (self.active_note_title.clone(), self.active_note_id);
+            if self.right_sidebar_state.cached_backlinks_target.as_ref() != Some(&target_key) {
+                self.right_sidebar_state.cached_backlinks = crate::wikilink::find_backlinks(
+                    &self.active_note_title,
+                    &self.notes_list,
+                    self.active_note_id,
+                );
+                self.right_sidebar_state.cached_backlinks_target = Some(target_key);
+            }
 
             let header_action = crate::view_editor::preview::render_right_pane_header(
                 ui,

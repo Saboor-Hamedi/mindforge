@@ -68,7 +68,7 @@ impl App {
                 painter,
                 panel_rect,
                 self.active_setting_tab,
-                &mut self.editor_input_mode,
+                &mut self.editor_controller.mode,
                 &mut self.caret,
                 &mut self.sound,
                 &mut self.theme,
@@ -77,7 +77,7 @@ impl App {
                 &self.updater,
                 &mut self.agent_state.deepseek_api_key_enc,
                 &mut self.agent_state.deepseek_model,
-                &mut self.vim.keymap,
+                &mut self.keymap,
                 &mut self.keybind_capture,
                 &mut self.selected_font,
                 &mut self.font_size,
@@ -409,13 +409,14 @@ impl App {
                         self.update_search_results();
                     }
                     crate::fuzzy::PaletteAction::ApplyEditorMode(mode) => {
-                        self.editor_input_mode = mode;
+                        self.editor_controller.mode = mode;
+                        self.vim_runtime.start_error = None;
                         let mode_str = match mode {
                             crate::app::EditorInputMode::Vim => "vim",
                             crate::app::EditorInputMode::Hybrid => "hybrid",
                         };
                         let _ = self.db_tx.send(DbMsg::SaveSetting {
-                            key: "editor_input_mode".into(),
+                            key: "editor_mode".into(),
                             val: mode_str.into(),
                         });
                         crate::notes::update_search_results(self);

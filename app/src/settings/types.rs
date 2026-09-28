@@ -1,4 +1,4 @@
-//! Vim engine type definitions — enums and structures representing
+﻿//! Vim engine type definitions — enums and structures representing
 //! modal states, operators, motions, text objects, and high-level editing actions.
 //!
 //! Designed to be completely decoupled from concrete keybindings so keymaps

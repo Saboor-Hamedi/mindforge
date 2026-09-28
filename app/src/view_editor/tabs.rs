@@ -144,7 +144,7 @@ pub fn render_tab_bar(
             vec2(btn_w, btn_h),
         );
         let is_close_hovered = mouse_in_bar && ui.rect_contains_pointer(close_rect);
-        let show_close = is_tab_hovered && (tabs.len() > 1 || tab.is_dirty);
+        let show_close = is_tab_hovered;
 
         // Tab chip surface styling: single crisp active signal (bottom accent pill)
         if tab.is_active {
@@ -173,22 +173,17 @@ pub fn render_tab_bar(
             theme.muted
         };
 
-        let label_text = if tab.is_dirty {
-            format!("{} ●", display_titles[idx])
-        } else {
-            display_titles[idx].clone()
-        };
-
         let label_pos = pos2(tab_rect.min.x + 10.0, tab_rect.center().y);
         clip_painter.text(
             label_pos,
             Align2::LEFT_CENTER,
-            label_text,
+            &display_titles[idx],
             FontId::proportional(12.0),
             text_color,
         );
 
-        // Close button (×) — visible ONLY on hover of this tab
+        // Keep the dirty mark and close control in one stable slot. Hover swaps
+        // the mark for the close icon, so the title never shifts or collides.
         if show_close {
             let close_color = if is_close_hovered {
                 Color32::from_rgb(235, 90, 90)
@@ -214,6 +209,12 @@ pub fn render_tab_bar(
                 "×",
                 FontId::proportional(13.0),
                 close_color,
+            );
+        } else if tab.is_dirty {
+            clip_painter.circle_filled(
+                close_rect.center(),
+                3.0,
+                if tab.is_active { theme.accent } else { theme.muted },
             );
         }
 

@@ -248,50 +248,47 @@ impl App {
 
 
 
-        // Update Vim keystroke HUD and ShowCmd card timeout
-        if self.editor_input_mode == EditorInputMode::Vim {
-            self.vim.update_hud(now);
+        // Update ShowCmd card timeout
+        if self.editor_controller.mode == EditorInputMode::Vim {
             self.showcmd.update(now);
         }
 
-        // Check for search status feedback from Vim engine
-        if let Some(msg) = self.vim.status_feedback.take() {
-            self.set_status(msg, now);
-        }
-
         // Bottom Dock (active editing mode badge, status feedback, word stats)
-        let (row, col) = if self.mode == Mode::Doc {
+        let (row, col) = if self.mode == Mode::Normal
+            && self.editor_controller.mode == EditorInputMode::Vim
+        {
+            self.vim_runtime
+                .backend
+                .as_ref()
+                .map(|backend| (backend.grid.cursor.row, backend.grid.cursor.column))
+                .unwrap_or((0, 0))
+        } else if self.mode == Mode::Doc {
             self.doc_ed.visual_row_col(&self.visual_lines)
         } else {
             self.ed.visual_row_col(&self.visual_lines)
         };
-        let word_count = if self.mode == Mode::Doc {
-            self.doc_ed.text().split_whitespace().count()
+        let (total_rows, word_count, total_chars) = if self.mode == Mode::Normal
+            && self.editor_controller.mode == EditorInputMode::Vim
+        {
+            self.vim_runtime
+                .backend
+                .as_ref()
+                .map(crate::vim::VimBackend::document_stats)
+                .unwrap_or((0, 0, 0))
+        } else if self.mode == Mode::Doc {
+            let text = self.doc_ed.text();
+            (text.lines().count(), text.split_whitespace().count(), text.len())
         } else {
-            self.ed.text().split_whitespace().count()
+            let text = self.ed.text();
+            (text.lines().count(), text.split_whitespace().count(), text.len())
         };
-        let mode_badge_str = match self.editor_input_mode {
-            EditorInputMode::Vim => self.vim.compact_label(),
+        let mode_badge_str = match self.editor_controller.mode {
+            EditorInputMode::Vim => self.vim_runtime.backend.as_ref().map(|backend| backend.grid.mode.to_uppercase()).unwrap_or_else(|| "STARTING NVIM".into()),
             EditorInputMode::Hybrid => "HYBRID".to_string(),
         };
 
-        let search_prompt = if self.editor_input_mode == EditorInputMode::Vim && self.vim.is_searching() {
-            let symbol = if self.vim.search.backward { "?" } else { "/" };
-            Some((symbol, self.vim.search.query.as_str(), self.vim.search.match_indices.len()))
-        } else {
-            None
-        };
+        let search_prompt: Option<(&str, &str, usize)> = None;
 
-        let total_rows = if self.mode == Mode::Doc {
-            self.doc_ed.text().lines().count()
-        } else {
-            self.ed.text().lines().count()
-        };
-        let total_chars = if self.mode == Mode::Doc {
-            self.doc_ed.text().len()
-        } else {
-            self.ed.text().len()
-        };
         let active_title = if self.mode == Mode::Doc {
             crate::docs::BRAIN_DOCS.get(self.active_doc_idx).map(|d| d.title).unwrap_or("Documentation")
         } else {
@@ -409,7 +406,6 @@ impl App {
                             self.active_note_title = "Untitled Note".to_string();
                             self.ed.clear();
                             self.mode = Mode::Normal;
-                            self.vim.set_mode(crate::vim::VimSubMode::Normal, &mut self.ed);
                             self.is_dirty = false;
                             self.scroll_y = 0.0;
                             self.open_notes.push(OpenNote {
@@ -502,19 +498,22 @@ impl App {
             let effective_gutter_w = if actual_editor_rect.width() > gutter_w + 40.0 { gutter_w } else { 0.0 };
             let text_left = (actual_editor_rect.min.x + effective_gutter_w + pad_x).min(actual_editor_rect.max.x);
             let ed_origin = self.last_ed_origin.unwrap_or_else(|| pos2(text_left, actual_editor_rect.min.y - self.scroll_y + pad_y));
-            let wrap_w = (actual_editor_rect.max.x - text_left - 24.0).max(120.0);
+            // Wiki link interaction uses the same raw monospace grid as the
+            // editor. Do not build an inline Markdown layout in this per-frame
+            // input path.
+            let cell_w = painter
+                .layout_no_wrap(
+                    "M".to_owned(),
+                    crate::font_manager::editor_font_id(effective_font_size),
+                    egui::Color32::WHITE,
+                )
+                .size()
+                .x
+                .max(1.0);
+            let line_h = effective_font_size * 1.5;
 
-            let inline_layout = crate::view_editor::inline::compute_inline_layout_ctx(
-                ui.ctx(),
-                &self.ed,
-                wrap_w,
-                effective_font_size,
-                &self.theme,
-                text_left,
-            );
-
-            let is_inserting = match self.editor_input_mode {
-                EditorInputMode::Vim => self.vim.mode == crate::vim::VimSubMode::Insert,
+            let is_inserting = match self.editor_controller.mode {
+                EditorInputMode::Vim => self.vim_runtime.backend.as_ref().is_some_and(|backend| backend.is_insert_mode()),
                 EditorInputMode::Hybrid => true,
             };
 
@@ -522,9 +521,16 @@ impl App {
                 self.wikilink_autocomplete.check_trigger(&self.ed, &self.notes_list);
 
                 if self.wikilink_autocomplete.is_active {
-                    let (trigger_pos, trigger_lh) = inline_layout.pos_for_char(self.wikilink_autocomplete.trigger_start, ed_origin);
-                    self.wikilink_autocomplete.trigger_screen_pos = pos2(trigger_pos.x, trigger_pos.y + trigger_lh + 2.0);
-                    self.wikilink_autocomplete.trigger_line_height = trigger_lh;
+                    let idx = self.wikilink_autocomplete.trigger_start;
+                    if let Some(line) = self.visual_lines.iter().find(|line| idx >= line.char_start && idx <= line.char_end) {
+                        let row = self.visual_lines.iter().position(|candidate| std::ptr::eq(candidate, line)).unwrap_or(0);
+                        let col = idx.saturating_sub(line.char_start);
+                        self.wikilink_autocomplete.trigger_screen_pos = pos2(
+                            ed_origin.x + col as f32 * cell_w,
+                            ed_origin.y + row as f32 * line_h + line_h + 2.0,
+                        );
+                        self.wikilink_autocomplete.trigger_line_height = line_h;
+                    }
                 }
 
                 if let Some(crate::wikilink::wikilink_autocompletion::AutocompleteAction::Inserted { inserted_text: _ }) =
@@ -537,6 +543,17 @@ impl App {
                         bounds,
                     )
                 {
+                    // Autocomplete is an application feature. Commit its edit to
+                    // Neovim at this explicit boundary so the Vim buffer remains
+                    // the single editing source of truth.
+                    if self.editor_controller.mode == EditorInputMode::Vim {
+                        let (row, column) = self.ed.row_col();
+                        if let Some(backend) = self.vim_runtime.backend.as_mut() {
+                            if let Err(error) = backend.set_document(&self.ed.text(), row, column) {
+                                self.set_status(&format!("Could not sync autocomplete to Neovim: {error}"), now);
+                            }
+                        }
+                    }
                     self.is_dirty = true;
                     self.sound.play();
                 }
@@ -545,41 +562,26 @@ impl App {
             }
 
             if let Some(pos) = pointer_pos {
-                if actual_editor_rect.contains(pos) {
+                let pointer_changed = self.hover_wikilink.last_pointer_pos != Some(pos);
+                if actual_editor_rect.contains(pos) && (pointer_changed || ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary))) {
+                    self.hover_wikilink.last_pointer_pos = Some(pos);
                     let text = self.ed.text();
                     let links = crate::wikilink::extract_wikilinks(&text);
                     let mut found_hover = None;
 
-                    // Hit-test character position and geometric bounding box from inline layout
-                    let char_idx = inline_layout.char_at_pos(pos, ed_origin);
+                    let clicked_row = ((pos.y - ed_origin.y) / line_h).floor().max(0.0) as usize;
+                    let clicked_col = ((pos.x - ed_origin.x).max(0.0) / cell_w).floor() as usize;
+                    let visual_line = self.visual_lines.get(clicked_row);
+                    let char_idx = visual_line.map(|line| line.char_start + clicked_col).unwrap_or(self.ed.buf.len());
 
                     for link in &links {
-                        let (start_pos, line_h) = inline_layout.pos_for_char(link.start, ed_origin);
-                        let (end_pos, _) = inline_layout.pos_for_char(link.end, ed_origin);
-
-                        let is_single_line = (start_pos.y - end_pos.y).abs() < line_h * 0.7;
-                        let is_hit = if is_single_line {
-                            let link_rect = Rect::from_min_max(
-                                pos2(start_pos.x.min(end_pos.x) - 2.0, start_pos.y - 2.0),
-                                pos2(start_pos.x.max(end_pos.x) + 2.0, start_pos.y + line_h + 2.0),
-                            );
-                            link_rect.contains(pos)
-                        } else {
-                            let r1 = Rect::from_min_max(
-                                pos2(start_pos.x - 2.0, start_pos.y - 2.0),
-                                pos2(actual_editor_rect.max.x, start_pos.y + line_h + 2.0),
-                            );
-                            let r2 = Rect::from_min_max(
-                                pos2(actual_editor_rect.min.x, end_pos.y - 2.0),
-                                pos2(end_pos.x + 2.0, end_pos.y + line_h + 2.0),
-                            );
-                            (r1.contains(pos) || r2.contains(pos))
-                                && (char_idx >= link.start && char_idx <= link.end)
-                        };
+                        let is_hit = char_idx >= link.start && char_idx <= link.end;
 
                         if is_hit {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            let anchor = pos2(start_pos.x, start_pos.y + line_h);
+                            let row = self.visual_lines.iter().position(|line| link.start >= line.char_start && link.start <= line.char_end).unwrap_or(0);
+                            let line = &self.visual_lines[row];
+                            let anchor = pos2(ed_origin.x + link.start.saturating_sub(line.char_start) as f32 * cell_w, ed_origin.y + (row + 1) as f32 * line_h);
                             found_hover = Some((link.target.clone(), anchor));
 
                             if ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary)) {

@@ -1,6 +1,7 @@
 //! Editor panes layout, splitters, tab strips, and view modes.
 
 use super::{App, EditorInputMode};
+use crate::editor::backend::EditorBackend;
 use crate::mode::Mode;
 use crate::view_editor::{render_editor_body, render_inline_editor};
 use eframe::egui::{self, pos2, vec2, Color32, FontId, Rect, Stroke, Ui};
@@ -283,7 +284,14 @@ impl App {
         let target_ed = if self.mode == Mode::Doc { &self.doc_ed } else { &self.ed };
         let effective_editor_w = actual_editor_rect.width();
 
-        self.visual_lines = if self.inline_mode {
+        // In Vim mode Neovim owns the editor surface — skip the inline layout
+        // computation entirely; it's expensive and serves no purpose here.
+        let in_vim_mode = self.editor_controller.mode == EditorInputMode::Vim
+            && self.mode == Mode::Normal;
+
+        self.visual_lines = if in_vim_mode {
+            vec![crate::types::VisualLine { char_start: 0, char_end: self.ed.buf.len() }]
+        } else if self.inline_mode {
             let gutter_w = if self.show_line_numbers {
                 let total_lines = (target_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
                 let digits = total_lines.to_string().len().max(2);
@@ -327,13 +335,13 @@ impl App {
         match self.mode {
             Mode::Normal | Mode::Doc => {
                 let original_caret_kind = self.caret.kind;
-                let active_vim_mode = if self.editor_input_mode == EditorInputMode::Vim {
-                    Some(self.vim.mode)
+                let active_vim_mode = if self.editor_controller.mode == EditorInputMode::Vim {
+                    self.vim_runtime.backend.as_ref().map(|b| b.grid.mode.as_str())
                 } else {
                     None
                 };
                 self.caret.kind = crate::caret::resolve_caret_kind(
-                    self.editor_input_mode,
+                    self.editor_controller.mode,
                     active_vim_mode,
                     original_caret_kind,
                 );
@@ -410,22 +418,7 @@ impl App {
                     (&mut self.ed, &mut self.scroll_y)
                 };
 
-                let search_matches = if self.editor_input_mode == EditorInputMode::Vim
-                    && (!self.vim.search.match_indices.is_empty() || self.vim.is_searching())
-                {
-                    let q_len = if self.vim.is_searching() {
-                        self.vim.search.query.chars().count()
-                    } else {
-                        self.vim.search.last_query.chars().count()
-                    };
-                    if q_len > 0 && !self.vim.search.match_indices.is_empty() {
-                        Some((self.vim.search.match_indices.as_slice(), q_len))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
+                let search_matches: Option<(&[usize], usize)> = None;
 
                 if show_dashboard {
                     if let Some(dash_action) = crate::view_dashboard::render_welcome_dashboard(
@@ -487,6 +480,29 @@ impl App {
                             }
                         }
                     }
+                } else if self.editor_controller.mode == EditorInputMode::Vim && self.mode == Mode::Normal && self.vim_runtime.backend.is_none() {
+                    ui.vertical_centered(|ui| {
+                        if let Some(error) = &self.vim_runtime.start_error {
+                            ui.colored_label(self.theme.highlight, format!("Neovim could not start: {error}"));
+                        } else {
+                            ui.spinner();
+                            ui.label("Starting embedded Neovim…");
+                        }
+                    });
+                } else if self.vim_runtime.backend.is_some() && self.editor_controller.mode == EditorInputMode::Vim {
+                    if let Some(backend) = self.vim_runtime.backend.as_mut() {
+                        backend.render_in_rect(
+                            ui,
+                            actual_editor_rect,
+                            ed_font_size,
+                            ed_cw,
+                            ed_lh,
+                            &self.theme,
+                            &mut self.caret,
+                            dt,
+                            typed,
+                        );
+                    }
                 } else if self.inline_mode {
                     render_inline_editor(
                         ui,
@@ -545,7 +561,7 @@ impl App {
                 self.render_right_pane_tabs(ui, painter, preview_rect_opt, any_modal_open, ed_font_size, now);
 
                 // Floating Keystroke Card (Vim showcmd)
-                if !show_dashboard && self.editor_input_mode == EditorInputMode::Vim {
+                if !show_dashboard && self.editor_controller.mode == EditorInputMode::Vim {
                     let card_anchor = pos2(actual_editor_rect.max.x - 16.0, actual_editor_rect.max.y - 20.0);
                     self.showcmd.render_card(painter, card_anchor, &self.theme, now);
                 }

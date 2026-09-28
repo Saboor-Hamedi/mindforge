@@ -900,12 +900,12 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
             }
         }
         "live" | "inline" | "livepreview" => {
-            app.inline_mode = true;
+            app.inline_mode = false;
             let _ = app.db_tx.send(DbMsg::SaveSetting {
                 key: "inline_mode".into(),
-                val: "true".into(),
+                val: "false".into(),
             });
-            app.set_status("✨ Inline Live Markdown Mode ENABLED (Ctrl+E to toggle)", now);
+            app.set_status("Live inline Markdown is disabled; raw editing is active", now);
         }
         "raw" | "source" => {
             app.inline_mode = false;
@@ -916,14 +916,15 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
             app.set_status("📝 Raw Monospace Mode ENABLED (Ctrl+E to toggle)", now);
         }
         "noh" | "nohl" | "nohlsearch" => {
-            app.vim.search.clear_matches();
+            if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                let _ = backend.send_input(":noh<CR>");
+            }
             app.set_status("Search highlighting cleared (:noh)", now);
         }
         "vim" => {
             match args.to_lowercase().trim() {
                 "on" | "enable" | "1" => {
-                    app.editor_input_mode = crate::app::EditorInputMode::Vim;
-                    app.vim.set_mode(crate::vim::VimSubMode::Normal, &mut app.ed);
+                    app.editor_controller.mode = crate::app::EditorInputMode::Vim;
                     let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
                         key: "editor_mode".into(),
                         val: "vim".into(),
@@ -931,7 +932,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                     app.set_status("Vim Mode Enabled (-- NORMAL --)", now);
                 }
                 "off" | "disable" | "0" => {
-                    app.editor_input_mode = crate::app::EditorInputMode::Hybrid;
+                    app.editor_controller.mode = crate::app::EditorInputMode::Hybrid;
                     let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
                         key: "editor_mode".into(),
                         val: "hybrid".into(),
@@ -939,16 +940,15 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                     app.set_status("Hybrid Mode Enabled (Modern IDE)", now);
                 }
                 _ => {
-                    if app.editor_input_mode == crate::app::EditorInputMode::Vim {
-                        app.editor_input_mode = crate::app::EditorInputMode::Hybrid;
+                    if app.editor_controller.mode == crate::app::EditorInputMode::Vim {
+                        app.editor_controller.mode = crate::app::EditorInputMode::Hybrid;
                         let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
                             key: "editor_mode".into(),
                             val: "hybrid".into(),
                         });
                         app.set_status("Switched to Hybrid Mode (Modern IDE)", now);
                     } else {
-                        app.editor_input_mode = crate::app::EditorInputMode::Vim;
-                        app.vim.set_mode(crate::vim::VimSubMode::Normal, &mut app.ed);
+                        app.editor_controller.mode = crate::app::EditorInputMode::Vim;
                         let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
                             key: "editor_mode".into(),
                             val: "vim".into(),
@@ -961,8 +961,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
         "mode" => {
             match args.to_lowercase().trim() {
                 "vim" => {
-                    app.editor_input_mode = crate::app::EditorInputMode::Vim;
-                    app.vim.set_mode(crate::vim::VimSubMode::Normal, &mut app.ed);
+                    app.editor_controller.mode = crate::app::EditorInputMode::Vim;
                     let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
                         key: "editor_mode".into(),
                         val: "vim".into(),
@@ -970,7 +969,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                     app.set_status("Vim Mode Active (-- NORMAL --)", now);
                 }
                 "hybrid" => {
-                    app.editor_input_mode = crate::app::EditorInputMode::Hybrid;
+                    app.editor_controller.mode = crate::app::EditorInputMode::Hybrid;
                     let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
                         key: "editor_mode".into(),
                         val: "hybrid".into(),
@@ -978,7 +977,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                     app.set_status("Hybrid Mode Active (Modern IDE)", now);
                 }
                 _ => {
-                    let current = match app.editor_input_mode {
+                    let current = match app.editor_controller.mode {
                         crate::app::EditorInputMode::Hybrid => "Hybrid (Modern IDE)",
                         crate::app::EditorInputMode::Vim => "Vim (Modal Engine)",
                     };

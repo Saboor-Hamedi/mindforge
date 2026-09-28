@@ -228,11 +228,14 @@ impl WikiLinkAutocompleteState {
                 return;
             }
 
+            let trigger_start = lookback + rel;
+            let query: String = typed_slice.iter().collect();
+            if !self.is_active || self.trigger_start != trigger_start || self.query != query {
+                self.trigger_start = trigger_start;
+                self.query = query;
+                self.update_filtered(notes);
+            }
             self.is_active = true;
-            self.trigger_start = lookback + rel;
-            self.query = typed_slice.iter().collect();
-
-            self.update_filtered(notes);
         } else {
             self.clear();
         }

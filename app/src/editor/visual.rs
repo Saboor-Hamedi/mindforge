@@ -340,7 +340,7 @@ impl Editor {
 /// - Insert / Search / None: bar sits BETWEEN characters. At end-of-line it's
 ///   one cell past the last character.
 /// - Empty line: 0 in every mode.
-pub fn caret_cell(cur: usize, line: &VisualLine, _vim_mode: Option<crate::vim::VimSubMode>) -> usize {
+pub fn caret_cell(cur: usize, line: &VisualLine, _vim_mode: Option<&str>) -> usize {
     let line_len = line.char_end.saturating_sub(line.char_start);
     if line_len == 0 {
         return 0;

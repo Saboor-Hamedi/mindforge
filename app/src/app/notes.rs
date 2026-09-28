@@ -55,7 +55,6 @@ impl App {
         self.save_active_note_id();
         self.save_open_tabs();
         self.mode = Mode::Normal;
-        self.vim.set_mode(crate::vim::VimSubMode::Normal, &mut self.ed);
         let msg = format!("Switched to {}", self.active_note_title);
         self.set_status(&msg, now);
     }
@@ -74,7 +73,6 @@ impl App {
             self.active_note_title.clear();
             self.ed.clear();
             self.mode = Mode::Normal;
-            self.vim.set_mode(crate::vim::VimSubMode::Normal, &mut self.ed);
             self.is_dirty = false;
             self.scroll_y = 0.0;
             self.active_tab = 0;
@@ -101,7 +99,6 @@ impl App {
         self.save_active_note_id();
         self.save_open_tabs();
         self.mode = Mode::Normal;
-        self.vim.set_mode(crate::vim::VimSubMode::Normal, &mut self.ed);
         let msg = format!("Closed tab; active: {}", self.active_note_title);
         self.set_status(&msg, now);
     }
@@ -163,7 +160,6 @@ impl App {
         self.scroll_y = 0.0;
         self.is_dirty = false;
         self.mode = Mode::Normal;
-        self.vim.set_mode(crate::vim::VimSubMode::Normal, &mut self.ed);
 
         if let Some(ref db) = self.db {
             if let Ok(Some(c_str)) = db.get_setting(&format!("note_caret_{}", id)) {
@@ -337,7 +333,6 @@ impl App {
         self.active_note_title = "Untitled Note".to_string();
         self.ed.clear();
         self.mode = Mode::Normal;
-        self.vim.set_mode(crate::vim::VimSubMode::Normal, &mut self.ed);
         self.is_dirty = false;
         self.scroll_y = 0.0;
         self.open_notes.push(crate::app::OpenNote {

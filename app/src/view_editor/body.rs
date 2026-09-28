@@ -26,7 +26,7 @@ pub fn render_editor_body(
     block_scroll: bool,
     search_matches: Option<(&[usize], usize)>,
     show_line_numbers: bool,
-    vim_mode: Option<crate::vim::VimSubMode>,
+    vim_mode: Option<&str>,
 ) {
     let font = crate::font_manager::editor_font_id(font_size);
     let font_h = painter.layout_no_wrap("M".to_owned(), font.clone(), Color32::WHITE).size().y;

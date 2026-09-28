@@ -1,4 +1,9 @@
 mod editing;
+pub mod backend;
+pub mod controller;
+pub mod events;
+pub mod types;
+
 mod lines;
 mod movement;
 mod selection;
