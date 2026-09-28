@@ -57,3 +57,27 @@ impl SidebarState {
         self.focused = false;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sidebar_toggle() {
+        let mut sb = SidebarState::new();
+        assert!(!sb.open);
+        sb.toggle();
+        assert!(sb.open);
+        sb.toggle();
+        assert!(!sb.open);
+    }
+
+    #[test]
+    fn test_sidebar_open_close() {
+        let mut sb = SidebarState::new();
+        sb.open();
+        assert!(sb.open && sb.focused);
+        sb.close();
+        assert!(!sb.open && !sb.focused);
+    }
+}

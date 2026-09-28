@@ -523,13 +523,31 @@ impl App {
 
                 if self.services.wikilink_autocomplete.is_active {
                     let idx = self.services.wikilink_autocomplete.trigger_start;
-                    if let Some(line) = self.editor.visual_lines.iter().find(|line| idx >= line.char_start && idx <= line.char_end) {
-                        let row = self.editor.visual_lines.iter().position(|candidate| std::ptr::eq(candidate, line)).unwrap_or(0);
-                        let col = idx.saturating_sub(line.char_start);
-                        self.services.wikilink_autocomplete.trigger_screen_pos = pos2(
-                            ed_origin.x + col as f32 * cell_w,
-                            ed_origin.y + row as f32 * line_h + line_h,
-                        );
+                    let trigger_pos = if self.services.editor_controller.mode == EditorInputMode::Vim {
+                        self.services.vim_runtime.backend.as_ref().map(|backend| {
+                            // Vim's app-side visual_lines intentionally stays compact; use
+                            // Neovim's screen cursor instead of treating a document index as
+                            // a screen column (which pushed the popup to the right edge).
+                            let cursor = backend.grid.cursor;
+                            let number_columns = if self.editor.show_line_numbers { 4 } else { 0 };
+                            let text_column = cursor.column.saturating_sub(number_columns);
+                            pos2(
+                                text_left + text_column as f32 * cell_w,
+                                actual_editor_rect.min.y + pad_y + (cursor.row as f32 + 1.0) * line_h + 4.0,
+                            )
+                        })
+                    } else {
+                        self.editor.visual_lines.iter().find(|line| idx >= line.char_start && idx <= line.char_end).map(|line| {
+                            let row = self.editor.visual_lines.iter().position(|candidate| std::ptr::eq(candidate, line)).unwrap_or(0);
+                            let col = idx.saturating_sub(line.char_start);
+                            pos2(
+                                ed_origin.x + col as f32 * cell_w,
+                                ed_origin.y + row as f32 * line_h + line_h + 6.0,
+                            )
+                        })
+                    };
+                    if let Some(trigger_pos) = trigger_pos {
+                        self.services.wikilink_autocomplete.trigger_screen_pos = trigger_pos;
                         self.services.wikilink_autocomplete.trigger_line_height = line_h;
                     }
                 }

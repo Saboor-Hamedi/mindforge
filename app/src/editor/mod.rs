@@ -25,6 +25,8 @@ pub struct Editor {
     pub undo_stack: Vec<EditorSnapshot>,
     pub redo_stack: Vec<EditorSnapshot>,
     pub desired_col: Option<usize>,
+    line_offsets: Vec<usize>,
+    offsets_dirty: bool,
 }
 
 impl Editor {
@@ -58,6 +60,21 @@ impl Editor {
         self.selection = None;
         self.selection_inclusive = false;
         self.desired_col = None;
+        self.offsets_dirty = true;
+    }
+
+    fn ensure_line_offsets(&mut self) {
+        if !self.offsets_dirty && self.line_offsets.len() >= self.buf.len() {
+            return;
+        }
+        self.line_offsets.clear();
+        self.line_offsets.push(0);
+        for (i, &c) in self.buf.iter().enumerate() {
+            if c == '\n' {
+                self.line_offsets.push(i + 1);
+            }
+        }
+        self.offsets_dirty = false;
     }
 
     pub fn text(&self) -> String {
@@ -69,8 +86,8 @@ impl Editor {
     }
 
     pub fn row_col_of(&self, idx: usize) -> (usize, usize) {
-        let (mut row, mut col) = (0, 0);
         let end = idx.min(self.buf.len());
+        let (mut row, mut col) = (0, 0);
         for &c in &self.buf[..end] {
             if c == '\n' {
                 row += 1;
@@ -80,6 +97,19 @@ impl Editor {
             }
         }
         (row, col)
+    }
+
+    pub fn row_col_of_fast(&mut self, idx: usize) -> (usize, usize) {
+        self.ensure_line_offsets();
+        let end = idx.min(self.buf.len());
+        match self.line_offsets.binary_search(&end) {
+            Ok(i) => (i, 0),
+            Err(i) => {
+                let row = i.saturating_sub(1);
+                let line_start = self.line_offsets[row];
+                (row, end - line_start)
+            }
+        }
     }
 
     /// Returns the (start, end) char indices of the line at 0-based `row`, excluding trailing newline.

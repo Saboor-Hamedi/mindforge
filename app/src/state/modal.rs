@@ -100,3 +100,29 @@ impl ModalState {
         self.help_open = false;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_modal_any_open() {
+        let mut modal = ModalState::new();
+        assert!(!modal.any_open());
+        modal.settings_open = true;
+        assert!(modal.any_open());
+    }
+
+    #[test]
+    fn test_modal_close_all() {
+        let mut modal = ModalState::new();
+        modal.settings_open = true;
+        modal.search_open = true;
+        modal.rename_open = true;
+        modal.delete_confirm_open = true;
+        modal.help_open = true;
+        assert!(modal.any_open());
+        modal.close_all();
+        assert!(!modal.any_open());
+    }
+}

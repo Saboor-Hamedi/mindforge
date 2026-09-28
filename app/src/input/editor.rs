@@ -42,8 +42,7 @@ pub fn handle_editor_text(app: &mut App, s: &str, now: f64) -> bool {
     }
 
     if app.misc.mode == Mode::Doc {
-        app.set_status("📖 Documentation is read-only.", now);
-        return false;
+        return true;
     }
 
     for c in s.chars() {

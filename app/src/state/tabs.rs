@@ -90,3 +90,36 @@ impl TabsState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tab_navigation() {
+        let mut tabs = TabsState::new();
+        assert_eq!(tabs.active_tab, 0);
+        tabs.next_tab(3);
+        assert_eq!(tabs.active_tab, 1);
+        tabs.next_tab(3);
+        assert_eq!(tabs.active_tab, 2);
+        tabs.next_tab(3);
+        assert_eq!(tabs.active_tab, 0);
+    }
+
+    #[test]
+    fn test_tab_prev_wraps() {
+        let mut tabs = TabsState::new();
+        tabs.prev_tab(3);
+        assert_eq!(tabs.active_tab, 2);
+    }
+
+    #[test]
+    fn test_goto_tab() {
+        let mut tabs = TabsState::new();
+        tabs.goto_tab(2, 5);
+        assert_eq!(tabs.active_tab, 2);
+        tabs.goto_tab(10, 5);
+        assert_eq!(tabs.active_tab, 2);
+    }
+}

@@ -99,3 +99,30 @@ impl ActivityState {
         self.pending_edited = 0;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_activity_tracking() {
+        let mut act = ActivityState::new();
+        assert!(!act.has_pending());
+        act.record_keystroke(true);
+        assert!(act.has_pending());
+        assert_eq!(act.pending_keys, 1);
+        assert_eq!(act.pending_words, 1);
+    }
+
+    #[test]
+    fn test_activity_clear_pending() {
+        let mut act = ActivityState::new();
+        act.record_keystroke(false);
+        act.record_time(5.0);
+        act.record_note_created();
+        act.record_note_edited();
+        assert!(act.has_pending());
+        act.clear_pending();
+        assert!(!act.has_pending());
+    }
+}

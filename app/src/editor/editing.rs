@@ -32,6 +32,21 @@ impl Editor {
         if self.cur > 0 {
             self.save_undo_snapshot();
 
+            // Remove an automatically paired delimiter in one Backspace when
+            // the caret is between its opening and closing characters.
+            let closes_pair = self.cur < self.buf.len()
+                && matches!(
+                    (self.buf[self.cur - 1], self.buf[self.cur]),
+                    ('(', ')') | ('[', ']') | ('{', '}') | ('"', '"') | ('\'', '\'') | ('`', '`')
+                );
+            if closes_pair {
+                self.buf.remove(self.cur);
+                self.cur -= 1;
+                self.buf.remove(self.cur);
+                self.selection = None;
+                return;
+            }
+
             // Find current line start up to cursor
             let mut line_start = self.cur;
             while line_start > 0 && self.buf[line_start - 1] != '\n' {
@@ -1202,4 +1217,3 @@ fn parse_numbered_list_prefix(rest: &str) -> Option<usize> {
         None
     }
 }
-
