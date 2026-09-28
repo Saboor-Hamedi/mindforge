@@ -3,7 +3,7 @@
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect};
 use crate::sidebar::SidebarAction;
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 
 /// Renders the top header of the sidebar: branding, shortcut hint, and Stats view button.
 pub fn render_sidebar_header(

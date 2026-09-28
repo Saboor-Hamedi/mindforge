@@ -1,6 +1,6 @@
 //! Interactive task checkbox element rendering.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{pos2, Color32, Painter, Pos2, Rect, Stroke};
 
 /// Renders an interactive vector checkbox for markdown task list items (- [ ] / - [x]).

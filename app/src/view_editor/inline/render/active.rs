@@ -7,7 +7,7 @@ use super::super::elements::{
 };
 use super::super::spans::parse_inline_spans;
 use super::super::types::{InlineLineKind, InlineSpanKind};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{Color32, FontId, Stroke, TextFormat};
 
@@ -60,8 +60,8 @@ pub fn render_active_line(
         _ => (base_font_size, (base_font_size * 1.55).round()),
     };
 
-    let default_font = crate::font_manager::editor_font_id(font_size);
-    let syntax_font = crate::font_manager::editor_font_id(font_size);
+    let default_font = crate::services::font_manager::editor_font_id(font_size);
+    let syntax_font = crate::services::font_manager::editor_font_id(font_size);
 
     let syntax_color = Color32::from_rgba_unmultiplied(
         theme.muted.r(),
@@ -250,11 +250,11 @@ pub fn render_active_line(
                 append_run_and_map(job, charmap, chars, abs_start..abs_end, fmt);
             }
             InlineSpanKind::FootnoteRef { .. } => {
-                let fmt = TextFormat::simple(crate::font_manager::editor_font_id(font_size * 0.85), theme.text);
+                let fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(font_size * 0.85), theme.text);
                 append_run_and_map(job, charmap, chars, abs_start..abs_end, fmt);
             }
             InlineSpanKind::Html { .. } => {
-                let fmt = TextFormat::simple(crate::font_manager::editor_font_id(font_size * 0.9), theme.muted);
+                let fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(font_size * 0.9), theme.muted);
                 append_run_and_map(job, charmap, chars, abs_start..abs_end, fmt);
             }
             InlineSpanKind::HardBreak => {

@@ -4,7 +4,7 @@ pub mod outline;
 pub mod backlinks;
 
 use crate::editor::Editor;
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use crate::wikilink::BacklinkItem;
 use eframe::egui::{pos2, Align2, FontId, Rect, Stroke, Ui};
 use outline::{extract_outline_headings, render_outline_panel, OutlineAction, OutlineHeading};

@@ -1,7 +1,7 @@
 //! Sound profile settings tab.
 
-use crate::sound::{SoundEngine, SoundProfile};
-use crate::theme::Theme;
+use crate::services::sound::{SoundEngine, SoundProfile};
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};
 
 /// Waveform bar heights representing audio character of each profile.

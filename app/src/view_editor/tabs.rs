@@ -2,7 +2,7 @@
 //!
 //! Renders as the top strip inside the editor panel card.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
 pub const TAB_ROW_H: f32 = 35.0;

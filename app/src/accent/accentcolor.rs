@@ -7,7 +7,7 @@
 //! animated hover states via `ctx.animate_bool` (cheap: egui only requests a
 //! repaint while a value is actually transitioning, then goes idle).
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Id, Rect, Sense, Stroke};
 
 /// Persistent custom color overrides for theme accent, text, and highlight/selection.
@@ -103,7 +103,7 @@ pub fn render_accent_dropdown(
     theme: &Theme,
     default_theme: &Theme,
     opacity: &mut f32,
-    blur_effect: &mut crate::blur::BlurEffect,
+    blur_effect: &mut crate::services::blur::BlurEffect,
     on_save_setting: &mut dyn FnMut(&str, &str),
 ) -> Option<AccentAction> {
     let mut action = None;
@@ -243,9 +243,9 @@ pub fn render_accent_dropdown(
     );
 
     let effect_pills = [
-        ("None", crate::blur::BlurEffect::None),
-        ("Mica", crate::blur::BlurEffect::Mica),
-        ("Acrylic", crate::blur::BlurEffect::Acrylic),
+        ("None", crate::services::blur::BlurEffect::None),
+        ("Mica", crate::services::blur::BlurEffect::Mica),
+        ("Acrylic", crate::services::blur::BlurEffect::Acrylic),
     ];
     let pill_w = 58.0;
     let pill_h = 22.0;
@@ -292,11 +292,11 @@ pub fn render_accent_dropdown(
 
         if p_resp.clicked() {
             *blur_effect = p_eff;
-            if (p_eff == crate::blur::BlurEffect::Acrylic || p_eff == crate::blur::BlurEffect::Mica) && *opacity > 0.95 {
+            if (p_eff == crate::services::blur::BlurEffect::Acrylic || p_eff == crate::services::blur::BlurEffect::Mica) && *opacity > 0.95 {
                 *opacity = 0.88;
                 on_save_setting("opacity", "0.88");
             }
-            crate::blur::apply_window_blur(p_eff);
+            crate::services::blur::apply_window_blur(p_eff);
             on_save_setting("blur", p_eff.name().to_lowercase().as_str());
             changed = true;
         }
@@ -376,8 +376,8 @@ pub fn render_accent_dropdown(
     if reset_resp.clicked() {
         overrides.clear();
         *opacity = 0.88;
-        *blur_effect = crate::blur::BlurEffect::Acrylic;
-        crate::blur::apply_window_blur(crate::blur::BlurEffect::Acrylic);
+        *blur_effect = crate::services::blur::BlurEffect::Acrylic;
+        crate::services::blur::apply_window_blur(crate::services::blur::BlurEffect::Acrylic);
         on_save_setting("opacity", "0.88");
         on_save_setting("blur", "acrylic");
         action = Some(AccentAction::ResetAll);
@@ -509,7 +509,7 @@ fn render_color_section(
 
         painter.rect(grown, 3.5, swatch, stroke, egui::StrokeKind::Inside);
         if is_selected {
-            let dot_col = if crate::theme::relative_luminance(swatch) > 0.5 {
+            let dot_col = if crate::ui::theme::relative_luminance(swatch) > 0.5 {
                 Color32::BLACK
             } else {
                 Color32::WHITE
@@ -616,7 +616,7 @@ fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::theme::ThemeKind;
+    use crate::ui::theme::ThemeKind;
 
     #[test]
     fn test_hex_conversion() {

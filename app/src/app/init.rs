@@ -2,14 +2,14 @@
 
 use super::{App, EditorInputMode, OpenNote, RightPaneTab};
 use crate::caret::{Caret, CaretKind};
-use crate::db_worker::{spawn_db_worker, DbMsg};
+use crate::services::db_worker::{spawn_db_worker, DbMsg};
 use crate::editor::{Editor, VisualLine};
 use crate::hybrid::HybridEngine;
 use crate::mode::Mode;
 use crate::settings::SettingTab;
-use crate::sound::{SoundEngine, SoundProfile};
-use crate::theme::{Theme, ThemeKind};
-use crate::updater::UpdateManager;
+use crate::services::sound::{SoundEngine, SoundProfile};
+use crate::ui::theme::{Theme, ThemeKind};
+use crate::services::updater::UpdateManager;
 
 use chrono::Local;
 use core::{DailyActivity, Database};
@@ -42,9 +42,9 @@ impl App {
             sound: SoundEngine::new(SoundProfile::Thocky),
             font_size: 16.0,
             selected_font: "JetBrains Mono".to_string(),
-            blur_effect: crate::blur::BlurEffect::Acrylic,
+            blur_effect: crate::services::blur::BlurEffect::Acrylic,
             show_welcome: false,
-            zoom: crate::zoom::ZoomState::new(),
+            zoom: crate::ui::zoom::ZoomState::new(),
             right_pane_tab: RightPaneTab::Preview,
             ai_focus_requested: false,
             opacity: 1.0,
@@ -113,7 +113,7 @@ impl App {
             editor_controller: crate::editor::controller::EditorController::new(EditorInputMode::Hybrid),
             vim_runtime: crate::vim::VimRuntime::default(),
             hybrid: HybridEngine::new(),
-            showcmd: crate::showcmd::ShowCmdState::new(true),
+            showcmd: crate::ui::showcmd::ShowCmdState::new(true),
             pending_secs: 0.0,
             pending_keys: 0,
             pending_words: 0,
@@ -340,10 +340,10 @@ impl App {
             }
             if let Ok(Some(bl)) = db.get_setting("blur") {
                 self.blur_effect = match bl.as_str() {
-                    "acrylic" => crate::blur::BlurEffect::Acrylic,
-                    "mica" => crate::blur::BlurEffect::Mica,
-                    "none" | "off" => crate::blur::BlurEffect::None,
-                    _ => crate::blur::BlurEffect::Acrylic,
+                    "acrylic" => crate::services::blur::BlurEffect::Acrylic,
+                    "mica" => crate::services::blur::BlurEffect::Mica,
+                    "none" | "off" => crate::services::blur::BlurEffect::None,
+                    _ => crate::services::blur::BlurEffect::Acrylic,
                 };
             }
             if let Ok(Some(zen)) = db.get_setting("zen_mode") {
@@ -494,9 +494,9 @@ impl App {
             let _ = db.set_setting("last_scroll_y", &self.scroll_y.to_string());
             let _ = db.set_setting("opacity", &format!("{:.2}", self.opacity));
             let blur_str = match self.blur_effect {
-                crate::blur::BlurEffect::Acrylic => "acrylic",
-                crate::blur::BlurEffect::Mica => "mica",
-                crate::blur::BlurEffect::None => "none",
+                crate::services::blur::BlurEffect::Acrylic => "acrylic",
+                crate::services::blur::BlurEffect::Mica => "mica",
+                crate::services::blur::BlurEffect::None => "none",
             };
             let _ = db.set_setting("blur", blur_str);
             if let Ok(json) = serde_json::to_string(&self.command_history) {

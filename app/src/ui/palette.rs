@@ -1,12 +1,19 @@
-//! Sub-picker lists and router for Command Palette (`>theme`, `>sound`, `>caret`, `>font`, `>mode`, `>luna`).
+//! Sub-picker lists and router for Command Palette.
+//!
+//! Handles the `>theme`, `>sound`, `>caret`, `>font`, `>mode`, `>luna`
+//! sub-picker modes. Each sub-picker generates a list of `SearchItem`s
+//! with fuzzy matching, active-state badges, and preview-on-Enter support.
+//!
+//! The `match_subpicker` function is the main entry point — it routes
+//! the query to the appropriate sub-picker based on the prefix.
 
 use crate::app::EditorInputMode;
 use crate::caret::CaretKind;
-use crate::font_manager::SUPPORTED_FONTS;
-use crate::fuzzy::{fuzzy_match, PaletteAction, SearchItem};
+use crate::services::font_manager::SUPPORTED_FONTS;
+use crate::services::fuzzy::{fuzzy_match, PaletteAction, SearchItem};
 use crate::lunaline::LunaStyle;
-use crate::sound::SoundProfile;
-use crate::theme::ThemeKind;
+use crate::services::sound::SoundProfile;
+use crate::ui::theme::ThemeKind;
 
 /// Formats caret kind title display name.
 pub fn caret_display_name(kind: CaretKind) -> &'static str {

@@ -7,7 +7,7 @@ pub mod icons;
 pub use icons::render_vector_icon;
 
 use eframe::egui::{self, vec2, Align2, Color32, FontId, Pos2, Rect};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 
 /// Renders a close button centered at `center` with width/height `size`.
 pub fn render_close_button(

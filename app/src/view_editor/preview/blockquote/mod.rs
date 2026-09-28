@@ -3,7 +3,7 @@
 //! Reuses the exact geometry, accent pill metrics, background luminance steps,
 //! and typography colors established by the inline editor.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use crate::view_editor::inline::elements::quote_color;
 use crate::view_editor::preview::build_inline_job;
 use eframe::egui::{pos2, Color32, CornerRadius, Painter, Rect};

@@ -2,7 +2,7 @@
 
 use super::state::WorkspaceImporter;
 use super::worker::spawn_import_worker;
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, Align2, Color32, FontId, Rect, Stroke};
 use std::path::PathBuf;
 

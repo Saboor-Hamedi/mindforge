@@ -1,7 +1,7 @@
 //! Progress modal dialog displaying live import metrics, gauge, and background/cancel controls.
 
 use super::state::{ImportStats, ImportStatus, WorkspaceImporter};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke, Ui};
 
 pub enum ImportModalAction {

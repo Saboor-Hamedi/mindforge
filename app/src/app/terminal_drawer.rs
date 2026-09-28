@@ -78,21 +78,21 @@ impl App {
             }
 
             if self.term_pane.is_none() {
-                self.term_pane = crate::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.theme).ok();
+                self.term_pane = crate::ui::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.theme).ok();
             }
             if let Some(ref mut pane) = self.term_pane {
                 let action = pane.ui(ui, term_rect, &self.theme, self.font_size, self.terminal_focused, self.opacity);
                 match action {
-                    crate::terminal_pane::TerminalAction::Close => {
+                    crate::ui::terminal_pane::TerminalAction::Close => {
                         self.terminal_open = false;
                         self.terminal_focused = false;
                         self.set_status("Terminal closed", now);
                         ui.ctx().request_repaint();
                     }
-                    crate::terminal_pane::TerminalAction::RequestFocus => {
+                    crate::ui::terminal_pane::TerminalAction::RequestFocus => {
                         self.terminal_focused = true;
                     }
-                    crate::terminal_pane::TerminalAction::None => {}
+                    crate::ui::terminal_pane::TerminalAction::None => {}
                 }
             }
         } else {

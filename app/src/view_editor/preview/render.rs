@@ -1,7 +1,7 @@
 //! Rich markdown live preview renderer with full multi-language syntax highlighting,
 //! custom vector checkboxes, formatted tables, blockquotes, and smooth typography.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
 use super::parser::{build_inline_job, parse_markdown, MdBlock};
@@ -46,7 +46,7 @@ pub fn render_markdown_view_inner(
     show_header: bool,
     block_scroll: bool,
 ) -> bool {
-    crate::font_manager::ensure_editor_font(ui.ctx());
+    crate::services::font_manager::ensure_editor_font(ui.ctx());
     let mut close_clicked = false;
 
     let content_rect = if show_header {
@@ -310,7 +310,7 @@ pub fn render_markdown_view_inner(
                         }
                     } else {
                         // Standard bullet or numbered list
-                        let bullet_font = crate::font_manager::editor_font_id(font_size);
+                        let bullet_font = crate::services::font_manager::editor_font_id(font_size);
                         let b_color = theme.text;
                         let bullet_w = if bullet.ends_with('.') {
                             (bullet.len() as f32 * font_size * 0.58).max(18.0)

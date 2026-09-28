@@ -1,7 +1,7 @@
 //! Embedded DeepSeek AI Agent pane interface rendered as a tab in the right split-pane.
 
 use super::{AgentState, MessageRole};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use crate::view_editor::preview::MdBlock;
 use core::Note;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Key, Rect, Stroke};

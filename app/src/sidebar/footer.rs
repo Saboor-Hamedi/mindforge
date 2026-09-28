@@ -3,7 +3,7 @@
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 use crate::sidebar::SidebarAction;
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 
 /// Renders the bottom footer of the sidebar: round settings icon button with hover tooltip.
 pub fn render_sidebar_footer(

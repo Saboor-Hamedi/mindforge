@@ -1,11 +1,24 @@
 //! Editor zoom management: gesture handling, font metrics scaling, and borderless center HUD.
+//!
+//! Provides smooth zoom in/out with:
+//! - 8% step increments (multiplicative, not additive)
+//! - Clamping to [0.5x, 3.0x] range
+//! - A floating HUD indicator that appears on zoom change and fades after 1.3s
+//! - Mouse wheel + Ctrl gesture support
+//!
+//! The zoom level is stored in `ZoomState` and applied by the renderer
+//! when calculating font sizes and layout metrics.
 
 use eframe::egui::{self, vec2, Color32, FontId, Rect, Stroke};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 
+/// Minimum allowed zoom level (50%)
 pub const MIN_ZOOM: f32 = 0.5;
+/// Maximum allowed zoom level (300%)
 pub const MAX_ZOOM: f32 = 3.0;
+/// Default zoom level (100%)
 pub const DEFAULT_ZOOM: f32 = 1.0;
+/// How long the zoom HUD remains visible (seconds)
 pub const HUD_DURATION: f32 = 1.3;
 
 #[derive(Debug, Clone)]
@@ -58,7 +71,7 @@ impl ZoomState {
         // Optical scale calibration: egui's monospace glyphs are ~9% larger than proportional glyphs.
         // Calibrating raw monospace font size by 0.92 ensures seamless optical scale when toggling Ctrl+E.
         let raw_font_size = (ed_font_size * 0.92).round().max(8.0);
-        let font = crate::font_manager::editor_font_id(raw_font_size);
+        let font = crate::services::font_manager::editor_font_id(raw_font_size);
         let (cw, lh) = ctx.fonts(|f| {
             let sample_100 = "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM";
             let g100 = f.layout_no_wrap(sample_100.to_owned(), font.clone(), Color32::WHITE);

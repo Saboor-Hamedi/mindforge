@@ -8,5 +8,5 @@
 pub mod render;
 pub mod types;
 
-pub use render::{get_mode_colors, render_lunaline, render_lunaline_preview, LunaLineRenderParams};
+pub use render::{render_lunaline, render_lunaline_preview, LunaLineRenderParams};
 pub use types::{LunaColorMode, LunaLineConfig, LunaStyle};

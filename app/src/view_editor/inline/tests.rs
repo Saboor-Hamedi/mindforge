@@ -3,7 +3,7 @@
 use super::classify::classify_line;
 use super::layout::build_line_layout;
 use super::types::{InlineLineKind, TableAlign, TableRowInfo};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 
 #[test]
 fn test_classify_headings() {
@@ -348,7 +348,7 @@ fn test_caret_pos_resets_cleanly_after_quote() {
     let (job1, map1, h1) = build_line_layout(&norm_chars, 11, true, 14.0, &theme, &norm_kind, norm_len, false, None, None);
 
     let ctx = eframe::egui::Context::default();
-    crate::font_manager::ensure_editor_font(&ctx);
+    crate::services::font_manager::ensure_editor_font(&ctx);
     let _ = ctx.run(Default::default(), |_| {});
     let galley0 = ctx.fonts(|f| f.layout_job(job0));
     let galley1 = ctx.fonts(|f| f.layout_job(job1));
@@ -460,7 +460,7 @@ fn test_table_canonical_column_propagation() {
 #[test]
 fn test_paragraph_selection_height_matches_row_not_full_paragraph() {
     use crate::editor::Editor;
-    use crate::theme::Theme;
+    use crate::ui::theme::Theme;
     use crate::view_editor::inline::layout::compute_inline_layout;
     use eframe::egui::{pos2, CentralPanel, Context};
 
@@ -471,7 +471,7 @@ fn test_paragraph_selection_height_matches_row_not_full_paragraph() {
     ed.selection_inclusive = true; // normal 'v' selection
 
     let ctx = Context::default();
-    crate::font_manager::ensure_editor_font(&ctx);
+    crate::services::font_manager::ensure_editor_font(&ctx);
     let _ = ctx.run(Default::default(), |ctx| {
         CentralPanel::default().show(ctx, |ui| {
             let (sel_start, sel_end) = ed.selected_range().unwrap();
@@ -495,7 +495,7 @@ fn test_paragraph_selection_height_matches_row_not_full_paragraph() {
 #[test]
 fn test_multiline_selection_geometric_continuity_and_text_boundary_precision() {
     use crate::editor::Editor;
-    use crate::theme::Theme;
+    use crate::ui::theme::Theme;
     use crate::view_editor::inline::elements::selection::render_document_selection;
     use crate::view_editor::inline::layout::compute_inline_layout;
     use eframe::egui::{pos2, CentralPanel, Color32, Context};
@@ -508,7 +508,7 @@ fn test_multiline_selection_geometric_continuity_and_text_boundary_precision() {
     ed.selection_inclusive = true;
 
     let ctx = Context::default();
-    crate::font_manager::ensure_editor_font(&ctx);
+    crate::services::font_manager::ensure_editor_font(&ctx);
     let _ = ctx.run(Default::default(), |ctx| {
         CentralPanel::default().show(ctx, |ui| {
             let (sel_start, sel_end) = ed.selected_range().unwrap();

@@ -3,7 +3,7 @@
 use super::ligatures::render_line_with_ligatures;
 use crate::caret::Caret;
 use crate::editor::{Editor, VisualLine};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};
 
 /// Renders the editor body with soft-wrapped visual lines, smooth scrolling, caret animation, and interactive scrollbar.
@@ -28,7 +28,7 @@ pub fn render_editor_body(
     show_line_numbers: bool,
     vim_mode: Option<&str>,
 ) {
-    let font = crate::font_manager::editor_font_id(font_size);
+    let font = crate::services::font_manager::editor_font_id(font_size);
     let font_h = painter.layout_no_wrap("M".to_owned(), font.clone(), Color32::WHITE).size().y;
     let y_pad = ((lh - font_h) * 0.5).round().max(0.0);
     let stroke_w = (font_size * 0.088).clamp(1.2, 1.8);

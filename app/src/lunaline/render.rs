@@ -1,7 +1,7 @@
 //! LunaLine rendering engine — renders sleek, modular statusline under the editor.
 
 use super::types::{LunaColorMode, LunaLineConfig, LunaStyle};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Shape, Stroke};
 
 pub struct LunaLineRenderParams<'a> {

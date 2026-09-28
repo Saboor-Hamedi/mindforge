@@ -106,7 +106,7 @@ fn send_text(app: &mut App, text: &str, now: f64) {
         app.last_char_time = now;
         let normal_mode = app.vim_runtime.backend.as_ref().is_some_and(|backend| !backend.is_insert_mode());
         if normal_mode {
-            if app.showcmd.is_pending && app.showcmd.kind == crate::showcmd::ShowCmdKind::Keystroke {
+            if app.showcmd.is_pending && app.showcmd.kind == crate::ui::showcmd::ShowCmdKind::Keystroke {
                 let sequence = format!("{}{}", app.showcmd.text, text);
                 app.showcmd.record_action(&sequence, now);
             } else if matches!(text, "d" | "c" | "y" | "g" | "z") {

@@ -1,7 +1,7 @@
 //! Document outline generator: scans headings H1-H6 and enables instant cursor jumping.
 
 use crate::editor::Editor;
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, FontId, Rect, ScrollArea, Stroke, Ui};
 
 /// A heading entry in the document outline.

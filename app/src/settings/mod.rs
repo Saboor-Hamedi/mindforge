@@ -19,9 +19,9 @@ pub use tabs::{render_setting_tabs, SettingTab};
 
 use crate::app::EditorInputMode;
 use crate::caret::Caret;
-use crate::sound::SoundEngine;
-use crate::theme::Theme;
-use crate::updater::UpdateManager;
+use crate::services::sound::SoundEngine;
+use crate::ui::theme::Theme;
+use crate::services::updater::UpdateManager;
 use eframe::egui::{self, vec2, Rect};
 
 pub enum SettingPanelAction {
@@ -50,7 +50,7 @@ pub fn render_setting_panel(
     selected_font: &mut String,
     font_size: &mut f32,
     opacity: &mut f32,
-    blur_effect: &mut crate::blur::BlurEffect,
+    blur_effect: &mut crate::services::blur::BlurEffect,
     lunaline_config: &mut crate::lunaline::LunaLineConfig,
     on_save_setting: &mut dyn FnMut(&str, &str),
 ) -> Option<SettingPanelAction> {

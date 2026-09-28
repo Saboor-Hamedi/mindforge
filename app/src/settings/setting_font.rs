@@ -1,7 +1,7 @@
 //! Font customization and typography preferences panel.
 
-use crate::font_manager::SUPPORTED_FONTS;
-use crate::theme::Theme;
+use crate::services::font_manager::SUPPORTED_FONTS;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};
 
 /// Renders the sleek typography and font family selection panel.
@@ -46,7 +46,7 @@ pub fn render_font_settings(
 
         let is_selected = selected_font.eq_ignore_ascii_case(font.display_name)
             || (selected_font.is_empty() && font.id == "jetbrains_mono");
-        let is_installed = crate::font_manager::is_font_available(font.display_name);
+        let is_installed = crate::services::font_manager::is_font_available(font.display_name);
         let hovered = ui.rect_contains_pointer(card_rect);
 
         if hovered {
@@ -138,7 +138,7 @@ pub fn render_font_settings(
         if hovered && ui.input(|i| i.pointer.primary_clicked()) {
             *selected_font = font.display_name.to_string();
             on_save_setting("selected_font", font.display_name);
-            crate::font_manager::apply_font(ui.ctx(), font.display_name);
+            crate::services::font_manager::apply_font(ui.ctx(), font.display_name);
         }
 
         cur_y += card_h + card_gap;

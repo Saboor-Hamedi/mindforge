@@ -1,8 +1,19 @@
 //! Fuzzy search utilities and Command Palette actions for MindForge.
+//!
+//! Provides the unified search and command routing system:
+//! - `fuzzy_match` — Subsequence-based fuzzy string matching with scoring
+//! - `search_palette` — Routes queries to sub-pickers or command palette
+//! - `BUILTIN_COMMANDS` — Static catalog of all available commands
+//! - `PaletteAction` — Enum of all actions the palette can trigger
+//!
+//! Scoring rewards: consecutive characters, word-boundary matches,
+//! exact matches, and shorter haystacks (more relevant).
 
-use crate::theme::ThemeKind;
-use crate::sound::SoundProfile;
+use crate::ui::theme::ThemeKind;
+use crate::services::sound::SoundProfile;
 
+/// All actions that can be triggered from the Command Palette or fuzzy search.
+/// Each variant carries the data needed to execute the action.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PaletteAction {
     OpenNote(i64),
@@ -41,14 +52,22 @@ pub enum PaletteAction {
     SetLunaColor(crate::lunaline::LunaColorMode),
 }
 
+/// A single search result item displayed in the palette or search modal.
 #[derive(Debug, Clone)]
 pub struct SearchItem {
+    /// Unique identifier (note ID, or 0 for built-in commands)
     pub id: i64,
+    /// Display title shown as the primary line
     pub title: String,
+    /// Secondary description text
     pub snippet: String,
+    /// Fuzzy match score (higher = more relevant)
     pub score: i64,
+    /// Short badge text (e.g. ">theme", "Ctrl+N", "Active")
     pub badge: String,
+    /// Emoji or symbol icon displayed to the left
     pub icon: &'static str,
+    /// Action to execute when this item is selected
     pub action: PaletteAction,
 }
 
@@ -390,7 +409,16 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
 ];
 
 /// Computes a fuzzy match score between needle and haystack.
-/// Returns Some(score) if needle is a subsequence of haystack, None otherwise.
+///
+/// The needle must be a subsequence of the haystack (case-insensitive).
+/// Scoring algorithm:
+/// - +10 points per matched character
+/// - +5 × consecutive streak for consecutive matches
+/// - +15 bonus for matches at word boundaries (start, after space/`_`/`-`/`:`)
+/// - +50 bonus for exact full-string match
+/// - Penalty: up to -30 for longer haystacks (shorter = more relevant)
+///
+/// Returns `Some(score)` if all needle characters were matched, `None` otherwise.
 pub fn fuzzy_match(needle: &str, haystack: &str) -> Option<i64> {
     if needle.is_empty() {
         return Some(0);
@@ -429,15 +457,16 @@ pub fn fuzzy_match(needle: &str, haystack: &str) -> Option<i64> {
 }
 
 /// Unified Search & Command Palette router.
-/// Handles:
-/// 1. `>theme [query]` -> Live interactive theme selector across all 19 themes
-/// 2. `>sound [query]` -> Live interactive sound profile selector with Enter-to-preview
-/// 3. `>caret [query]` -> Live interactive caret style selector with Enter-to-preview
-/// 4. `>font [query]`  -> Live interactive font family selector
-/// 5. `>mode [query]`  -> Live interactive editor mode switcher (Vim / Hybrid)
-/// 6. `>luna [query]`  -> Live interactive statusline style switcher
-/// 7. `>[query]`       -> VS Code-style Command Palette across all settings, views, and actions
-/// 8. `[query]`        -> Fast fuzzy search across notes and content
+///
+/// Handles three query modes:
+/// 1. **Sub-picker mode** (`>theme`, `>sound`, `>caret`, `>font`, `>mode`, `>luna`)
+///    → Delegates to `palette::match_subpicker` for live interactive selection
+/// 2. **Command Palette mode** (`>[query]`)
+///    → Fuzzy searches across `BUILTIN_COMMANDS` catalog
+/// 3. **Note search mode** (`[query]`)
+///    → Fuzzy searches across note titles and body content
+///
+/// Results are sorted by score (descending).
 pub fn search_palette(
     query_str: &str,
     notes: &[core::Note],
@@ -451,7 +480,7 @@ pub fn search_palette(
     let raw = query_str.trim();
 
     // ── 1. Sub-Picker Modes (`>theme`, `>sound`, `>caret`, `>font`, `>mode`, `>luna`)
-    if let Some(sub_items) = crate::palette::match_subpicker(
+    if let Some(sub_items) = crate::ui::palette::match_subpicker(
         raw,
         active_theme,
         active_sound,
@@ -550,7 +579,7 @@ mod tests {
         let def_mode = crate::app::EditorInputMode::Vim;
         let def_luna = crate::lunaline::LunaStyle::Pill;
 
-        let items = search_palette(">", &[], ThemeKind::TokyoNight, crate::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
+        let items = search_palette(">", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
         assert!(!items.is_empty());
         // Verify commands have NO "Settings: " prefix as requested
         assert!(items.iter().all(|i| !i.title.starts_with("Settings: ")));
@@ -558,7 +587,7 @@ mod tests {
         assert!(items.iter().any(|i| i.title.contains("Keyboard Shortcuts")));
         assert!(items.iter().any(|i| i.title.contains("Caret Style & Cursor FX")));
 
-        let theme_filter = search_palette(">theme", &[], ThemeKind::TokyoNight, crate::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
+        let theme_filter = search_palette(">theme", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
         assert_eq!(theme_filter.len(), ThemeKind::ALL.len());
         let active = theme_filter.iter().find(|i| i.badge.contains("Active"));
         assert!(active.is_some());
@@ -567,8 +596,8 @@ mod tests {
         assert_eq!(inactive_with_badge, 0);
 
         // Sound picker: >sound shows all profiles
-        let sound_filter = search_palette(">sound", &[], ThemeKind::TokyoNight, crate::sound::SoundProfile::Thocky, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
-        assert_eq!(sound_filter.len(), crate::sound::SoundProfile::ALL.len());
+        let sound_filter = search_palette(">sound", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Thocky, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
+        assert_eq!(sound_filter.len(), crate::services::sound::SoundProfile::ALL.len());
         let active_sound = sound_filter.iter().find(|i| i.badge.contains("Active"));
         assert!(active_sound.is_some());
         assert_eq!(active_sound.unwrap().title, "Thocky");
@@ -577,19 +606,19 @@ mod tests {
         assert_eq!(inactive_sound_with_badge, 0);
 
         // Caret picker: >caret shows all curated carets
-        let caret_filter = search_palette(">caret", &[], ThemeKind::TokyoNight, crate::sound::SoundProfile::Off, crate::caret::CaretKind::Fire, def_font, def_mode, def_luna);
+        let caret_filter = search_palette(">caret", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Fire, def_font, def_mode, def_luna);
         assert_eq!(caret_filter.len(), crate::caret::CaretKind::ALL.len());
         let active_caret = caret_filter.iter().find(|i| i.badge.contains("Active"));
         assert!(active_caret.is_some());
         assert!(active_caret.unwrap().title.contains("Fire"));
 
         // Font picker: >font shows supported fonts
-        let font_filter = search_palette(">font", &[], ThemeKind::TokyoNight, crate::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, "JetBrains Mono", def_mode, def_luna);
+        let font_filter = search_palette(">font", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, "JetBrains Mono", def_mode, def_luna);
         assert!(!font_filter.is_empty());
         assert!(font_filter.iter().any(|i| i.title == "JetBrains Mono" && i.badge.contains("Active")));
 
         // Mode picker: >mode shows modes
-        let mode_filter = search_palette(">mode", &[], ThemeKind::TokyoNight, crate::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, crate::app::EditorInputMode::Vim, def_luna);
+        let mode_filter = search_palette(">mode", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, crate::app::EditorInputMode::Vim, def_luna);
         assert_eq!(mode_filter.len(), 2);
         assert!(mode_filter.iter().any(|i| i.title.contains("Vim") && i.badge.contains("Active")));
 
@@ -601,7 +630,7 @@ mod tests {
             struggled_with: None,
             created_at: chrono::NaiveDateTime::default(),
         }];
-        let note_results = search_palette("Arch", &sample_notes, ThemeKind::TokyoNight, crate::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
+        let note_results = search_palette("Arch", &sample_notes, ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
         assert!(!note_results.is_empty());
         assert_eq!(note_results[0].badge, "");
     }

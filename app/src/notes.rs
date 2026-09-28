@@ -61,7 +61,7 @@ pub fn delete_active_note(app: &mut App, now: f64) {
         if let Some(ref db) = app.db {
             let _ = db.delete_note(id);
         }
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::DeleteNote { id });
+        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::DeleteNote { id });
         app.notes_list.retain(|n| n.id != id);
         app.open_notes.retain(|n| n.id != id);
         if app.active_tab >= app.open_notes.len() && !app.open_notes.is_empty() {
@@ -158,7 +158,7 @@ pub fn rename_active_note(app: &mut App, new_title: &str, now: f64) {
 /// Updates fuzzy search results across notes, commands, themes, sound profiles, carets, fonts, and modes.
 pub fn update_search_results(app: &mut App) {
     let query = app.search_query.trim();
-    app.search_results = crate::fuzzy::search_palette(
+    app.search_results = crate::services::fuzzy::search_palette(
         query,
         &app.notes_list,
         app.theme.kind,

@@ -148,7 +148,7 @@ impl App {
                     }
                 }
             } else if self.mode == Mode::Doc {
-                let docs = crate::docs::get_docs();
+                let docs = crate::ui::docs::get_docs();
                 let tab_items: Vec<crate::view_editor::TabItem> = self
                     .open_doc_tabs
                     .iter()
@@ -421,7 +421,7 @@ impl App {
                 let search_matches: Option<(&[usize], usize)> = None;
 
                 if show_dashboard {
-                    if let Some(dash_action) = crate::view_dashboard::render_welcome_dashboard(
+                    if let Some(dash_action) = crate::views::dashboard::render_welcome_dashboard(
                         ui,
                         painter,
                         actual_editor_rect,
@@ -430,36 +430,36 @@ impl App {
                         modals_open,
                     ) {
                         match dash_action {
-                            crate::view_dashboard::DashboardAction::NewNote => {
+                            crate::views::dashboard::DashboardAction::NewNote => {
                                 self.show_welcome = false;
                                 self.create_new_note(now);
                             }
-                            crate::view_dashboard::DashboardAction::FindNote => {
+                            crate::views::dashboard::DashboardAction::FindNote => {
                                 self.search_open = true;
                                 self.search_just_opened = true;
                             }
-                            crate::view_dashboard::DashboardAction::OpenRecent(id) => {
+                            crate::views::dashboard::DashboardAction::OpenRecent(id) => {
                                 self.show_welcome = false;
                                 self.open_note_by_id(id, now);
                             }
-                            crate::view_dashboard::DashboardAction::OpenTerminal => {
+                            crate::views::dashboard::DashboardAction::OpenTerminal => {
                                 self.terminal_open = true;
                                 self.terminal_focused = true;
                             }
-                            crate::view_dashboard::DashboardAction::OpenAi => {
+                            crate::views::dashboard::DashboardAction::OpenAi => {
                                 self.preview_open = true;
                                 self.right_pane_tab = crate::app::RightPaneTab::AiAgent;
                                 self.agent_state.is_open = true;
                             }
-                            crate::view_dashboard::DashboardAction::OpenDocs => {
+                            crate::views::dashboard::DashboardAction::OpenDocs => {
                                 self.show_welcome = false;
                                 self.mode = Mode::Doc;
                             }
-                            crate::view_dashboard::DashboardAction::OpenSettings => {
+                            crate::views::dashboard::DashboardAction::OpenSettings => {
                                 self.settings_open = true;
                                 self.settings_just_opened = true;
                             }
-                            crate::view_dashboard::DashboardAction::ToggleZen => {
+                            crate::views::dashboard::DashboardAction::ToggleZen => {
                                 self.zen_mode = !self.zen_mode;
                                 if self.zen_mode {
                                     self.show_titlebar = false;
@@ -470,12 +470,12 @@ impl App {
                                     self.show_titlebar = true;
                                     self.show_tabs = true;
                                 }
-                                let _ = self.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                                let _ = self.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                                     key: "zen_mode".into(),
                                     val: if self.zen_mode { "true" } else { "false" }.into(),
                                 });
                             }
-                            crate::view_dashboard::DashboardAction::Quit => {
+                            crate::views::dashboard::DashboardAction::Quit => {
                                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                             }
                         }
@@ -584,7 +584,7 @@ impl App {
                 );
             }
             Mode::Help => {
-                let action = crate::help_panel::render_help_tab_view(
+                let action = crate::ui::help_panel::render_help_tab_view(
                     ui,
                     painter,
                     body_rect,
@@ -605,11 +605,11 @@ impl App {
             }
             Mode::Terminal => {
                 if self.term_pane.is_none() {
-                    self.term_pane = crate::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.theme).ok();
+                    self.term_pane = crate::ui::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.theme).ok();
                 }
                 if let Some(ref mut pane) = self.term_pane {
                     let action = pane.ui(ui, editor_panel_rect, &self.theme, self.font_size, true, self.opacity);
-                    if action == crate::terminal_pane::TerminalAction::Close {
+                    if action == crate::ui::terminal_pane::TerminalAction::Close {
                         self.mode = self.prev_mode_before_term;
                         self.set_status("Exited terminal", now);
                         ui.ctx().request_repaint();

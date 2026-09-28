@@ -60,7 +60,7 @@ impl App {
                     crate::view_editor::preview::RightPaneAction::Close => {
                         self.preview_open = false;
                         self.agent_state.is_open = false;
-                        let _ = self.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                        let _ = self.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                             key: "preview".into(),
                             val: "false".into(),
                         });

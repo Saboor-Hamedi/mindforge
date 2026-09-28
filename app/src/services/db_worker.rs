@@ -1,10 +1,20 @@
-//! Asynchronous background database worker thread and messages.
+//! Asynchronous background database worker thread and message protocol.
+//!
+//! The UI thread sends `DbMsg` variants through a channel; a dedicated
+//! background thread receives and executes them sequentially against SQLite.
+//! This prevents disk I/O from blocking the UI thread, keeping the editor
+//! at 120+ FPS even during heavy write operations.
+//!
+//! The worker also syncs settings to a `settings.json` file for external
+//! tooling compatibility.
 
 use chrono::{Local, NaiveDate};
 use core::Database;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
+/// Message protocol between the UI thread and the background DB worker.
+/// Each variant represents a single database operation to execute.
 #[allow(dead_code)]
 pub enum DbMsg {
     AddCard {
@@ -73,7 +83,13 @@ pub enum DbMsg {
 }
 
 /// Spawns the background database worker thread.
-/// UI thread communicates strictly via channels, never blocking on disk operations.
+///
+/// Returns a `Sender<DbMsg>` handle. The UI thread sends messages through
+/// this channel and never blocks on disk I/O — the worker thread owns the
+/// exclusive `Database` connection and processes messages sequentially.
+///
+/// If the database fails to open, the worker exits silently (the UI will
+/// show appropriate error states when operations don't complete).
 pub fn spawn_db_worker() -> Sender<DbMsg> {
     let (tx, rx): (Sender<DbMsg>, Receiver<DbMsg>) = channel();
     thread::spawn(move || {
@@ -176,6 +192,11 @@ pub fn spawn_db_worker() -> Sender<DbMsg> {
     tx
 }
 
+/// Mirrors a setting key-value pair to `settings.json` alongside the database.
+///
+/// This allows external tools and scripts to read settings without needing
+/// to parse SQLite. Failures are silently ignored — the database remains
+/// the source of truth.
 fn sync_setting_json(key: &str, val: &str) {
     if let Ok(path) = core::Database::get_db_path() {
         if let Some(parent) = path.parent() {

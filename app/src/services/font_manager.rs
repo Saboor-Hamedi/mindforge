@@ -1,8 +1,19 @@
 //! Font management, dynamic font discovery, and real-time egui typography loading.
+//!
+//! Responsibilities:
+//! - Maintains a catalog of supported monospace fonts with metadata
+//! - Discovers fonts installed on the local OS (Windows, Linux, macOS)
+//! - Validates font binary headers to prevent epaint parser panics
+//! - Applies fonts to the egui context with proper fallback chains
+//! - Provides a dedicated editor font family separate from UI monospace
+//!
+//! The embedded JetBrains Mono font is always available as a zero-latency
+//! fallback. Other fonts are discovered at runtime from system directories.
 
 use eframe::egui::{self, FontData, FontDefinitions, FontFamily};
 use std::path::PathBuf;
 
+/// Metadata describing a supported font family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FontMetadata {
     pub id: &'static str,
@@ -51,10 +62,14 @@ pub const SUPPORTED_FONTS: &[FontMetadata] = &[
 ];
 
 /// Validates raw font binary headers to prevent any epaint parser panics.
-/// TrueType headers: 0x00010000 or 'true'
-/// OpenType headers: 'OTTO'
-/// TrueType Collection: 'ttcf'
-/// PostScript Type 1: 'typ1'
+///
+/// Checks the first 4 bytes against known font format magic numbers:
+/// - TrueType: `0x00010000` or `"true"`
+/// - OpenType (CFF): `"OTTO"`
+/// - TrueType Collection: `"ttcf"`
+/// - PostScript Type 1: `"typ1"`
+///
+/// Returns `false` for any unrecognized or truncated data.
 pub fn is_valid_font_bytes(bytes: &[u8]) -> bool {
     if bytes.len() < 12 {
         return false;
@@ -66,7 +81,15 @@ pub fn is_valid_font_bytes(bytes: &[u8]) -> bool {
         || bytes.starts_with(b"typ1")
 }
 
-/// Searches for the font on the local operating system (Windows fonts directories, user fonts).
+/// Searches for the font on the local operating system.
+///
+/// Recursively searches up to 4 levels deep in:
+/// - `C:\Windows\Fonts` and `%LOCALAPPDATA%\Microsoft\Windows\Fonts` (Windows)
+/// - Project data directory `fonts/` subdirectory
+/// - Local `fonts/`, `app/assets/`, and `assets/` directories
+///
+/// Each candidate file is validated with `is_valid_font_bytes` before
+/// being returned, ensuring only legitimate font binaries are loaded.
 pub fn find_font_file(font_name: &str) -> Option<PathBuf> {
     let normalized = font_name.to_lowercase().replace([' ', '-', '_', '/'], "");
 
@@ -189,6 +212,17 @@ pub fn is_font_available(font_name: &str) -> bool {
 }
 
 /// Configures and applies the chosen font to egui context dynamically.
+///
+/// Builds a complete `FontDefinitions` with:
+/// 1. Embedded JetBrains Mono (always available)
+/// 2. Windows system emoji font (seguiemj.ttf) when available
+/// 3. User-selected font (discovered from OS or falling back to embedded)
+///
+/// Sets up three font families:
+/// - `EDITOR_FONT_FAMILY` — dedicated to the editor buffer
+/// - `Monospace` — stable JetBrains Mono for UI components
+/// - `Proportional` — preserved egui defaults for menus/dialogs
+///
 /// Completely crash-proof: verifies font validity before feeding into epaint.
 pub fn apply_font(ctx: &egui::Context, font_name: &str) {
     let mut fonts = FontDefinitions::default();
@@ -196,7 +230,7 @@ pub fn apply_font(ctx: &egui::Context, font_name: &str) {
     // 1. Embedded core developer font: JetBrains Mono (verified TTF asset)
     fonts.font_data.insert(
         "jetbrains_mono".into(),
-        FontData::from_static(include_bytes!("../assets/JetBrainsMono-Regular.ttf")).into(),
+        FontData::from_static(include_bytes!("../../assets/JetBrainsMono-Regular.ttf")).into(),
     );
 
     // 2. Windows system emoji

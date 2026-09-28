@@ -1,6 +1,6 @@
 //! Horizontal divider rule element rendering and metrics.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{pos2, FontId, Painter, Stroke};
 
 /// Returns font and line height metrics for horizontal rules.

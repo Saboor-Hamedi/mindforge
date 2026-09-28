@@ -29,7 +29,7 @@ impl App {
 
         // Apply Acrylic / Mica backdrop blur on first frame
         if self.first_frame {
-            crate::blur::apply_window_blur(self.blur_effect);
+            crate::services::blur::apply_window_blur(self.blur_effect);
         }
 
         // Full Control Window Dragging:
@@ -66,7 +66,7 @@ impl App {
         let (titlebar_action, accent_anchor_rect) = if is_titlebar_visible {
             let (header_title, header_dirty) = match self.mode {
                 Mode::Doc => {
-                    let doc_title = crate::docs::get_docs()
+                    let doc_title = crate::ui::docs::get_docs()
                         .get(self.active_doc_idx)
                         .map(|d| d.title)
                         .unwrap_or("Documentation");
@@ -154,7 +154,7 @@ impl App {
                     }
                 } else {
                     self.is_dragging_sidebar_splitter = false;
-                    let _ = self.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                    let _ = self.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                         key: "sidebar_w".into(),
                         val: self.sidebar_width.to_string(),
                     });
@@ -193,7 +193,7 @@ impl App {
         // Render Doc Sidebar if in Documentation mode
         if self.mode == Mode::Doc && self.sidebar_open {
             if let Some(sb_rect) = layout.sidebar_rect {
-                let doc_action = crate::docs::render_doc_sidebar(
+                let doc_action = crate::ui::docs::render_doc_sidebar(
                     ui,
                     &painter,
                     sb_rect,
@@ -206,11 +206,11 @@ impl App {
                 );
                 if let Some(action) = doc_action {
                     match action {
-                        crate::docs::DocSidebarAction::SelectDoc(idx) => {
+                        crate::ui::docs::DocSidebarAction::SelectDoc(idx) => {
                             self.load_doc_by_index(idx, now);
                             self.doc_sidebar_focused = true;
                         }
-                        crate::docs::DocSidebarAction::ToggleSidebar => {
+                        crate::ui::docs::DocSidebarAction::ToggleSidebar => {
                             self.sidebar_open = !self.sidebar_open;
                             self.doc_sidebar_focused = self.sidebar_open;
                             let msg = if self.sidebar_open {
@@ -220,11 +220,11 @@ impl App {
                             };
                             self.set_status(msg, now);
                         }
-                        crate::docs::DocSidebarAction::BackToEditor => {
+                        crate::ui::docs::DocSidebarAction::BackToEditor => {
                             self.mode = Mode::Normal;
                             self.set_status("Switched to Notes Editor", now);
                         }
-                        crate::docs::DocSidebarAction::OpenSettings => {
+                        crate::ui::docs::DocSidebarAction::OpenSettings => {
                             self.settings_open = true;
                             self.settings_just_opened = true;
                         }
@@ -290,7 +290,7 @@ impl App {
         let search_prompt: Option<(&str, &str, usize)> = None;
 
         let active_title = if self.mode == Mode::Doc {
-            crate::docs::BRAIN_DOCS.get(self.active_doc_idx).map(|d| d.title).unwrap_or("Documentation")
+            crate::ui::docs::BRAIN_DOCS.get(self.active_doc_idx).map(|d| d.title).unwrap_or("Documentation")
         } else {
             self.active_note_title.as_str()
         };
@@ -505,7 +505,7 @@ impl App {
             let cell_w = painter
                 .layout_no_wrap(
                     "M".to_owned(),
-                    crate::font_manager::editor_font_id(effective_font_size),
+                    crate::services::font_manager::editor_font_id(effective_font_size),
                     egui::Color32::WHITE,
                 )
                 .size()

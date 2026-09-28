@@ -1,14 +1,25 @@
 //! In-app GitHub updater for MindForge.
 //!
-//! Provides background checking for releases, downloading updates with live
-//! progress, and restarting the application to apply the downloaded binary.
+//! Provides a complete self-update pipeline:
+//! 1. **Check** — Queries GitHub Releases API for the latest version
+//! 2. **Download** — Streams the platform-specific binary with progress tracking
+//! 3. **Apply** — Replaces the current executable and restarts the app
+//!
+//! All network operations run on background threads. The UI polls
+//! `UpdateManager::status()` to display current progress.
+//!
+//! Platform-specific asset detection supports Windows (.exe/.zip),
+//! macOS (.dmg/.tar.gz), and Linux (.deb/.tar.gz/.AppImage).
 
 use serde::Deserialize;
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-/// Current status of the updater.
+/// Current status of the updater state machine.
+///
+/// Transitions: Idle → Checking → UpToDate | UpdateAvailable → Downloading → ReadyToRestart
+/// Any state can transition to `Error(String)` on failure.
 #[derive(Debug, Clone, PartialEq)]
 pub enum UpdateStatus {
     Idle,
@@ -51,6 +62,10 @@ struct GithubAsset {
     browser_download_url: String,
 }
 
+/// Thread-safe handle for managing the update lifecycle.
+///
+/// Cloneable — the UI holds one clone, background threads hold others.
+/// All state is protected by a `Mutex` and shared via `Arc`.
 #[derive(Clone)]
 pub struct UpdateManager {
     status: Arc<Mutex<UpdateStatus>>,
@@ -81,6 +96,13 @@ impl UpdateManager {
     }
 
     /// Triggers an asynchronous check for updates against the GitHub repo.
+    ///
+    /// Spawns a background thread that queries the GitHub Releases API.
+    /// On success, transitions to `UpToDate` or `UpdateAvailable`.
+    /// On failure, transitions to `Error` with a descriptive message.
+    ///
+    /// # Arguments
+    /// * `current_version` — The currently running version string (e.g. "0.1.14")
     pub fn check_for_updates(&self, current_version: &str) {
         let status = self.status.clone();
         let cur_ver = current_version.to_string();
@@ -161,6 +183,11 @@ impl UpdateManager {
     }
 
     /// Downloads the available update with streaming progress updates.
+    ///
+    /// Spawns a background thread that streams the binary in 64KB chunks,
+    /// updating `UpdateStatus::Downloading` with byte counts and progress
+    /// percentage after each chunk. On completion, transitions to
+    /// `ReadyToRestart` with the downloaded file path.
     pub fn start_download(&self) {
         let (asset_url, new_version, asset_name, total_size) = {
             let s = self.status();
@@ -285,6 +312,16 @@ impl UpdateManager {
     }
 
     /// Relaunches the application with the downloaded updated executable.
+    ///
+    /// Platform-specific behavior:
+    /// - **Windows**: Writes a batch script that waits for the current process
+    ///   to exit, copies the new binary over the old one, and relaunches.
+    ///   Handles both NSIS installers and portable executables.
+    /// - **Unix**: Copies the binary and uses `exec` to replace the process.
+    ///
+    /// # Returns
+    /// `Ok(())` if the relaunch was initiated, `Err(String)` with a
+    /// descriptive error message on failure.
     pub fn restart_and_apply(&self) -> Result<(), String> {
         let downloaded_path = match self.status() {
             UpdateStatus::ReadyToRestart { downloaded_path, .. } => downloaded_path,
@@ -364,6 +401,10 @@ impl UpdateManager {
 }
 
 /// Simple semantic version comparison: returns true if remote > current.
+///
+/// Parses dot-separated version strings (ignoring pre-release suffixes
+/// like `-beta`). Compares component by component; if all compared
+/// components are equal, the version with more components is newer.
 fn is_version_newer(current: &str, remote: &str) -> bool {
     let parse_parts = |v: &str| -> Vec<u64> {
         v.trim_start_matches('v')
@@ -387,6 +428,10 @@ fn is_version_newer(current: &str, remote: &str) -> bool {
 }
 
 /// Finds the most suitable release asset for the current OS and architecture.
+///
+/// Uses `cfg!` macros to select the appropriate asset naming convention
+/// for the target platform. Falls back to the first matching extension
+/// if no platform-specific name is found.
 fn find_platform_asset<'a>(assets: &'a [GithubAsset]) -> Option<&'a GithubAsset> {
     #[cfg(target_os = "windows")]
     {

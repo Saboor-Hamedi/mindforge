@@ -1,7 +1,7 @@
 //! Sleek autocomplete dropdown popup for Wikilinks as the user types `[[...`.
 
 use crate::editor::Editor;
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use core::Note;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};
 

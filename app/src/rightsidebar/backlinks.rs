@@ -1,6 +1,6 @@
 //! Incoming backlinks inspector for the active document.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use crate::wikilink::BacklinkItem;
 use eframe::egui::{self, pos2, vec2, Align2, FontId, Rect, ScrollArea, Stroke, Ui};
 

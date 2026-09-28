@@ -1,9 +1,15 @@
 //! Built-in Brain Documentation & Interactive Tutorials.
-//! Embeds the user-friendly MindForge guides for offline, instant access
-//! in both development and production release packages.
+//!
+//! Embeds user-friendly MindForge guides as `include_str!` constants for
+//! offline, instant access in both development and production release
+//! packages. No network requests needed — all docs ship with the binary.
+//!
+//! The documentation viewer renders Markdown content through the same
+//! preview engine used for note live-preview, ensuring consistent styling.
 
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
+/// A single documentation page with embedded Markdown content.
 pub struct DocItem {
     pub id: &'static str,
     pub title: &'static str,
@@ -16,49 +22,49 @@ pub const BRAIN_DOCS: &[DocItem] = &[
         id: "welcome",
         title: "Welcome",
         filename: "welcome.md",
-        content: include_str!("../../brain/welcome.md"),
+        content: include_str!("../../../brain/welcome.md"),
     },
     DocItem {
         id: "basics",
         title: "Basics",
         filename: "basics.md",
-        content: include_str!("../../brain/basics.md"),
+        content: include_str!("../../../brain/basics.md"),
     },
     DocItem {
         id: "shortcuts",
         title: "Shortcuts",
         filename: "shortcuts.md",
-        content: include_str!("../../brain/shortcuts.md"),
+        content: include_str!("../../../brain/shortcuts.md"),
     },
     DocItem {
         id: "vim",
         title: "Vim",
         filename: "vim.md",
-        content: include_str!("../../brain/vim.md"),
+        content: include_str!("../../../brain/vim.md"),
     },
     DocItem {
         id: "motions",
         title: "Motions",
         filename: "motions.md",
-        content: include_str!("../../brain/motions.md"),
+        content: include_str!("../../../brain/motions.md"),
     },
     DocItem {
         id: "features",
         title: "Features",
         filename: "features.md",
-        content: include_str!("../../brain/features.md"),
+        content: include_str!("../../../brain/features.md"),
     },
     DocItem {
         id: "scan",
         title: "WebScan",
         filename: "scan.md",
-        content: include_str!("../../brain/scan.md"),
+        content: include_str!("../../../brain/scan.md"),
     },
     DocItem {
         id: "terminal",
         title: "Terminal",
         filename: "terminal.md",
-        content: include_str!("../../brain/terminal.md"),
+        content: include_str!("../../../brain/terminal.md"),
     },
 ];
 
@@ -320,7 +326,7 @@ pub fn render_doc_sidebar(
     active_idx: usize,
     selected_idx: usize,
     is_focused: bool,
-    theme: &crate::theme::Theme,
+    theme: &crate::ui::theme::Theme,
     opacity: f32,
     any_modal_open: bool,
 ) -> Option<DocSidebarAction> {

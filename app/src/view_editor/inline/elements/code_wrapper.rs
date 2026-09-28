@@ -5,7 +5,7 @@
 //! perfectly matching the look of the Markdown preview and eliminating broken line strips.
 
 use super::super::charmap::{append_run_and_map, CharMapBuilder};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{pos2, vec2, Align2, Color32, CornerRadius, FontId, Painter, Rect, Stroke, StrokeKind, TextFormat};
 
@@ -13,12 +13,12 @@ use eframe::egui::{pos2, vec2, Align2, Color32, CornerRadius, FontId, Painter, R
 pub fn code_metrics(base_font_size: f32, is_closing: bool, is_active: bool) -> (FontId, f32) {
     if !is_active {
         if is_closing {
-            (crate::font_manager::editor_font_id(base_font_size * 0.7), 12.0)
+            (crate::services::font_manager::editor_font_id(base_font_size * 0.7), 12.0)
         } else {
-            (crate::font_manager::editor_font_id(base_font_size * 0.7), 28.0)
+            (crate::services::font_manager::editor_font_id(base_font_size * 0.7), 28.0)
         }
     } else {
-        (crate::font_manager::editor_font_id(base_font_size * 0.95), (base_font_size * 1.55).round())
+        (crate::services::font_manager::editor_font_id(base_font_size * 0.95), (base_font_size * 1.55).round())
     }
 }
 
@@ -34,7 +34,7 @@ pub fn highlight_code_chars(
     charmap: &mut CharMapBuilder,
 ) {
     let n = chars.len();
-    let mono_font = crate::font_manager::editor_font_id(font_size);
+    let mono_font = crate::services::font_manager::editor_font_id(font_size);
     let mut i = 0;
 
     let lang_str = lang.unwrap_or("");

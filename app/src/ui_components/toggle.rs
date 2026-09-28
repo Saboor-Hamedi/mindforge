@@ -1,6 +1,6 @@
 //! Shared sleek toggle switch component.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};
 
 /// Linearly interpolates two Color32 values.

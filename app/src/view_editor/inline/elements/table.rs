@@ -1,7 +1,7 @@
 //! Markdown table rendering, cell column grid layout, and styling.
 
 use super::super::types::TableAlign;
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{Color32, CornerRadius, FontId, Painter, Rect, Stroke, StrokeKind};
 
 /// A parsed cell within a table row, recording its character slice and trimmed content.
@@ -68,16 +68,16 @@ pub fn split_table_cells(chars: &[char]) -> Vec<TableCellSpan> {
 pub fn table_metrics(base_font_size: f32, is_header: bool, is_separator: bool, is_active: bool) -> (FontId, f32) {
     if is_separator {
         if is_active {
-            (crate::font_manager::editor_font_id(base_font_size * 0.9), (base_font_size * 1.4).round())
+            (crate::services::font_manager::editor_font_id(base_font_size * 0.9), (base_font_size * 1.4).round())
         } else {
-            (crate::font_manager::editor_font_id(base_font_size * 0.7), 1.0)
+            (crate::services::font_manager::editor_font_id(base_font_size * 0.7), 1.0)
         }
     } else if is_active {
-        (crate::font_manager::editor_font_id(base_font_size), (base_font_size * 1.55).round())
+        (crate::services::font_manager::editor_font_id(base_font_size), (base_font_size * 1.55).round())
     } else if is_header {
-        (crate::font_manager::editor_font_id(base_font_size * 0.95), (base_font_size * 1.6).round() + 8.0)
+        (crate::services::font_manager::editor_font_id(base_font_size * 0.95), (base_font_size * 1.6).round() + 8.0)
     } else {
-        (crate::font_manager::editor_font_id(base_font_size * 0.90), (base_font_size * 1.5).round() + 6.0)
+        (crate::services::font_manager::editor_font_id(base_font_size * 0.90), (base_font_size * 1.5).round() + 6.0)
     }
 }
 

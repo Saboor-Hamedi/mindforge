@@ -1,6 +1,6 @@
 //! Markdown AST definition, parser, and inline text formatting for the preview pane.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{Color32, Stroke, TextFormat};
 
@@ -419,7 +419,7 @@ pub fn build_inline_job(
     let flush_plain = |acc: &mut String, job: &mut LayoutJob| {
         if !acc.is_empty() {
             let s = substitute_ligatures(acc);
-            let fmt = TextFormat::simple(crate::font_manager::editor_font_id(base_font_size), default_color);
+            let fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), default_color);
             job.append(&s, 0.0, fmt);
             acc.clear();
         }
@@ -433,7 +433,7 @@ pub fn build_inline_job(
                 flush_plain(&mut plain_acc, &mut job);
                 let bold_raw: String = chars[i + 2..bold_end].iter().collect();
                 let bold_text = substitute_ligatures(&bold_raw);
-                let fmt = TextFormat::simple(crate::font_manager::editor_font_id(base_font_size), theme.highlight);
+                let fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), theme.highlight);
                 job.append(&bold_text, 0.0, fmt);
                 i = bold_end + 2;
                 continue;
@@ -447,7 +447,7 @@ pub fn build_inline_job(
                 flush_plain(&mut plain_acc, &mut job);
                 let strike_raw: String = chars[i + 2..strike_end].iter().collect();
                 let strike_text = substitute_ligatures(&strike_raw);
-                let mut fmt = TextFormat::simple(crate::font_manager::editor_font_id(base_font_size), theme.muted);
+                let mut fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), theme.muted);
                 fmt.strikethrough = Stroke::new(1.0_f32, theme.muted);
                 job.append(&strike_text, 0.0, fmt);
                 i = strike_end + 2;
@@ -462,7 +462,7 @@ pub fn build_inline_job(
                 flush_plain(&mut plain_acc, &mut job);
                 let code_raw: String = chars[i + 1..code_end].iter().collect();
                 let code_text = substitute_ligatures(&code_raw);
-                let fmt = TextFormat::simple(crate::font_manager::editor_font_id(base_font_size * 0.92), theme.text);
+                let fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size * 0.92), theme.text);
                 job.append(&code_text, 0.0, fmt);
                 i = code_end + 1;
                 continue;
@@ -479,7 +479,7 @@ pub fn build_inline_job(
                         flush_plain(&mut plain_acc, &mut job);
                         let link_raw: String = chars[i + 1..bracket_end].iter().collect();
                         let link_text = substitute_ligatures(&link_raw);
-                        let mut fmt = TextFormat::simple(crate::font_manager::editor_font_id(base_font_size), theme.accent);
+                        let mut fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), theme.accent);
                         fmt.underline = Stroke::new(1.0_f32, theme.accent);
                         job.append(&link_text, 0.0, fmt);
                         i = paren_end + 1;
@@ -496,7 +496,7 @@ pub fn build_inline_job(
                 flush_plain(&mut plain_acc, &mut job);
                 let ital_raw: String = chars[i + 1..ital_end].iter().collect();
                 let ital_text = substitute_ligatures(&ital_raw);
-                let mut fmt = TextFormat::simple(crate::font_manager::editor_font_id(base_font_size), theme.text);
+                let mut fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), theme.text);
                 fmt.italics = true;
                 job.append(&ital_text, 0.0, fmt);
                 i = ital_end + 1;

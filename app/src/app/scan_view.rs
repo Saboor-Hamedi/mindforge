@@ -14,7 +14,7 @@ impl App {
     ) {
         match self.mode {
             Mode::ScanReport => {
-                crate::scan_view::render_scan_view(
+                crate::views::scan::render_scan_view(
                     ui,
                     painter,
                     editor_panel_rect,
@@ -26,7 +26,7 @@ impl App {
                 );
             }
             Mode::ScanHistory => {
-                let opened_idx = crate::scan_history_view::render_scan_history(
+                let opened_idx = crate::views::scan_history::render_scan_history(
                     ui,
                     painter,
                     editor_panel_rect,

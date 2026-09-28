@@ -7,7 +7,7 @@
 //! 4. Seamless continuous multi-line callout card without broken line scallops.
 //! 5. Seamlessly integrates with active theme and user accent color.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{pos2, Color32, CornerRadius, Painter, Rect};
 
 /// Returns the quote text color.

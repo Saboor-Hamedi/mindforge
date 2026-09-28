@@ -5,7 +5,7 @@
 
 use crate::app::App;
 use crate::command::dispatch::{execute_command, COMMAND_CATALOG};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Key, Modifiers, Rect, Stroke};
 
 /// A single matched command suggestion item.
@@ -131,7 +131,7 @@ fn score_match(query: &str, target: &str) -> Option<i64> {
     if target.starts_with(query) {
         return Some(1000 + (target.len() as i64 * -2));
     }
-    crate::fuzzy::fuzzy_match(query, target)
+    crate::services::fuzzy::fuzzy_match(query, target)
 }
 
 /// Finds the catalog description for a command name if available.

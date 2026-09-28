@@ -1,6 +1,6 @@
 //! Keyboard shortcuts reference table tab.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};
 
 pub fn render_shortcuts_tab(

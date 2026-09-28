@@ -1,6 +1,6 @@
 //! Syntax highlighting tokenizer for preview code blocks.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{Color32, TextFormat};
 
@@ -12,7 +12,7 @@ pub fn highlight_code_line(
     theme: &Theme,
 ) -> LayoutJob {
     let mut job = LayoutJob::default();
-    let mono_font = crate::font_manager::editor_font_id(font_size);
+    let mono_font = crate::services::font_manager::editor_font_id(font_size);
     let chars: Vec<char> = line.chars().collect();
     let n = chars.len();
     let mut i = 0;

@@ -36,7 +36,7 @@ pub fn render_sidebar(
     notes_limit: usize,
     total_notes_count: usize,
     is_dirty: bool,
-    theme: &crate::theme::Theme,
+    theme: &crate::ui::theme::Theme,
     sidebar_selected_idx: usize,
     sidebar_focused: bool,
     opacity: f32,

@@ -1,7 +1,15 @@
 //! Learning statistics, writing analytics, and daily activity story view.
-//! Responsive, scroll-protected, and bounded with proportional scaling and padding.
+//!
+//! Displays a comprehensive dashboard of the user's writing activity:
+//! - Hero metric cards (time in editor, words written, keystrokes, notes)
+//! - 14-day writing rhythm bar chart
+//! - Chronological activity journal with per-day breakdowns
+//!
+//! The view is fully responsive — it scales typography, spacing, and layout
+//! based on available width. All rendering is done with direct painter calls
+//! (no egui widgets) for maximum performance and pixel-perfect control.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use core::DailyActivity;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke};
 
@@ -42,6 +50,18 @@ fn format_number(n: u64) -> String {
     }
 }
 
+/// Renders the full statistics view inside the given rectangle.
+///
+/// # Arguments
+/// * `ui` — egui UI context
+/// * `editor_rect` — Screen area allocated to the stats panel
+/// * `today_activity` — Today's activity record (time, keystrokes, words, notes)
+/// * `history` — Historical daily activity records (most recent first)
+/// * `lifetime` — Tuple of (total_seconds, total_keystrokes, total_words, active_days)
+/// * `total_notes` — Total number of notes in the vault
+/// * `theme` — Active color theme
+/// * `today_date` — Today's date string (YYYY-MM-DD) for highlighting
+/// * `yesterday_date` — Yesterday's date string for labeling
 pub fn render_stats(
     ui: &mut egui::Ui,
     editor_rect: Rect,

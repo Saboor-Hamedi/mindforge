@@ -1,7 +1,7 @@
 //! Container card and block decoration rendering for inline code blocks and tables.
 
 use crate::editor::Editor;
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use crate::view_editor::inline::elements::{
     code_block_copy_button_rect, render_code_block_card, render_table_block_decorations,
 };

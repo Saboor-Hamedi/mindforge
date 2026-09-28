@@ -1,6 +1,6 @@
 //! Document title bar, color customizer button, and borderless window drag gripper.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

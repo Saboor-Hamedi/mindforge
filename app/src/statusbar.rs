@@ -1,6 +1,6 @@
 //! Dedicated bottom command & status bar dock.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
 #[allow(dead_code)]

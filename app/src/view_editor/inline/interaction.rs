@@ -12,7 +12,7 @@ pub fn handle_inline_mouse_interaction(
     layout: &InlineEditorLayout,
     ed: &mut Editor,
     block_interaction: bool,
-    sound: &mut crate::sound::SoundEngine,
+    sound: &mut crate::services::sound::SoundEngine,
     is_dirty: &mut bool,
 ) -> bool {
     if block_interaction || !ui.rect_contains_pointer(editor_rect) {

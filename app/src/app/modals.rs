@@ -1,7 +1,7 @@
 //! Modal dialogs and overlay menus (Preferences, Search, Rename, Delete confirmation, Accent picker).
 
 use super::App;
-use crate::db_worker::DbMsg;
+use crate::services::db_worker::DbMsg;
 use crate::mode::Mode;
 use crate::modals::{render_delete_confirm_modal, render_rename_modal, render_search_modal};
 use crate::settings::{render_setting_panel, render_setting_tabs, SettingPanelAction};
@@ -148,7 +148,7 @@ impl App {
             }
             if let Some(item) = act.selected_item {
                 match item.action {
-                    crate::fuzzy::PaletteAction::OpenNote(id) => {
+                    crate::services::fuzzy::PaletteAction::OpenNote(id) => {
                         self.search_open = false;
                         if let Some(ref db) = self.db {
                             if let Ok(Some(n)) = db.get_note(id) {
@@ -156,8 +156,8 @@ impl App {
                             }
                         }
                     }
-                    crate::fuzzy::PaletteAction::ApplyTheme(theme_kind) => {
-                        self.theme = crate::theme::Theme::from_kind(theme_kind);
+                    crate::services::fuzzy::PaletteAction::ApplyTheme(theme_kind) => {
+                        self.theme = crate::ui::theme::Theme::from_kind(theme_kind);
                         let _ = self.db_tx.send(DbMsg::SaveSetting {
                             key: "theme".into(),
                             val: theme_kind.name().into(),
@@ -166,23 +166,23 @@ impl App {
                         // Live in-place update so active checkmark updates without moving!
                         self.update_search_results();
                     }
-                    crate::fuzzy::PaletteAction::OpenThemePicker => {
+                    crate::services::fuzzy::PaletteAction::OpenThemePicker => {
                         self.search_query = ">theme ".to_string();
                         self.search_selected = 0;
                         self.update_search_results();
                     }
-                    crate::fuzzy::PaletteAction::OpenSetting(tab) => {
+                    crate::services::fuzzy::PaletteAction::OpenSetting(tab) => {
                         self.search_open = false;
                         self.active_setting_tab = tab;
                         self.settings_open = true;
                         self.settings_just_opened = true;
                     }
-                    crate::fuzzy::PaletteAction::ToggleSidebar => {
+                    crate::services::fuzzy::PaletteAction::ToggleSidebar => {
                         self.search_open = false;
                         self.sidebar_open = !self.sidebar_open;
                         self.set_status(if self.sidebar_open { "Sidebar opened" } else { "Sidebar closed" }, now);
                     }
-                    crate::fuzzy::PaletteAction::ToggleRightSidebar => {
+                    crate::services::fuzzy::PaletteAction::ToggleRightSidebar => {
                         self.search_open = false;
                         self.preview_open = !self.preview_open;
                         let val = if self.preview_open { "true" } else { "false" };
@@ -192,7 +192,7 @@ impl App {
                         });
                         self.set_status(if self.preview_open { "Right Pane opened" } else { "Right Pane closed" }, now);
                     }
-                    crate::fuzzy::PaletteAction::ToggleBacklinks => {
+                    crate::services::fuzzy::PaletteAction::ToggleBacklinks => {
                         self.search_open = false;
                         if self.preview_open && self.right_pane_tab == crate::app::RightPaneTab::Backlinks {
                             self.preview_open = false;
@@ -211,7 +211,7 @@ impl App {
                             self.set_status("Backlinks panel opened (Ctrl+I)", now);
                         }
                     }
-                    crate::fuzzy::PaletteAction::ToggleOutline => {
+                    crate::services::fuzzy::PaletteAction::ToggleOutline => {
                         self.search_open = false;
                         if self.preview_open && self.right_pane_tab == crate::app::RightPaneTab::Outline {
                             self.preview_open = false;
@@ -230,7 +230,7 @@ impl App {
                             self.set_status("Outline panel opened (Ctrl+Shift+O)", now);
                         }
                     }
-                    crate::fuzzy::PaletteAction::TogglePreview => {
+                    crate::services::fuzzy::PaletteAction::TogglePreview => {
                         self.search_open = false;
                         self.preview_open = !self.preview_open;
                         let val = if self.preview_open { "true" } else { "false" };
@@ -240,7 +240,7 @@ impl App {
                         });
                         self.set_status(if self.preview_open { "Preview ON" } else { "Preview OFF" }, now);
                     }
-                    crate::fuzzy::PaletteAction::ToggleAi => {
+                    crate::services::fuzzy::PaletteAction::ToggleAi => {
                         self.search_open = false;
                         self.preview_open = true;
                         self.right_pane_tab = crate::app::RightPaneTab::AiAgent;
@@ -249,12 +249,12 @@ impl App {
                         ui.memory_mut(|m| m.request_focus(egui::Id::new("deepseek_prompt_input")));
                         self.set_status("AI Assistant opened", now);
                     }
-                    crate::fuzzy::PaletteAction::ToggleTerminal => {
+                    crate::services::fuzzy::PaletteAction::ToggleTerminal => {
                         self.search_open = false;
                         self.terminal_open = !self.terminal_open;
                         self.set_status(if self.terminal_open { "Terminal docked (:term)" } else { "Terminal closed" }, now);
                     }
-                    crate::fuzzy::PaletteAction::ToggleZen => {
+                    crate::services::fuzzy::PaletteAction::ToggleZen => {
                         self.search_open = false;
                         self.zen_mode = !self.zen_mode;
                         if self.zen_mode {
@@ -268,34 +268,34 @@ impl App {
                         }
                         self.set_status(if self.zen_mode { "Zen Mode ON (Ctrl+.)" } else { "Zen Mode OFF" }, now);
                     }
-                    crate::fuzzy::PaletteAction::ToggleTitlebar => {
+                    crate::services::fuzzy::PaletteAction::ToggleTitlebar => {
                         self.search_open = false;
                         self.show_titlebar = !self.show_titlebar;
                     }
-                    crate::fuzzy::PaletteAction::ToggleTabs => {
+                    crate::services::fuzzy::PaletteAction::ToggleTabs => {
                         self.search_open = false;
                         self.show_tabs = !self.show_tabs;
                     }
-                    crate::fuzzy::PaletteAction::NewNote => {
+                    crate::services::fuzzy::PaletteAction::NewNote => {
                         self.search_open = false;
                         self.create_new_note(now);
                     }
-                    crate::fuzzy::PaletteAction::QuickSave => {
+                    crate::services::fuzzy::PaletteAction::QuickSave => {
                         self.search_open = false;
                         self.quick_save_active_note(now);
                     }
-                    crate::fuzzy::PaletteAction::RenameNote => {
+                    crate::services::fuzzy::PaletteAction::RenameNote => {
                         self.search_open = false;
                         self.rename_open = true;
                         self.rename_input = self.active_note_title.clone();
                         self.rename_just_opened = true;
                     }
-                    crate::fuzzy::PaletteAction::DeleteNote => {
+                    crate::services::fuzzy::PaletteAction::DeleteNote => {
                         self.search_open = false;
                         self.delete_confirm_open = true;
                         self.delete_just_opened = true;
                     }
-                    crate::fuzzy::PaletteAction::ToggleChecklist => {
+                    crate::services::fuzzy::PaletteAction::ToggleChecklist => {
                         self.search_open = false;
                         let (target_ed_mut, _) = if self.mode == Mode::Doc {
                             (&mut self.doc_ed, &mut self.doc_scroll_y)
@@ -308,7 +308,7 @@ impl App {
                             self.set_status("Toggled checklist item (Ctrl+Shift+X)", now);
                         }
                     }
-                    crate::fuzzy::PaletteAction::CloseTab => {
+                    crate::services::fuzzy::PaletteAction::CloseTab => {
                         self.search_open = false;
                         if self.mode == Mode::Doc {
                             self.close_doc_tab(self.active_doc_tab, now);
@@ -316,26 +316,26 @@ impl App {
                             self.close_tab(self.active_tab, now);
                         }
                     }
-                    crate::fuzzy::PaletteAction::ImportWorkspace => {
+                    crate::services::fuzzy::PaletteAction::ImportWorkspace => {
                         self.search_open = false;
                         self.workspace_importer.is_modal_open = true;
                     }
-                    crate::fuzzy::PaletteAction::RunScan => {
+                    crate::services::fuzzy::PaletteAction::RunScan => {
                         self.search_open = false;
                         self.in_command = true;
                         self.cmd_ed.set_text(":scan ");
                         self.cmd_ed.cur = 6;
                     }
-                    crate::fuzzy::PaletteAction::ScanHistory => {
+                    crate::services::fuzzy::PaletteAction::ScanHistory => {
                         self.search_open = false;
                         self.mode = Mode::ScanHistory;
                     }
-                    crate::fuzzy::PaletteAction::OpenHelp => {
+                    crate::services::fuzzy::PaletteAction::OpenHelp => {
                         self.search_open = false;
                         self.mode = Mode::Doc;
                         self.active_doc_idx = 0;
                     }
-                    crate::fuzzy::PaletteAction::SetLunaStyle(style) => {
+                    crate::services::fuzzy::PaletteAction::SetLunaStyle(style) => {
                         self.search_open = false;
                         self.lunaline_config.style = style;
                         if let Ok(json) = serde_json::to_string(&self.lunaline_config) {
@@ -346,7 +346,7 @@ impl App {
                         }
                         self.set_status(&format!("LunaLine style set to {}", style.name()), now);
                     }
-                    crate::fuzzy::PaletteAction::SetLunaColor(color_mode) => {
+                    crate::services::fuzzy::PaletteAction::SetLunaColor(color_mode) => {
                         self.search_open = false;
                         self.lunaline_config.color_mode = color_mode;
                         if let Ok(json) = serde_json::to_string(&self.lunaline_config) {
@@ -357,10 +357,10 @@ impl App {
                         }
                         self.set_status(&format!("LunaLine color set to {}", color_mode.name()), now);
                     }
-                    crate::fuzzy::PaletteAction::ShowSoundPicker => {
+                    crate::services::fuzzy::PaletteAction::ShowSoundPicker => {
                         // handled in modals.rs (sets query to >sound), no-op here
                     }
-                    crate::fuzzy::PaletteAction::ApplySoundProfile(profile) => {
+                    crate::services::fuzzy::PaletteAction::ApplySoundProfile(profile) => {
                         // Apply live — keep modal open so user can audition other profiles
                         self.sound.profile = profile;
                         self.sound.play(); // play a key sound so user hears the new profile immediately
@@ -372,12 +372,12 @@ impl App {
                         crate::notes::update_search_results(self);
                         self.set_status(&format!("Sound profile: {}", profile.name()), now);
                     }
-                    crate::fuzzy::PaletteAction::OpenCaretPicker => {
+                    crate::services::fuzzy::PaletteAction::OpenCaretPicker => {
                         self.search_query = ">caret ".to_string();
                         self.search_selected = 0;
                         self.update_search_results();
                     }
-                    crate::fuzzy::PaletteAction::ApplyCaretKind(kind) => {
+                    crate::services::fuzzy::PaletteAction::ApplyCaretKind(kind) => {
                         self.caret.kind = kind;
                         self.caret.last_type = now;
                         let _ = self.db_tx.send(DbMsg::SaveSetting {
@@ -385,16 +385,16 @@ impl App {
                             val: kind.name().into(),
                         });
                         crate::notes::update_search_results(self);
-                        self.set_status(&format!("Caret style: {}", crate::palette::caret_display_name(kind)), now);
+                        self.set_status(&format!("Caret style: {}", crate::ui::palette::caret_display_name(kind)), now);
                     }
-                    crate::fuzzy::PaletteAction::OpenFontPicker => {
+                    crate::services::fuzzy::PaletteAction::OpenFontPicker => {
                         self.search_query = ">font ".to_string();
                         self.search_selected = 0;
                         self.update_search_results();
                     }
-                    crate::fuzzy::PaletteAction::ApplyFont(font_name) => {
+                    crate::services::fuzzy::PaletteAction::ApplyFont(font_name) => {
                         self.selected_font = font_name.clone();
-                        crate::font_manager::apply_font(ui.ctx(), &self.selected_font);
+                        crate::services::font_manager::apply_font(ui.ctx(), &self.selected_font);
                         self.cell = None;
                         let _ = self.db_tx.send(DbMsg::SaveSetting {
                             key: "selected_font".into(),
@@ -403,12 +403,12 @@ impl App {
                         crate::notes::update_search_results(self);
                         self.set_status(&format!("Font family: {}", self.selected_font), now);
                     }
-                    crate::fuzzy::PaletteAction::OpenModePicker => {
+                    crate::services::fuzzy::PaletteAction::OpenModePicker => {
                         self.search_query = ">mode ".to_string();
                         self.search_selected = 0;
                         self.update_search_results();
                     }
-                    crate::fuzzy::PaletteAction::ApplyEditorMode(mode) => {
+                    crate::services::fuzzy::PaletteAction::ApplyEditorMode(mode) => {
                         self.editor_controller.mode = mode;
                         self.vim_runtime.start_error = None;
                         let mode_str = match mode {
@@ -492,7 +492,7 @@ impl App {
 
         // 5. Accent Picker Dropdown
         if self.accent_dropdown_open {
-            let default_theme = crate::theme::Theme::from_kind(self.theme.kind);
+            let default_theme = crate::ui::theme::Theme::from_kind(self.theme.kind);
             let action = crate::accent::render_accent_dropdown(
                 ui,
                 painter,
@@ -503,7 +503,7 @@ impl App {
                 &mut self.opacity,
                 &mut self.blur_effect,
                 &mut |key: &str, val: &str| {
-                    let _ = self.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                    let _ = self.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                         key: key.into(),
                         val: val.into(),
                     });
@@ -519,7 +519,7 @@ impl App {
                     }
                     crate::accent::AccentAction::ResetAll => {
                         self.accent_overrides.clear();
-                        self.theme = crate::theme::Theme::from_kind(self.theme.kind);
+                        self.theme = crate::ui::theme::Theme::from_kind(self.theme.kind);
                         if let Some(ref db) = self.db {
                             let _ = self.accent_overrides.save_to_db(db);
                         }

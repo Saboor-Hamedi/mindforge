@@ -1,13 +1,20 @@
-//! Theme palette definitions.
+//! Theme palette definitions for MINDFORGE's 19 visual themes.
 //!
 //! Every theme's text/accent/muted/highlight colors are checked against its
 //! background at test time using a real WCAG contrast-ratio calculation
 //! (see `contrast_ratio` + the `readability` test module at the bottom).
 //! Adding a theme with poor contrast fails `cargo test` instead of shipping
 //! something hard to read.
+//!
+//! Each theme provides a complete `Theme` struct with all colors needed by
+//! every UI component — no hardcoded colors exist outside this module.
 
 use eframe::egui::Color32;
 
+/// Enumeration of all 19 available color themes.
+///
+/// Use `ThemeKind::ALL` to iterate all themes, `display_name()` for UI labels,
+/// and `name()` for the lowercase identifier used in settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ThemeKind {
     Shell,

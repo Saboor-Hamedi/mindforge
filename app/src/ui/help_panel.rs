@@ -1,9 +1,15 @@
 //! Quick Start Guide & Interactive Help Center.
+//!
 //! Provides unified guidance for notes, Vim motions, commands, carets,
-//! and keyboard shortcuts in a single clean tab rendered via the Markdown Preview engine.
+//! and keyboard shortcuts in a single clean tab rendered via the Markdown
+//! Preview engine. Content is embedded as a Markdown string constant.
+//!
+//! The help panel is opened via F1 or `:help` and displays a comprehensive
+//! quick-start guide covering all major features.
 
 use eframe::egui::{self, Rect};
 
+/// Returned by the help panel when the user requests an action.
 pub struct HelpPanelAction {
     pub should_close: bool,
 }
@@ -137,7 +143,7 @@ pub fn render_help_tab_view(
     painter: &egui::Painter,
     rect: Rect,
     scroll_y: &mut f32,
-    theme: &crate::theme::Theme,
+    theme: &crate::ui::theme::Theme,
     font_size: f32,
 ) -> HelpPanelAction {
     crate::view_editor::render_markdown_document(

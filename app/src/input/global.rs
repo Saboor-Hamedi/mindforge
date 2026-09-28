@@ -118,7 +118,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
     if ctrl_i {
         if app.preview_open && app.right_pane_tab == crate::app::RightPaneTab::Backlinks {
             app.preview_open = false;
-            let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+            let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                 key: "preview".into(),
                 val: "false".into(),
             });
@@ -126,7 +126,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
         } else {
             app.preview_open = true;
             app.right_pane_tab = crate::app::RightPaneTab::Backlinks;
-            let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+            let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                 key: "preview".into(),
                 val: "true".into(),
             });
@@ -145,7 +145,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
     if ctrl_shift_o {
         if app.preview_open && app.right_pane_tab == crate::app::RightPaneTab::Outline {
             app.preview_open = false;
-            let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+            let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                 key: "preview".into(),
                 val: "false".into(),
             });
@@ -153,7 +153,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
         } else {
             app.preview_open = true;
             app.right_pane_tab = crate::app::RightPaneTab::Outline;
-            let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+            let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                 key: "preview".into(),
                 val: "true".into(),
             });
@@ -659,7 +659,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
             app.right_pane_tab = crate::app::RightPaneTab::Preview;
         }
         let val = if app.preview_open { "true" } else { "false" };
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
             key: "preview".into(),
             val: val.into(),
         });
@@ -697,23 +697,23 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
             app.show_titlebar = true;
             app.show_tabs = true;
         }
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
             key: "zen_mode".into(),
             val: if app.zen_mode { "true" } else { "false" }.into(),
         });
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
             key: "show_titlebar".into(),
             val: if app.show_titlebar { "true" } else { "false" }.into(),
         });
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
             key: "show_tabs".into(),
             val: if app.show_tabs { "true" } else { "false" }.into(),
         });
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
             key: "sidebar".into(),
             val: if app.sidebar_open { "true" } else { "false" }.into(),
         });
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
             key: "preview".into(),
             val: if app.preview_open { "true" } else { "false" }.into(),
         });
@@ -746,7 +746,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
             }
             app.set_status("Sidebar active (j/k: move • Enter: load • Ctrl+L / l: editor)", now);
         }
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
             key: "sidebar".into(),
             val: "true".into(),
         });
@@ -764,7 +764,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
             };
             app.set_status(status, now);
             let sb_val = if app.sidebar_open { "true" } else { "false" };
-            let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+            let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                 key: "sidebar".into(),
                 val: sb_val.into(),
             });
@@ -785,7 +785,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
             app.set_status("Sidebar closed", now);
         }
         let sb_val = if app.sidebar_open { "true" } else { "false" };
-        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
             key: "sidebar".into(),
             val: sb_val.into(),
         });
@@ -876,7 +876,7 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
         }
 
         if doc_down {
-            let total_docs = crate::docs::BRAIN_DOCS.len();
+            let total_docs = crate::ui::docs::BRAIN_DOCS.len();
             if total_docs > 0 && app.doc_selected_idx + 1 < total_docs {
                 app.doc_selected_idx += 1;
             }

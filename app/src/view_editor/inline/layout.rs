@@ -6,7 +6,7 @@ use super::render::active::render_active_line;
 use super::render::inactive::render_inactive_line;
 use super::types::{InlineEditorLayout, InlineLine, InlineLineKind};
 use crate::editor::Editor;
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::text::LayoutJob;
 use eframe::egui::{pos2, vec2, Rect};
 
@@ -81,7 +81,7 @@ pub fn compute_inline_layout_ctx(
     theme: &Theme,
     _ed_origin_x: f32,
 ) -> InlineEditorLayout {
-    crate::font_manager::ensure_editor_font(ctx);
+    crate::services::font_manager::ensure_editor_font(ctx);
     let mut layout = InlineEditorLayout::new();
     let buf = &ed.buf;
     let n = buf.len();

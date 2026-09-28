@@ -1,7 +1,7 @@
 //! Daily writing statistics, lifetime metrics, and activity history heatmap view.
 
 use super::App;
-use crate::view_stats::render_stats;
+use crate::views::stats::render_stats;
 use chrono::Local;
 use eframe::egui::{Rect, Ui};
 

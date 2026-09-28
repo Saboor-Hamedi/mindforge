@@ -3,7 +3,7 @@ use super::{
     types::EditorMode,
 };
 use eframe::egui::{Rect, Ui};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 
 pub type EditorResult<T> = Result<T, String>;
 

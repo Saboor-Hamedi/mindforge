@@ -1,7 +1,7 @@
 //! Active document state, tab management, and activity tracking.
 
 use super::{App, OpenNote};
-use crate::db_worker::DbMsg;
+use crate::services::db_worker::DbMsg;
 use crate::mode::Mode;
 use crate::notes::{delete_active_note, quick_save_active_note, rename_active_note, update_search_results};
 use chrono::Local;
@@ -258,7 +258,7 @@ impl App {
     }
 
     pub fn load_doc_by_index(&mut self, idx: usize, now: f64) {
-        let docs = crate::docs::get_docs();
+        let docs = crate::ui::docs::get_docs();
         if let Some(doc) = docs.get(idx) {
             self.active_doc_idx = idx;
             self.doc_selected_idx = idx;
@@ -271,7 +271,7 @@ impl App {
             }
 
             self.doc_ed.clear();
-            let body = crate::docs::format_doc_for_reader(doc.content);
+            let body = crate::ui::docs::format_doc_for_reader(doc.content);
             self.doc_ed.insert_str(&body);
             self.doc_ed.cur = 0;
             self.doc_ed.clear_history();

@@ -1,5 +1,5 @@
-use crate::fuzzy::SearchItem;
-use crate::theme::Theme;
+use crate::services::fuzzy::SearchItem;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
 pub struct SearchModalAction {
@@ -173,53 +173,53 @@ pub fn render_search_modal(
     if nav_enter {
         if let Some(item) = results.get(*selected_idx) {
             match &item.action {
-                crate::fuzzy::PaletteAction::OpenThemePicker => {
+                crate::services::fuzzy::PaletteAction::OpenThemePicker => {
                     *query = ">theme ".to_string();
                     *selected_idx = 0;
                     action.new_query = Some(">theme ".to_string());
                     action.should_close = false;
                 }
-                crate::fuzzy::PaletteAction::ApplyTheme(_) => {
+                crate::services::fuzzy::PaletteAction::ApplyTheme(_) => {
                     action.selected_item = Some(item.clone());
                     action.should_close = false; // live change theme without moving away!
                 }
-                crate::fuzzy::PaletteAction::ShowSoundPicker => {
+                crate::services::fuzzy::PaletteAction::ShowSoundPicker => {
                     *query = ">sound ".to_string();
                     *selected_idx = 0;
                     action.new_query = Some(">sound ".to_string());
                     action.should_close = false;
                 }
-                crate::fuzzy::PaletteAction::ApplySoundProfile(_) => {
+                crate::services::fuzzy::PaletteAction::ApplySoundProfile(_) => {
                     action.selected_item = Some(item.clone());
                     action.should_close = false; // preview sound without closing picker!
                 }
-                crate::fuzzy::PaletteAction::OpenCaretPicker => {
+                crate::services::fuzzy::PaletteAction::OpenCaretPicker => {
                     *query = ">caret ".to_string();
                     *selected_idx = 0;
                     action.new_query = Some(">caret ".to_string());
                     action.should_close = false;
                 }
-                crate::fuzzy::PaletteAction::ApplyCaretKind(_) => {
+                crate::services::fuzzy::PaletteAction::ApplyCaretKind(_) => {
                     action.selected_item = Some(item.clone());
                     action.should_close = false; // live preview caret without closing picker!
                 }
-                crate::fuzzy::PaletteAction::OpenFontPicker => {
+                crate::services::fuzzy::PaletteAction::OpenFontPicker => {
                     *query = ">font ".to_string();
                     *selected_idx = 0;
                     action.new_query = Some(">font ".to_string());
                     action.should_close = false;
                 }
-                crate::fuzzy::PaletteAction::ApplyFont(_) => {
+                crate::services::fuzzy::PaletteAction::ApplyFont(_) => {
                     action.selected_item = Some(item.clone());
                     action.should_close = false; // live apply font without closing picker!
                 }
-                crate::fuzzy::PaletteAction::OpenModePicker => {
+                crate::services::fuzzy::PaletteAction::OpenModePicker => {
                     *query = ">mode ".to_string();
                     *selected_idx = 0;
                     action.new_query = Some(">mode ".to_string());
                     action.should_close = false;
                 }
-                crate::fuzzy::PaletteAction::ApplyEditorMode(_) => {
+                crate::services::fuzzy::PaletteAction::ApplyEditorMode(_) => {
                     action.selected_item = Some(item.clone());
                     action.should_close = false; // switch mode without closing picker!
                 }
@@ -329,53 +329,53 @@ pub fn render_search_modal(
                 if is_hovered && ui.input(|i| i.pointer.primary_clicked()) {
                     *selected_idx = actual_idx;
                     match &item.action {
-                        crate::fuzzy::PaletteAction::OpenThemePicker => {
+                        crate::services::fuzzy::PaletteAction::OpenThemePicker => {
                             *query = ">theme ".to_string();
                             *selected_idx = 0;
                             action.new_query = Some(">theme ".to_string());
                             action.should_close = false;
                         }
-                        crate::fuzzy::PaletteAction::ApplyTheme(_) => {
+                        crate::services::fuzzy::PaletteAction::ApplyTheme(_) => {
                             action.selected_item = Some(item.clone());
                             action.should_close = false; // stay in theme picker
                         }
-                        crate::fuzzy::PaletteAction::ShowSoundPicker => {
+                        crate::services::fuzzy::PaletteAction::ShowSoundPicker => {
                             *query = ">sound ".to_string();
                             *selected_idx = 0;
                             action.new_query = Some(">sound ".to_string());
                             action.should_close = false;
                         }
-                        crate::fuzzy::PaletteAction::ApplySoundProfile(_) => {
+                        crate::services::fuzzy::PaletteAction::ApplySoundProfile(_) => {
                             action.selected_item = Some(item.clone());
                             action.should_close = false; // stay in sound picker, play preview
                         }
-                        crate::fuzzy::PaletteAction::OpenCaretPicker => {
+                        crate::services::fuzzy::PaletteAction::OpenCaretPicker => {
                             *query = ">caret ".to_string();
                             *selected_idx = 0;
                             action.new_query = Some(">caret ".to_string());
                             action.should_close = false;
                         }
-                        crate::fuzzy::PaletteAction::ApplyCaretKind(_) => {
+                        crate::services::fuzzy::PaletteAction::ApplyCaretKind(_) => {
                             action.selected_item = Some(item.clone());
                             action.should_close = false; // stay in caret picker, preview live
                         }
-                        crate::fuzzy::PaletteAction::OpenFontPicker => {
+                        crate::services::fuzzy::PaletteAction::OpenFontPicker => {
                             *query = ">font ".to_string();
                             *selected_idx = 0;
                             action.new_query = Some(">font ".to_string());
                             action.should_close = false;
                         }
-                        crate::fuzzy::PaletteAction::ApplyFont(_) => {
+                        crate::services::fuzzy::PaletteAction::ApplyFont(_) => {
                             action.selected_item = Some(item.clone());
                             action.should_close = false;
                         }
-                        crate::fuzzy::PaletteAction::OpenModePicker => {
+                        crate::services::fuzzy::PaletteAction::OpenModePicker => {
                             *query = ">mode ".to_string();
                             *selected_idx = 0;
                             action.new_query = Some(">mode ".to_string());
                             action.should_close = false;
                         }
-                        crate::fuzzy::PaletteAction::ApplyEditorMode(_) => {
+                        crate::services::fuzzy::PaletteAction::ApplyEditorMode(_) => {
                             action.selected_item = Some(item.clone());
                             action.should_close = false;
                         }

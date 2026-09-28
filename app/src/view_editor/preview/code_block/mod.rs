@@ -3,7 +3,7 @@
 //! Reuses the exact container card surface, sleek header bar, language badge,
 //! copy button metrics, and line height rhythm established by the inline editor.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use crate::view_editor::inline::elements::{code_block_copy_button_rect, render_code_block_card};
 use crate::view_editor::preview::syntax::highlight_code_line;
 use eframe::egui::{pos2, vec2, Align2, Color32, FontId, Painter, Rect, Ui};

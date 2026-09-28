@@ -1,8 +1,8 @@
 //! Software update settings tab.
 
 use super::SettingPanelAction;
-use crate::theme::Theme;
-use crate::updater::{UpdateManager, UpdateStatus};
+use crate::ui::theme::Theme;
+use crate::services::updater::{UpdateManager, UpdateStatus};
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};
 
 pub fn render_updates_tab(

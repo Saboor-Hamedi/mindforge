@@ -1,10 +1,18 @@
 //! Standalone ShowCmd Keystroke & Command HUD Component.
-//! Tracks pending/executed Vim commands, search queries, and command-line inputs,
-//! rendering them as a clean, borderless floating capsule card.
+//!
+//! Tracks pending/executed Vim commands, search queries, and command-line
+//! inputs, rendering them as a clean, borderless floating capsule card at
+//! the bottom-center of the editor.
+//!
+//! Features:
+//! - Auto-hides after 2 seconds of inactivity
+//! - Truncates long text with ellipsis (max 32 chars)
+//! - Color-coded by kind: Keystroke (muted), Command (accent), Search (highlight), Visual (green)
+//! - Zero-allocation rendering when hidden
 
 use eframe::egui::{self, Color32, FontId, Pos2, Rect, Stroke};
 
-/// Maximum characters to display — beyond this the text is truncated.
+/// Maximum characters to display — beyond this the text is truncated with "…".
 const MAX_DISPLAY_CHARS: usize = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -153,7 +161,7 @@ impl ShowCmdState {
         &self,
         painter: &egui::Painter,
         anchor_bottom_right: Pos2,
-        theme: &crate::theme::Theme,
+        theme: &crate::ui::theme::Theme,
         now: f64,
     ) -> Option<Rect> {
         if !self.enabled || self.text.is_empty() {

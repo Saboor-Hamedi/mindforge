@@ -1,7 +1,16 @@
 //! Multi-voice mechanical keyboard sound synthesizer for MINDFORGE.
-//! Hardware-mixed 16-channel PCM audio engine with 0ms latency and zero dropped keystrokes.
+//!
+//! Provides authentic mechanical switch audio feedback with zero latency:
+//! - 6 synthesized sound profiles (Thocky, Clacky, Creamy, Marbly, Poppy, Clicky)
+//! - 4-channel hardware audio mixer (Windows winmm) for overlapping keystrokes
+//! - 3 pitch variations per profile to prevent "machine gun" repetition
+//! - Sample rate: 22050 Hz, 16-bit PCM mono
+//!
+//! Each profile is synthesized at startup using additive synthesis with
+//! exponential decay envelopes — no audio files needed.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Available mechanical keyboard sound profiles.
 pub enum SoundProfile {
     Off,
     Thocky,
@@ -61,15 +70,29 @@ impl SoundProfile {
     }
 }
 
+/// Main sound engine that manages profile selection and playback.
+///
+/// Pre-synthesizes 3 pitch variations of each profile at startup to
+/// avoid runtime synthesis cost. The `var_idx` cycles through variations
+/// on each keystroke for natural-sounding repetition.
 pub struct SoundEngine {
+    /// Currently active sound profile
     pub profile: SoundProfile,
+    /// Pre-synthesized Thocky samples at 3 pitch levels (0.95x, 1.0x, 1.05x)
     thocky: [Vec<i16>; 3],
+    /// Pre-synthesized Clacky samples at 3 pitch levels
     clacky: [Vec<i16>; 3],
+    /// Pre-synthesized Creamy samples at 3 pitch levels
     creamy: [Vec<i16>; 3],
+    /// Pre-synthesized Marbly samples at 3 pitch levels
     marbly: [Vec<i16>; 3],
+    /// Pre-synthesized Poppy samples at 3 pitch levels
     poppy: [Vec<i16>; 3],
+    /// Pre-synthesized Clicky samples at 3 pitch levels
     clicky: [Vec<i16>; 3],
+    /// Cycles 0→1→2→0 to select pitch variation
     var_idx: usize,
+    /// Hardware audio mixer for overlapping playback
     player: MultiVoicePlayer,
 }
 
@@ -113,6 +136,11 @@ impl SoundEngine {
         }
     }
 
+    /// Plays a single keystroke sound using the active profile.
+    ///
+    /// Cycles through 3 pitch variations to prevent repetitive "machine gun"
+    /// effect. Routes the PCM sample to the next available hardware channel,
+    /// allowing up to 4 simultaneous keystroke sounds.
     pub fn play(&mut self) {
         if self.profile == SoundProfile::Off {
             return;

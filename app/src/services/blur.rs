@@ -1,4 +1,15 @@
 //! Windows Desktop Window Manager (DWM) Acrylic & Mica blur integration.
+//!
+//! Provides three backdrop effects for the borderless window:
+//! - `None` — Solid background, no transparency
+//! - `Mica` — Windows 11 desktop wallpaper blur (opaque, sample of wallpaper)
+//! - `Acrylic` — Windows 10/11 frosted glass effect (translucent, blurred)
+//!
+//! Uses `dwmapi.dll` for modern DWM attributes with a `user32.dll` fallback
+//! for Windows 10 builds that don't support `DWMWA_SYSTEMBACKDROP_TYPE`.
+//!
+//! All FFI declarations are contained in the `win32` submodule and are
+//! only compiled on Windows targets.
 
 #[cfg(target_os = "windows")]
 #[allow(dead_code, non_snake_case)]
@@ -96,10 +107,14 @@ mod win32 {
     pub const ACCENT_ENABLE_ACRYLICBLURBEHIND: u32 = 4;
 }
 
+/// Available window backdrop blur effects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlurEffect {
+    /// No blur — solid window background
     None,
+    /// Mica effect — samples desktop wallpaper (Windows 11+)
     Mica,
+    /// Acrylic effect — frosted glass blur (Windows 10/11)
     Acrylic,
 }
 
@@ -114,6 +129,15 @@ impl BlurEffect {
 }
 
 /// Applies DWM blur / acrylic backdrop to the application window on Windows 11/10.
+///
+/// Process:
+/// 1. Finds the window handle via PID enumeration, falling back to
+///    `GetActiveWindow` → `GetForegroundWindow` → `FindWindowA`
+/// 2. Loads `dwmapi.dll` and calls `DwmExtendFrameIntoClientArea`
+/// 3. Sets `DWMWA_SYSTEMBACKDROP_TYPE` for the requested effect
+/// 4. Falls back to `SetWindowCompositionAttribute` on older Windows 10
+///
+/// All operations are best-effort — failures are silently ignored.
 pub fn apply_window_blur(_effect: BlurEffect) {
     #[cfg(target_os = "windows")]
     unsafe {

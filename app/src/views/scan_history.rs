@@ -1,9 +1,32 @@
-//! History view for past webscans stored in SQLite (:scans).
+//! History view for past webscans stored in SQLite (`:scans` command).
+//!
+//! Displays a scrollable list of previous security scans with:
+//! - URL and timestamp for each scan
+//! - Optional user notes
+//! - Keyboard navigation (↑/↓) and mouse click selection
+//! - Enter to open the full report, Esc to close
+//!
+//! Returns the index of the selected scan when the user presses Enter
+/// or clicks, allowing the caller to load and display the full report.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use core::ScanRecord;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
+/// Renders the scan history list and handles selection input.
+///
+/// # Arguments
+/// * `ui` — egui UI context for input detection
+/// * `painter` — egui painter for drawing
+/// * `rect` — Screen area to render within
+/// * `scans` — Slice of stored scan records (most recent first)
+/// * `selected_idx` — Currently selected index (auto-clamped if out of bounds)
+/// * `scroll_y` — Mutable scroll offset (auto-clamped to content bounds)
+/// * `theme` — Active color theme
+/// * `font_size` — Base font size
+///
+/// # Returns
+/// `Some(index)` if the user selected a scan (Enter/click), `None` otherwise.
 pub fn render_scan_history(
     ui: &egui::Ui,
     painter: &egui::Painter,

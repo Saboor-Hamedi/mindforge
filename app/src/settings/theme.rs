@@ -8,7 +8,7 @@
 //! card (AA/AAA) using the `contrast_ratio` check from theme.rs, so the
 //! readability guarantee is something the user can actually see.
 
-use crate::theme::{contrast_ratio, Theme, ThemeKind};
+use crate::ui::theme::{contrast_ratio, Theme, ThemeKind};
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Id, Pos2, Rect, Stroke};
 
 pub fn render_theme_tab(
@@ -18,7 +18,7 @@ pub fn render_theme_tab(
     p_origin: Pos2,
     theme: &mut Theme,
     _opacity: &mut f32,
-    _blur_effect: &mut crate::blur::BlurEffect,
+    _blur_effect: &mut crate::services::blur::BlurEffect,
     on_save_setting: &mut dyn FnMut(&str, &str),
 ) {
     painter.text(

@@ -12,7 +12,7 @@ use super::layout::compute_inline_layout;
 use super::types::InlineLineKind;
 use crate::caret::Caret;
 use crate::editor::Editor;
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::text::CCursor;
 use eframe::egui::{
     self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke, Ui,
@@ -36,7 +36,7 @@ pub fn render_inline_editor(
     block_scroll: bool,
     search_matches: Option<(&[usize], usize)>,
     show_line_numbers: bool,
-    sound: &mut crate::sound::SoundEngine,
+    sound: &mut crate::services::sound::SoundEngine,
     is_dirty: &mut bool,
 ) {
     let visible_h = editor_rect.height().max(0.0);

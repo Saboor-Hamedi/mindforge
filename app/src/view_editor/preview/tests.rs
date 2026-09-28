@@ -107,11 +107,11 @@ Paragraph text
 
     #[test]
     fn test_render_preview_heading_metrics() {
-        use crate::theme::Theme;
+        use crate::ui::theme::Theme;
         use eframe::egui::{pos2, Context, Rect};
 
         let ctx = Context::default();
-        crate::font_manager::ensure_editor_font(&ctx);
+        crate::services::font_manager::ensure_editor_font(&ctx);
         let _ = ctx.run(Default::default(), |ctx| {
             let painter = ctx.layer_painter(eframe::egui::LayerId::background());
             let theme = Theme::default();
@@ -138,11 +138,11 @@ Paragraph text
 
     #[test]
     fn test_render_preview_blockquote_metrics() {
-        use crate::theme::Theme;
+        use crate::ui::theme::Theme;
         use eframe::egui::{pos2, Context, Rect};
 
         let ctx = Context::default();
-        crate::font_manager::ensure_editor_font(&ctx);
+        crate::services::font_manager::ensure_editor_font(&ctx);
         let _ = ctx.run(Default::default(), |ctx| {
             let painter = ctx.layer_painter(eframe::egui::LayerId::background());
             let theme = Theme::default();
@@ -163,11 +163,11 @@ Paragraph text
 
     #[test]
     fn test_render_preview_table_metrics() {
-        use crate::theme::Theme;
+        use crate::ui::theme::Theme;
         use eframe::egui::{pos2, Context, Rect};
 
         let ctx = Context::default();
-        crate::font_manager::ensure_editor_font(&ctx);
+        crate::services::font_manager::ensure_editor_font(&ctx);
         let _ = ctx.run(Default::default(), |ctx| {
             eframe::egui::CentralPanel::default().show(ctx, |ui| {
                 let painter = ui.painter().clone();
@@ -190,11 +190,11 @@ Paragraph text
 
     #[test]
     fn test_render_preview_code_block_metrics() {
-        use crate::theme::Theme;
+        use crate::ui::theme::Theme;
         use eframe::egui::{pos2, CentralPanel, Context, Rect};
 
         let ctx = Context::default();
-        crate::font_manager::ensure_editor_font(&ctx);
+        crate::services::font_manager::ensure_editor_font(&ctx);
         let _ = ctx.run(Default::default(), |ctx| {
             CentralPanel::default().show(ctx, |ui| {
                 let painter = ui.painter().clone();
@@ -211,7 +211,7 @@ Paragraph text
 
     #[test]
     fn test_preview_empty_placeholder_zoom_safe() {
-        use crate::theme::Theme;
+        use crate::ui::theme::Theme;
         use eframe::egui::{pos2, Context, Rect};
 
         let ctx = Context::default();

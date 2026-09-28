@@ -1,16 +1,30 @@
 //! Full-screen Webscan report view and error view.
 //!
-//! Matches MINDFORGE's visual design:
+//! Displays the results of a web security scan in a terminal-inspired format:
 //! - Dark background, monospace font, accent color for headers
-//! - Findings grouped by Category
-//! - Severity coloring: Low -> dim gray, Medium -> amber, High -> red
+//! - Findings grouped by category (Headers, Cookies, TLS, Disclosure, Injection, Outdated)
+//! - Severity coloring: Low → dim gray, Medium → amber, High → red
+//! - Mouse wheel scrolling with automatic scroll clamping
 //! - 'q' or 'Esc' returns to previous mode
-//! - No popups, no default egui widgets
+//! - No popups, no default egui widgets — pure painter rendering
+//!
+//! Also provides `export_scan_to_markdown` for saving reports as Markdown files.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, Align2, Color32, FontId, Rect, Stroke};
 use webscan::{Category, Finding, ScanResult, Severity};
 
+/// Renders the full-screen webscan report or error view.
+///
+/// # Arguments
+/// * `ui` — egui UI context (used for scroll input detection)
+/// * `painter` — egui painter for all drawing operations
+/// * `rect` — Screen area to render within
+/// * `result` — The scan result to display (None shows "no report" message)
+/// * `error` — Optional (url, error_message) tuple for error display
+/// * `scroll_y` — Mutable scroll offset (auto-clamped to content bounds)
+/// * `theme` — Active color theme
+/// * `font_size` — Base font size for the report
 pub fn render_scan_view(
     ui: &egui::Ui,
     painter: &egui::Painter,
@@ -280,6 +294,9 @@ pub fn render_scan_view(
 }
 
 /// Generates a structured Markdown export of a scan report.
+///
+/// Produces a `.md`-ready string with target metadata, TLS info,
+/// and a bulleted findings list grouped by severity.
 pub fn export_scan_to_markdown(res: &ScanResult) -> String {
     let mut out = String::new();
     out.push_str(&format!("# Webscan Report: {}\n\n", res.url));

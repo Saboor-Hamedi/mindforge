@@ -14,17 +14,17 @@ pub mod terminal_drawer;
 pub use init::default_backup_dir;
 
 use crate::caret::Caret;
-use crate::db_worker::DbMsg;
+use crate::services::db_worker::DbMsg;
 use crate::editor::{Editor, VisualLine};
-use crate::fuzzy::SearchItem;
+use crate::services::fuzzy::SearchItem;
 use crate::input::{handle_input, window_shortcuts};
 use crate::hybrid::HybridEngine;
 use crate::mode::Mode;
 use crate::settings::SettingTab;
-use crate::sound::SoundEngine;
-use crate::theme::Theme;
+use crate::services::sound::SoundEngine;
+use crate::ui::theme::Theme;
 use eframe::egui::{Pos2, Rect};
-use crate::updater::UpdateManager;
+use crate::services::updater::UpdateManager;
 
 use core::{DailyActivity, Database, Note};
 use eframe::egui::{self, Color32, FontId};
@@ -64,7 +64,7 @@ pub struct App {
     pub sound: SoundEngine,
     pub font_size: f32,
     pub selected_font: String,
-    pub blur_effect: crate::blur::BlurEffect,
+    pub blur_effect: crate::services::blur::BlurEffect,
     pub show_welcome: bool,
     pub opacity: f32,
     pub last_char_time: f64,
@@ -157,7 +157,7 @@ pub struct App {
     pub editor_controller: crate::editor::controller::EditorController,
     pub vim_runtime: crate::vim::VimRuntime,
     pub hybrid: HybridEngine,
-    pub showcmd: crate::showcmd::ShowCmdState,
+    pub showcmd: crate::ui::showcmd::ShowCmdState,
 
     // Daily Activity & Writing Story tracking
     pub pending_secs: f32,
@@ -195,11 +195,11 @@ pub struct App {
     pub terminal_split_ratio: f32,
     pub is_dragging_terminal_splitter: bool,
     pub terminal_focused: bool,
-    pub term_pane: Option<crate::terminal_pane::TerminalPane>,
+    pub term_pane: Option<crate::ui::terminal_pane::TerminalPane>,
     pub prev_mode_before_term: Mode,
 
     // Editor-only smooth zoom & HUD state
-    pub zoom: crate::zoom::ZoomState,
+    pub zoom: crate::ui::zoom::ZoomState,
 
     // DeepSeek Pro AI Agent state
     pub agent_state: crate::agent::AgentState,
@@ -256,7 +256,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _f: &mut eframe::Frame) {
         if self.first_frame {
             self.first_frame = false;
-            crate::blur::apply_window_blur(self.blur_effect);
+            crate::services::blur::apply_window_blur(self.blur_effect);
             if let Some(cmd) = egui::ViewportCommand::center_on_screen(ctx) {
                 ctx.send_viewport_cmd(cmd);
             }
@@ -334,7 +334,7 @@ impl eframe::App for App {
 
         if self.font_dirty {
             self.font_dirty = false;
-            crate::font_manager::apply_font(ctx, &self.selected_font);
+            crate::services::font_manager::apply_font(ctx, &self.selected_font);
         }
 
         let typed = handle_input(self, ctx, now);

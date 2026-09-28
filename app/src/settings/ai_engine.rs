@@ -1,7 +1,7 @@
 //! AI Engine preferences and DeepSeek Pro API settings tab.
 
 use crate::agent::client::{deobfuscate_key, obfuscate_key};
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};
 
 pub fn render_ai_tab(

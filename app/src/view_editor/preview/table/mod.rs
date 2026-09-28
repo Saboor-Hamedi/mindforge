@@ -3,7 +3,7 @@
 //! Reuses the exact container stroke, header accent tint, alternating row stripes,
 //! hairline divider lines, and cell padding metrics established by the inline editor.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use crate::view_editor::inline::elements::{
     cell_color, render_table_block_decorations, render_table_row_decorations, table_metrics,
 };

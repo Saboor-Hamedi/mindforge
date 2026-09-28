@@ -2,10 +2,10 @@
 
 use crate::app::App;
 use crate::caret::CaretKind;
-use crate::db_worker::DbMsg;
+use crate::services::db_worker::DbMsg;
 use crate::mode::Mode;
-use crate::sound::SoundProfile;
-use crate::theme::{Theme, ThemeKind};
+use crate::services::sound::SoundProfile;
+use crate::ui::theme::{Theme, ThemeKind};
 
 #[derive(Clone, Copy, Debug)]
 pub struct CommandInfo {
@@ -444,8 +444,8 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                     }
                 }
                 "blur" | "acrylic" | "mica" => {
-                    app.blur_effect = crate::blur::BlurEffect::Acrylic;
-                    crate::blur::apply_window_blur(app.blur_effect);
+                    app.blur_effect = crate::services::blur::BlurEffect::Acrylic;
+                    crate::services::blur::apply_window_blur(app.blur_effect);
                     let _ = app.db_tx.send(DbMsg::SaveSetting {
                         key: "blur".into(),
                         val: "acrylic".into(),
@@ -453,8 +453,8 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                     app.set_status(":set blur (Backdrop blur enabled)", now);
                 }
                 "noblur" => {
-                    app.blur_effect = crate::blur::BlurEffect::None;
-                    crate::blur::apply_window_blur(app.blur_effect);
+                    app.blur_effect = crate::services::blur::BlurEffect::None;
+                    crate::services::blur::apply_window_blur(app.blur_effect);
                     let _ = app.db_tx.send(DbMsg::SaveSetting {
                         key: "blur".into(),
                         val: "none".into(),
@@ -843,30 +843,30 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
         }
         "blur" | "acrylic" | "mica" | "noblur" => {
             let eff = match cmd.as_str() {
-                "mica" => crate::blur::BlurEffect::Mica,
-                "acrylic" => crate::blur::BlurEffect::Acrylic,
-                "noblur" => crate::blur::BlurEffect::None,
+                "mica" => crate::services::blur::BlurEffect::Mica,
+                "acrylic" => crate::services::blur::BlurEffect::Acrylic,
+                "noblur" => crate::services::blur::BlurEffect::None,
                 _ => {
                     match args.to_lowercase().trim() {
-                        "mica" => crate::blur::BlurEffect::Mica,
-                        "acrylic" => crate::blur::BlurEffect::Acrylic,
-                        "off" | "none" | "0" | "false" => crate::blur::BlurEffect::None,
+                        "mica" => crate::services::blur::BlurEffect::Mica,
+                        "acrylic" => crate::services::blur::BlurEffect::Acrylic,
+                        "off" | "none" | "0" | "false" => crate::services::blur::BlurEffect::None,
                         _ => {
-                            if app.blur_effect == crate::blur::BlurEffect::None {
-                                crate::blur::BlurEffect::Acrylic
+                            if app.blur_effect == crate::services::blur::BlurEffect::None {
+                                crate::services::blur::BlurEffect::Acrylic
                             } else {
-                                crate::blur::BlurEffect::None
+                                crate::services::blur::BlurEffect::None
                             }
                         }
                     }
                 }
             };
             app.blur_effect = eff;
-            crate::blur::apply_window_blur(eff);
+            crate::services::blur::apply_window_blur(eff);
             let val = match eff {
-                crate::blur::BlurEffect::Acrylic => "acrylic",
-                crate::blur::BlurEffect::Mica => "mica",
-                crate::blur::BlurEffect::None => "none",
+                crate::services::blur::BlurEffect::Acrylic => "acrylic",
+                crate::services::blur::BlurEffect::Mica => "mica",
+                crate::services::blur::BlurEffect::None => "none",
             };
             let _ = app.db_tx.send(DbMsg::SaveSetting {
                 key: "blur".into(),
@@ -931,7 +931,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
             match args.to_lowercase().trim() {
                 "on" | "enable" | "1" => {
                     app.editor_controller.mode = crate::app::EditorInputMode::Vim;
-                    let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                    let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                         key: "editor_mode".into(),
                         val: "vim".into(),
                     });
@@ -939,7 +939,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                 }
                 "off" | "disable" | "0" => {
                     app.editor_controller.mode = crate::app::EditorInputMode::Hybrid;
-                    let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                    let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                         key: "editor_mode".into(),
                         val: "hybrid".into(),
                     });
@@ -948,14 +948,14 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                 _ => {
                     if app.editor_controller.mode == crate::app::EditorInputMode::Vim {
                         app.editor_controller.mode = crate::app::EditorInputMode::Hybrid;
-                        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                             key: "editor_mode".into(),
                             val: "hybrid".into(),
                         });
                         app.set_status("Switched to Hybrid Mode (Modern IDE)", now);
                     } else {
                         app.editor_controller.mode = crate::app::EditorInputMode::Vim;
-                        let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                        let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                             key: "editor_mode".into(),
                             val: "vim".into(),
                         });
@@ -968,7 +968,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
             match args.to_lowercase().trim() {
                 "vim" => {
                     app.editor_controller.mode = crate::app::EditorInputMode::Vim;
-                    let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                    let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                         key: "editor_mode".into(),
                         val: "vim".into(),
                     });
@@ -976,7 +976,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
                 }
                 "hybrid" => {
                     app.editor_controller.mode = crate::app::EditorInputMode::Hybrid;
-                    let _ = app.db_tx.send(crate::db_worker::DbMsg::SaveSetting {
+                    let _ = app.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                         key: "editor_mode".into(),
                         val: "hybrid".into(),
                     });
@@ -1022,7 +1022,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
         "export" => {
             if app.mode == Mode::ScanReport {
                 if let Some(ref res) = app.active_scan_result {
-                    let md = crate::scan_view::export_scan_to_markdown(res);
+                    let md = crate::views::scan::export_scan_to_markdown(res);
                     let safe_url = res
                         .url
                         .replace("https://", "")

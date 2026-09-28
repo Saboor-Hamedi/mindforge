@@ -1,6 +1,6 @@
 //! Sleek read-only Wikilink hover popup with full markdown preview and direct open action.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use crate::wikilink::resolve_wikilink;
 use core::Note;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};

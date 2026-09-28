@@ -1,11 +1,17 @@
 //! Embedded terminal integration using `egui_term` and `alacritty_terminal`.
 //!
-//! Provides ultra-lightweight, zero-lag interactive PTY sessions, multi-session right sidebar management,
-//! universal dynamic shell detection (Git Bash in standard or custom paths, Scoop, Chocolatey, Winget,
-//! MSYS2, WSL, PowerShell, CMD) with automatic `~/.bashrc` sourcing, state persistence across dock toggling,
-//! and hacker-grade cyber styling.
+//! Provides ultra-lightweight, zero-lag interactive PTY sessions with:
+//! - Multi-session management with a right sidebar for switching
+//! - Universal dynamic shell detection (Git Bash, Scoop, Chocolatey, Winget,
+//!   MSYS2, WSL, PowerShell, CMD) with automatic `~/.bashrc` sourcing
+//! - State persistence across dock toggling
+//! - Hacker-grade cyber styling with theme-aware color palettes
+//! - Full keyboard input forwarding (Ctrl+C, Ctrl+V, arrows, etc.)
+//!
+//! The terminal runs as a real PTY process — not an emulator — ensuring
+//! full compatibility with CLI tools, TUI apps, and shell scripts.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Key, Modifiers, Rect, Stroke};
 use egui_term::{
     BackendCommand, BackendSettings, ColorPalette, PtyEvent,
@@ -13,6 +19,7 @@ use egui_term::{
 };
 use std::sync::mpsc;
 
+/// Actions that can be triggered from the terminal pane UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalAction {
     None,
@@ -44,7 +51,7 @@ pub struct TerminalPane {
     pub sessions_sidebar_w: f32,
     pub is_dragging_sessions_splitter: bool,
     pub sessions_scroll_y: f32,
-    last_theme_kind: Option<crate::theme::ThemeKind>,
+    last_theme_kind: Option<crate::ui::theme::ThemeKind>,
     cached_theme: Option<TerminalTheme>,
 }
 

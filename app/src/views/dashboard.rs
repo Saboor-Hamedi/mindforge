@@ -1,18 +1,39 @@
 //! Neovim-style minimalist welcome dashboard and quick-action launcher.
+//!
+//! Renders the initial welcome screen users see on startup, featuring:
+//! - ASCII art logo (when viewport is large enough)
+//! - Quick-action buttons for common tasks (new note, find, terminal, etc.)
+//! - Drag-and-drop hint for Obsidian vault import
+//! - Responsive layout that adapts to available space
+//!
+//! The dashboard is purely presentational — it returns a `DashboardAction`
+//! enum variant when the user clicks a button, and the caller decides what
+//! to do with that action.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, FontId, Rect};
 
+/// Actions that can be triggered from the dashboard's quick-action buttons.
+/// Returned by `render_welcome_dashboard` when the user interacts with a button.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DashboardAction {
+    /// Create a new blank note (Ctrl+N)
     NewNote,
+    /// Open the fuzzy search modal to find an existing note (Ctrl+P)
     FindNote,
+    /// Open a recently accessed note by its ID
     OpenRecent(i64),
+    /// Toggle the embedded terminal pane
     OpenTerminal,
+    /// Toggle the AI assistant drawer
     OpenAi,
+    /// Open the built-in documentation reader
     OpenDocs,
+    /// Open the settings/preferences modal
     OpenSettings,
+    /// Toggle distraction-free zen mode
     ToggleZen,
+    /// Quit the application
     Quit,
 }
 
@@ -25,6 +46,18 @@ const ASCII_LOGO: [&str; 6] = [
     r"                                    |___/      ",
 ];
 
+/// Renders the welcome dashboard inside the given screen rectangle.
+///
+/// # Arguments
+/// * `ui` — egui UI context for allocating widgets and handling input
+/// * `painter` — egui painter for drawing text and shapes
+/// * `rect` — Screen area to render within (clipped automatically)
+/// * `theme` — Active color theme for consistent styling
+/// * `total_notes` — Total note count displayed in the subtitle
+/// * `modals_open` — When true, suppresses hover effects and clicks (modal is on top)
+///
+/// # Returns
+/// `Some(DashboardAction)` if the user clicked an action button, `None` otherwise.
 pub fn render_welcome_dashboard(
     ui: &mut egui::Ui,
     painter: &egui::Painter,

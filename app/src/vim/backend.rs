@@ -625,13 +625,13 @@ impl EditorBackend for VimBackend {
         font_size: f32,
         cell_width: f32,
         _row_height: f32,
-        theme: &crate::theme::Theme,
+        theme: &crate::ui::theme::Theme,
         caret: &mut crate::caret::Caret,
         dt: f32,
         typed: bool,
         show_line_numbers: bool,
     ) {
-        let font = crate::font_manager::editor_font_id(font_size);
+        let font = crate::services::font_manager::editor_font_id(font_size);
         if self.layout_font_size != font_size.to_bits() {
             self.row_layouts.clear();
             self.layout_font_size = font_size.to_bits();
@@ -799,7 +799,7 @@ impl EditorBackend for VimBackend {
                         Pos2::new(rect.min.x + gutter_w - 4.0, origin.y + row_idx as f32 * nvim_row_height),
                         Align2::RIGHT_TOP,
                         label,
-                        crate::font_manager::editor_font_id(font_size * 0.82),
+                        crate::services::font_manager::editor_font_id(font_size * 0.82),
                         number_color,
                     );
                 }

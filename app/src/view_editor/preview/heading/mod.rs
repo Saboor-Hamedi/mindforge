@@ -3,16 +3,16 @@
 //! Provides document-grade reading rhythm with unified theme palette colors,
 //! distinct from the monospace CLI editor.
 
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{pos2, Color32, FontId, Painter, Rect};
 
 /// Returns proportional font sizing and line height metrics for preview headings.
 pub fn preview_heading_metrics(level: u8, base_font_size: f32) -> (FontId, f32) {
     match level {
-        1 => (crate::font_manager::editor_font_id(base_font_size * 1.50), (base_font_size * 2.1).round()),
-        2 => (crate::font_manager::editor_font_id(base_font_size * 1.30), (base_font_size * 1.85).round()),
-        3 => (crate::font_manager::editor_font_id(base_font_size * 1.18), (base_font_size * 1.70).round()),
-        _ => (crate::font_manager::editor_font_id(base_font_size * 1.08), (base_font_size * 1.60).round()),
+        1 => (crate::services::font_manager::editor_font_id(base_font_size * 1.50), (base_font_size * 2.1).round()),
+        2 => (crate::services::font_manager::editor_font_id(base_font_size * 1.30), (base_font_size * 1.85).round()),
+        3 => (crate::services::font_manager::editor_font_id(base_font_size * 1.18), (base_font_size * 1.70).round()),
+        _ => (crate::services::font_manager::editor_font_id(base_font_size * 1.08), (base_font_size * 1.60).round()),
     }
 }
 

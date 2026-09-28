@@ -1,7 +1,7 @@
 //! Editor Mode (Hybrid vs Vim) settings tab.
 
 use crate::app::EditorInputMode;
-use crate::theme::Theme;
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, FontId, Pos2, Rect, Stroke};
 
 pub fn render_editor_mode_tab(

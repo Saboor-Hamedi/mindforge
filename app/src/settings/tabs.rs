@@ -142,7 +142,7 @@ pub fn render_setting_tabs(
     painter: &egui::Painter,
     tabs_rect: Rect,
     active_tab: &mut SettingTab,
-    theme: &crate::theme::Theme,
+    theme: &crate::ui::theme::Theme,
 ) {
     // Left tab sidebar background with 8px rounded left corners
     painter.rect(
