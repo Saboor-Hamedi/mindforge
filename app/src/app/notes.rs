@@ -271,11 +271,11 @@ impl App {
             }
 
             self.editor.doc_ed.clear();
-            let body = crate::ui::docs::format_doc_for_reader(doc.content);
-            self.editor.doc_ed.insert_str(&body);
+            self.editor.doc_ed.insert_str(doc.content);
             self.editor.doc_ed.cur = 0;
             self.editor.doc_ed.clear_history();
             self.editor.doc_scroll_y = 0.0;
+            self.editor.inline_mode = true;
             let msg = format!("Viewing Documentation: {}", doc.title);
             self.set_status(&msg, now);
         }

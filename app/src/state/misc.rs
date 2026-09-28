@@ -83,7 +83,7 @@ impl Default for MiscState {
             zoom: ZoomState::new(),
             showcmd: ShowCmdState::new(true),
             caret: Caret::new(crate::caret::CaretKind::Beam),
-            theme: Theme::from_kind(crate::ui::theme::ThemeKind::Green),
+            theme: Theme::from_kind(crate::ui::theme::ThemeKind::Gruvbox),
             sound: SoundEngine::new(crate::services::sound::SoundProfile::Thocky),
             mode: Mode::Normal,
             selected_font: "JetBrains Mono".to_string(),

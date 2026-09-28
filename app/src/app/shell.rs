@@ -528,7 +528,7 @@ impl App {
                         let col = idx.saturating_sub(line.char_start);
                         self.services.wikilink_autocomplete.trigger_screen_pos = pos2(
                             ed_origin.x + col as f32 * cell_w,
-                            ed_origin.y + row as f32 * line_h + line_h + 2.0,
+                            ed_origin.y + row as f32 * line_h + line_h,
                         );
                         self.services.wikilink_autocomplete.trigger_line_height = line_h;
                     }

@@ -89,6 +89,7 @@ impl App {
             last_ed_font_size: None,
         };
 
+        app.services.init_db();
         app.load_settings();
 
         // Restore active document and open tabs from SQLite
