@@ -928,6 +928,9 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
             app.in_command = false;
             app.cmd_ed.clear();
             app.cmd_prefix = ':';
+            if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                let _ = backend.clear_preview_search();
+            }
             return Some(false);
         }
         if app.mode == Mode::ScanReport || app.mode == Mode::ScanHistory {

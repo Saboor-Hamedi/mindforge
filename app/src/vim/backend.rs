@@ -364,6 +364,52 @@ impl VimBackend {
         self.client.input(input)
     }
 
+    pub fn search(&mut self, query: &str, backwards: bool) -> EditorResult<()> {
+        if query.is_empty() {
+            return Ok(());
+        }
+        let direction = if backwards { "b" } else { "" };
+        self.client.notify(
+            "nvim_exec_lua",
+            vec![
+                Value::from(concat!(
+                    "local query, flags = ...; ",
+                    "local id = vim.w._mindforge_live_search_id; ",
+                    "if id then pcall(vim.fn.matchdelete, id); vim.w._mindforge_live_search_id = nil end; ",
+                    "vim.fn.setreg('/', query); vim.o.hlsearch = true; ",
+                    "vim.fn.search(query, flags)"
+                )),
+                Value::Array(vec![Value::from(query), Value::from(direction)]),
+            ],
+        )
+    }
+
+    pub fn preview_search(&mut self, query: &str) -> EditorResult<()> {
+        self.client.notify(
+            "nvim_exec_lua",
+            vec![
+                Value::from(concat!(
+                    "local query = ...; ",
+                    "local id = vim.w._mindforge_live_search_id; ",
+                    "if id then pcall(vim.fn.matchdelete, id); vim.w._mindforge_live_search_id = nil end; ",
+                    "if query ~= '' then ",
+                    "local ok, match_id = pcall(vim.fn.matchadd, 'IncSearch', query, 10); ",
+                    "if ok then vim.w._mindforge_live_search_id = match_id end; end"
+                )),
+                Value::Array(vec![Value::from(query)]),
+            ],
+        )
+    }
+
+    pub fn clear_preview_search(&mut self) -> EditorResult<()> {
+        self.client.notify(
+            "nvim_exec_lua",
+            vec![Value::from(
+                "local id = vim.w._mindforge_live_search_id; if id then pcall(vim.fn.matchdelete, id); vim.w._mindforge_live_search_id = nil end",
+            )],
+        )
+    }
+
     pub fn set_document(&mut self, text: &str, row: usize, column: usize) -> EditorResult<()> {
         self.client.set_buffer_text_async(text)?;
         self.lines = text.split('\n').map(str::to_owned).collect();

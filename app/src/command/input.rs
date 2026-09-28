@@ -9,6 +9,11 @@ fn update_command_hud(app: &mut App, now: f64) {
         app.showcmd.set_command(&app.cmd_ed.text(), now);
     } else {
         app.showcmd.set_search(&app.cmd_prefix.to_string(), &app.cmd_ed.text(), now);
+        if let Some(backend) = app.vim_runtime.backend.as_mut() {
+            if let Err(error) = backend.preview_search(&app.cmd_ed.text()) {
+                app.set_status(&format!("Neovim search preview failed: {error}"), now);
+            }
+        }
     }
 }
 
@@ -17,7 +22,7 @@ fn send_search_to_vim(app: &mut App, prefix: char, query: &str, now: f64) {
         return;
     }
     if let Some(backend) = app.vim_runtime.backend.as_mut() {
-        if let Err(error) = backend.send_input(&format!("{}{}<CR>", prefix, query)) {
+        if let Err(error) = backend.search(query, prefix == '?') {
             app.set_status(&format!("Neovim search failed: {error}"), now);
         }
     } else {
@@ -58,6 +63,9 @@ pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f6
         app.cmd_ed.clear();
         app.cmd_prefix = ':';
         app.showcmd.record_action(&format!("{}{}", prefix, query), now);
+        if let Some(backend) = app.vim_runtime.backend.as_mut() {
+            let _ = backend.clear_preview_search();
+        }
         send_search_to_vim(app, prefix, &query, now);
         return;
     }
@@ -75,6 +83,9 @@ pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f6
             app.cmd_ed.clear();
             app.showcmd.clear();
             app.cmd_prefix = ':';
+            if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                let _ = backend.clear_preview_search();
+            }
         }
         Key::Backspace if modifiers.ctrl => {
             app.cmd_ed.delete_word();
@@ -89,6 +100,9 @@ pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f6
                 app.cmd_navigated = false;
                 app.showcmd.clear();
                 app.cmd_prefix = ':';
+                if let Some(backend) = app.vim_runtime.backend.as_mut() {
+                    let _ = backend.clear_preview_search();
+                }
             } else {
                 app.cmd_ed.backspace();
                 app.cmd_selected_idx = 0;
