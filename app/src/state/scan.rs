@@ -62,3 +62,18 @@ impl ScanState {
         self.active_scan_error = None;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_scan_state() {
+        let mut scan = ScanState::new();
+        assert!(!scan.is_scanning());
+        scan.scan_in_progress = Some("https://example.com".to_string());
+        assert!(scan.is_scanning());
+        scan.clear_result();
+        assert!(scan.active_scan_result.is_none());
+    }
+}

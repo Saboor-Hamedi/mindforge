@@ -90,3 +90,28 @@ impl CommandBarState {
         self.navigated = true;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_command_bar_history() {
+        let mut cb = CommandBarState::new();
+        cb.push_history(":w");
+        cb.push_history(":q");
+        cb.push_history(":w");
+        assert_eq!(cb.history.len(), 2);
+        assert_eq!(cb.history[0], ":q");
+        assert_eq!(cb.history[1], ":w");
+    }
+
+    #[test]
+    fn test_command_bar_navigation() {
+        let mut cb = CommandBarState::new();
+        cb.next_suggestion(3);
+        assert_eq!(cb.selected_idx, 1);
+        cb.prev_suggestion(3);
+        assert_eq!(cb.selected_idx, 0);
+    }
+}

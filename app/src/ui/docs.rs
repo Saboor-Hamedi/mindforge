@@ -368,7 +368,7 @@ pub fn render_doc_sidebar(
     painter.text(
         origin + vec2(0.0, 20.0),
         Align2::LEFT_TOP,
-        "📖 User Guides (7)",
+        "📖 User Guides (8) · Try examples",
         FontId::monospace(10.5),
         Color32::from_gray(140),
     );

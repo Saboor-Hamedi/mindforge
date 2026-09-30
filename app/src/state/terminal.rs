@@ -62,3 +62,18 @@ impl TerminalState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_terminal_toggle() {
+        let mut term = TerminalState::new();
+        assert!(!term.open);
+        term.toggle();
+        assert!(term.open && term.focused);
+        term.toggle();
+        assert!(!term.open && !term.focused);
+    }
+}

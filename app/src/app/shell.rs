@@ -208,7 +208,7 @@ impl App {
                     match action {
                         crate::ui::docs::DocSidebarAction::SelectDoc(idx) => {
                             self.load_doc_by_index(idx, now);
-                            self.tabs.doc_sidebar_focused = true;
+                            self.tabs.doc_sidebar_focused = false;
                         }
                         crate::ui::docs::DocSidebarAction::ToggleSidebar => {
                             self.sidebar.open = !self.sidebar.open;
@@ -283,8 +283,8 @@ impl App {
             (text.lines().count(), text.split_whitespace().count(), text.len())
         };
         let mode_badge_str = match self.services.editor_controller.mode {
-            EditorInputMode::Vim => self.services.vim_runtime.backend.as_ref().map(|backend| backend.grid.mode.to_uppercase()).unwrap_or_else(|| "STARTING NVIM".into()),
-            EditorInputMode::Hybrid => "HYBRID".to_string(),
+            EditorInputMode::Vim => self.services.vim_runtime.backend.as_ref().map(|backend| backend.grid.mode.to_uppercase()).unwrap_or_else(|| "NORMAL".into()),
+            EditorInputMode::Hybrid => "NORMAL".to_string(),
         };
 
         let search_prompt: Option<(&str, &str, usize)> = None;
@@ -511,31 +511,42 @@ impl App {
                 .size()
                 .x
                 .max(1.0);
-            let line_h = effective_font_size * 1.5;
+            let (_, _, line_h) = self.misc.zoom.editor_metrics(self.misc.font_size, ui.ctx());
 
             let is_inserting = match self.services.editor_controller.mode {
                 EditorInputMode::Vim => self.services.vim_runtime.backend.as_ref().is_some_and(|backend| backend.is_insert_mode()),
                 EditorInputMode::Hybrid => true,
             };
+            let _ = is_inserting;
 
             if is_inserting {
                 self.services.wikilink_autocomplete.check_trigger(&self.editor.ed, &self.notes.notes_list);
 
                 if self.services.wikilink_autocomplete.is_active {
                     let idx = self.services.wikilink_autocomplete.trigger_start;
-                    let trigger_pos = if self.services.editor_controller.mode == EditorInputMode::Vim {
-                        self.services.vim_runtime.backend.as_ref().map(|backend| {
-                            // Vim's app-side visual_lines intentionally stays compact; use
-                            // Neovim's screen cursor instead of treating a document index as
-                            // a screen column (which pushed the popup to the right edge).
-                            let cursor = backend.grid.cursor;
-                            let number_columns = if self.editor.show_line_numbers { 4 } else { 0 };
-                            let text_column = cursor.column.saturating_sub(number_columns);
-                            pos2(
-                                text_left + text_column as f32 * cell_w,
-                                actual_editor_rect.min.y + pad_y + (cursor.row as f32 + 1.0) * line_h + 4.0,
-                            )
-                        })
+                        let trigger_pos = if self.services.editor_controller.mode == EditorInputMode::Vim {
+                            self.services.vim_runtime.backend.as_ref().map(|backend| {
+                                // Vim's app-side visual_lines intentionally stays compact; use
+                                // Neovim's rendered grid to locate the opening `[[`, not the
+                                // caret at the end of the typed query.
+                                let cursor = backend.grid.cursor;
+                                let number_columns = if self.editor.show_line_numbers { 4 } else { 0 };
+                                let text_column = cursor.column.saturating_sub(number_columns);
+                                let trigger_offset = self.editor.ed.cur.saturating_sub(idx);
+                                let grid_text_width = backend.grid.width.saturating_sub(number_columns).max(1);
+                                let (trigger_row, trigger_column) = if trigger_offset <= text_column {
+                                    (cursor.row, text_column - trigger_offset)
+                                } else {
+                                    let columns_back = trigger_offset - text_column;
+                                    let rows_back = columns_back.div_ceil(grid_text_width);
+                                    let column = (text_column + grid_text_width - trigger_offset % grid_text_width) % grid_text_width;
+                                    (cursor.row.saturating_sub(rows_back), column)
+                                };
+                                pos2(
+                                    text_left + trigger_column as f32 * cell_w,
+                                    actual_editor_rect.min.y + pad_y + (trigger_row as f32 + 1.0) * line_h + 4.0,
+                                )
+                            })
                     } else {
                         self.editor.visual_lines.iter().find(|line| idx >= line.char_start && idx <= line.char_end).map(|line| {
                             let row = self.editor.visual_lines.iter().position(|candidate| std::ptr::eq(candidate, line)).unwrap_or(0);

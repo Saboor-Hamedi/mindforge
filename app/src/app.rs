@@ -138,7 +138,7 @@ impl eframe::App for App {
         // Precompute visual lines so keyboard navigation (ArrowUp, ArrowDown, PageUp, PageDown) uses accurate visual layout
         let (cw, _) = self.cell_size(ctx);
         let screen_w = ctx.screen_rect().width();
-        let left_margin = if self.misc.mode == Mode::Doc || self.sidebar.open {
+        let left_margin = if self.sidebar.open {
             crate::layout::GAP + self.sidebar.width + crate::layout::SPLITTER_BAR_W + crate::layout::GAP
         } else {
             crate::layout::GAP

@@ -5,35 +5,30 @@ use crate::app::{App, EditorInputMode};
 use crate::mode::Mode;
 use eframe::egui::{Key, Modifiers};
 
-pub fn handle_mode_enter(app: &mut App, _now: f64) {
-    if app.misc.mode == Mode::Normal {
-        if app.services.editor_controller.mode == EditorInputMode::Vim {
-            return;
-        }
-        app.editor.ed.handle_enter();
-        app.editor.is_dirty = true;
-    }
-}
-
+#[allow(dead_code)]
 pub fn handle_editor_paste(app: &mut App, s: &str, now: f64) -> bool {
-    if app.misc.mode == Mode::Normal {
-        if app.services.editor_controller.mode == EditorInputMode::Vim {
-            return false;
-        }
-        for c in s.chars() {
-            if c == '\r' {
-                continue;
-            }
-            app.editor.ed.insert(c);
-        }
-        if !s.is_empty() {
-            app.misc.sound.play();
-        }
-        app.misc.last_char_time = now;
-        app.editor.is_dirty = true;
-        return true;
+    if app.misc.mode != Mode::Normal && app.misc.mode != Mode::Doc {
+        return false;
     }
-    false
+    if app.misc.mode == Mode::Normal && app.services.editor_controller.mode == EditorInputMode::Vim {
+        return false;
+    }
+
+    let is_doc = app.misc.mode == Mode::Doc;
+    let target_ed = if is_doc { &mut app.editor.doc_ed } else { &mut app.editor.ed };
+    for c in s.chars() {
+        if c != '\r' {
+            target_ed.insert(c);
+        }
+    }
+    if !s.is_empty() {
+        app.misc.sound.play();
+        app.misc.last_char_time = now;
+        if !is_doc {
+            app.editor.is_dirty = true;
+        }
+    }
+    true
 }
 
 pub fn handle_editor_text(app: &mut App, s: &str, now: f64) -> bool {
@@ -41,23 +36,27 @@ pub fn handle_editor_text(app: &mut App, s: &str, now: f64) -> bool {
         return false;
     }
 
-    if app.misc.mode == Mode::Doc {
-        return true;
+    if app.misc.mode != Mode::Normal && app.misc.mode != Mode::Doc {
+        return false;
     }
 
+    let is_doc = app.misc.mode == Mode::Doc;
+    let target_ed = if is_doc { &mut app.editor.doc_ed } else { &mut app.editor.ed };
     for c in s.chars() {
         if c == '\n' || c == '\r' {
             continue;
         }
-        if app.services.editor_controller.mode == EditorInputMode::Hybrid && app.services.hybrid.handle_char(&mut app.editor.ed, c) {
+        if app.services.editor_controller.mode == EditorInputMode::Hybrid && app.services.hybrid.handle_char(target_ed, c) {
             app.misc.sound.play();
         } else {
-            app.editor.ed.insert(c);
+            target_ed.insert(c);
             app.misc.sound.play();
         }
     }
     app.misc.last_char_time = now;
-    app.editor.is_dirty = true;
+    if !is_doc {
+        app.editor.is_dirty = true;
+    }
     true
 }
 
@@ -111,47 +110,48 @@ pub fn handle_editor_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64
     use Key::*;
     match key {
         Enter if modifiers.ctrl || modifiers.command => {
-            if !is_doc {
-                if !target_ed.exit_block_or_table() {
-                    target_ed.insert_line_below();
-                }
-                app.editor.is_dirty = true;
-                app.misc.sound.play();
-                app.misc.last_char_time = now;
-                return true;
+            if !target_ed.exit_block_or_table() {
+                target_ed.insert_line_below();
             }
+            if !is_doc {
+                app.editor.is_dirty = true;
+            }
+            app.misc.sound.play();
+            app.misc.last_char_time = now;
+            return true;
         }
         Enter => {
+            target_ed.handle_enter();
             if !is_doc {
-                handle_mode_enter(app, now);
-                app.misc.sound.play();
-                app.misc.last_char_time = now;
-                return true;
+                app.editor.is_dirty = true;
             }
+            app.misc.sound.play();
+            app.misc.last_char_time = now;
+            return true;
         }
         Backspace if modifiers.ctrl => {
+            target_ed.delete_word();
             if !is_doc {
-                target_ed.delete_word();
                 app.editor.is_dirty = true;
-                app.misc.sound.play();
-                return true;
             }
+            app.misc.sound.play();
+            return true;
         }
         Backspace => {
+            target_ed.backspace();
             if !is_doc {
-                target_ed.backspace();
                 app.editor.is_dirty = true;
-                app.misc.sound.play();
-                return true;
             }
+            app.misc.sound.play();
+            return true;
         }
         Delete => {
+            target_ed.delete();
             if !is_doc {
-                target_ed.delete();
                 app.editor.is_dirty = true;
-                app.misc.sound.play();
-                return true;
             }
+            app.misc.sound.play();
+            return true;
         }
         ArrowLeft if modifiers.shift => {
             target_ed.left_select();

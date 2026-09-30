@@ -76,9 +76,7 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         });
         let has_text_event = i.events.iter().any(|event| matches!(event, egui::Event::Text(text) if !text.is_empty()));
         for ev in &i.events {
-            let command_surface_active = app.misc.mode == Mode::Normal
-                && !app.misc.show_welcome
-                && !app.open_notes.is_empty()
+            let command_surface_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc | Mode::ScanReport | Mode::ScanHistory)
                 && !app.terminal.focused
                 && !app.modal.search_open
                 && !app.modal.settings_open
@@ -88,7 +86,11 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                 && !app.services.wikilink_autocomplete.is_active;
             let command_prefix = match ev {
                 egui::Event::Text(text) if text == ":"
-                    && (app.services.editor_controller.mode != crate::app::EditorInputMode::Vim || vim_normal_mode) => Some(':'),
+                    && (app.services.editor_controller.mode != crate::app::EditorInputMode::Vim
+                        || app.misc.mode != Mode::Normal
+                        || app.misc.show_welcome
+                        || app.open_notes.is_empty()
+                        || vim_normal_mode) => Some(':'),
                 egui::Event::Text(text) if text == "/" && vim_normal_mode => Some('/'),
                 egui::Event::Text(text) if text == "?"
                     && vim_normal_mode => Some('?'),
@@ -143,20 +145,6 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                 }
             } else if let Some(vim_typed) = crate::vim::input::handle_event(app, ev, now, has_text_event, has_colon_text) {
                 typed |= vim_typed;
-            } else if app.misc.mode == Mode::Normal && (app.misc.show_welcome || app.open_notes.is_empty()) {
-                // When on Welcome dashboard, hotkeys are handled directly by the dashboard or modals
-                if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
-                    if let egui::Event::Text(ref s) = ev {
-                        if s == ":" {
-                            app.command_bar.in_command = true;
-                            app.editor.cmd_ed.clear();
-                            app.command_bar.selected_idx = 0;
-                            app.command_bar.navigated = false;
-                            app.misc.showcmd.set_command("", now);
-                            typed = true;
-                        }
-                    }
-                }
             } else {
                 match ev {
                     egui::Event::Paste(s) => {

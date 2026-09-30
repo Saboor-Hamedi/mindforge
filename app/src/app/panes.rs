@@ -267,15 +267,15 @@ impl App {
             || self.sidebar.dragging_splitter
             || self.terminal.dragging_splitter;
 
-        if self.misc.mode == Mode::Normal || self.misc.mode == Mode::Doc {
+        let show_dashboard = self.misc.mode == Mode::Normal && (self.misc.show_welcome || self.open_notes.is_empty());
+
+        if (self.misc.mode == Mode::Normal || self.misc.mode == Mode::Doc) && !show_dashboard {
             if self.misc.zoom.handle_input(ui, actual_editor_rect, now, modals_open) {
                 if self.misc.zoom.level == 1.0 {
                     self.set_status("Editor zoom reset to 100% (Ctrl+0)", now);
                 }
             }
         }
-
-        let show_dashboard = self.misc.mode == Mode::Normal && (self.misc.show_welcome || self.open_notes.is_empty());
 
         let (ed_font_size, ed_cw, ed_lh) = self.misc.zoom.editor_metrics(self.misc.font_size, ui.ctx());
         self.editor.last_ed_font_size = Some(ed_font_size);
@@ -453,7 +453,7 @@ impl App {
                             }
                             crate::views::dashboard::DashboardAction::OpenDocs => {
                                 self.misc.show_welcome = false;
-                                self.misc.mode = Mode::Doc;
+                                self.open_docs_mode(now);
                             }
                             crate::views::dashboard::DashboardAction::OpenSettings => {
                                 self.modal.settings_open = true;
@@ -490,7 +490,10 @@ impl App {
                             ui.colored_label(self.misc.theme.highlight, format!("Neovim could not start: {error}"));
                         }
                     });
-                } else if self.services.vim_runtime.backend.is_some() && self.services.editor_controller.mode == EditorInputMode::Vim {
+                } else if self.misc.mode == Mode::Normal
+                    && self.services.vim_runtime.backend.is_some()
+                    && self.services.editor_controller.mode == EditorInputMode::Vim
+                {
                     if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
                         backend.render_in_rect(
                             ui,
@@ -557,13 +560,15 @@ impl App {
                 self.misc.caret.kind = original_caret_kind;
 
                 // Center-editor Zoom Percentage HUD
-                self.misc.zoom.render_hud(ui, painter, actual_editor_rect, &self.misc.theme, now);
+                if !show_dashboard {
+                    self.misc.zoom.render_hud(ui, painter, actual_editor_rect, &self.misc.theme, now);
+                }
 
                 // Render Right Pane (Markdown Preview, AI Agent, Backlinks, Outline) side-by-side if active
                 self.render_right_pane_tabs(ui, painter, preview_rect_opt, any_modal_open, ed_font_size, now);
 
-                // Floating Keystroke Card (Vim showcmd)
-                if !show_dashboard && self.services.editor_controller.mode == EditorInputMode::Vim {
+                // Floating Keystroke Card (shown in both Vim and Hybrid modes)
+                if !show_dashboard {
                     let card_anchor = pos2(actual_editor_rect.max.x - 16.0, actual_editor_rect.max.y - 20.0);
                     self.misc.showcmd.render_card(painter, card_anchor, &self.misc.theme, now);
                 }

@@ -119,3 +119,27 @@ impl MiscState {
         self.show_tabs = !self.show_tabs;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_misc_toggles() {
+        let mut misc = MiscState::new();
+        assert!(!misc.zen_mode);
+        misc.toggle_zen();
+        assert!(misc.zen_mode);
+        assert!(misc.show_titlebar);
+        misc.toggle_titlebar();
+        assert!(!misc.show_titlebar);
+    }
+
+    #[test]
+    fn test_misc_status() {
+        let mut misc = MiscState::new();
+        misc.set_status("Hello", 123.0);
+        assert_eq!(misc.status_msg, "Hello");
+        assert_eq!(misc.status_time, 123.0);
+    }
+}

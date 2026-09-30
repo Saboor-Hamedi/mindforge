@@ -234,7 +234,7 @@ pub fn render_stats(
                     let fill = if is_today {
                         theme.highlight
                     } else if is_active {
-                        theme.accent
+                        theme.highlight
                     } else if theme.is_light() {
                         Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 35)
                     } else {
@@ -263,13 +263,13 @@ pub fn render_stats(
                         act.date.split('-').last().unwrap_or(&act.date)
                     };
 
-                    p.text(
-                        pos2(bx + bar_w * 0.5, chart_base_y + 4.0 * scale),
-                        Align2::CENTER_TOP,
-                        date_label,
-                        FontId::monospace((9.0 * scale).max(9.5)),
-                        if is_today { theme.accent } else { Color32::from_gray(120) },
-                    );
+                        p.text(
+                            pos2(bx + bar_w * 0.5, chart_base_y + 4.0 * scale),
+                            Align2::CENTER_TOP,
+                            date_label,
+                            FontId::monospace((9.0 * scale).max(9.5)),
+                            if is_today { theme.highlight } else { Color32::from_gray(120) },
+                        );
                 }
 
                 // Task 4: Breathing room between chart and activity journal
@@ -313,11 +313,11 @@ pub fn render_stats(
                             row_rect,
                             4.0,
                             if is_today {
-                                Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), if theme.is_light() { 22 } else { 38 })
+                                Color32::from_rgba_unmultiplied(theme.highlight.r(), theme.highlight.g(), theme.highlight.b(), if theme.is_light() { 22 } else { 38 })
                             } else {
                                 theme.surface()
                             },
-                            Stroke::new(1.0_f32, if is_today { theme.accent } else { theme.border() }),
+                            Stroke::new(1.0_f32, if is_today { theme.highlight } else { theme.border() }),
                             egui::StrokeKind::Inside,
                         );
 
@@ -335,7 +335,7 @@ pub fn render_stats(
                             Align2::LEFT_CENTER,
                             display_date,
                             FontId::monospace((11.0 * scale).max(11.5)),
-                            if is_today { theme.accent } else { theme.text },
+                            if is_today { theme.highlight } else { theme.text },
                         );
 
                         // Flexible positioning depending on available width
@@ -437,7 +437,7 @@ fn draw_metric_card(
 
     // Accent line on left edge: width stays at 3.0
     let stripe = Rect::from_min_size(rect.min, vec2(3.0, rect.height()));
-    p.rect_filled(stripe, egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 }, theme.accent);
+    p.rect_filled(stripe, egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 }, theme.highlight);
 
     let left_content_pad = 16.0 * scale;
 

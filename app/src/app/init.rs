@@ -111,13 +111,24 @@ impl App {
                         if let Ok(Some(note)) = db.get_note(id) {
                             let mut note_ed = Editor::new();
                             note_ed.insert_str(&note.body);
-                            note_ed.cur = 0;
                             note_ed.clear_history();
                             let s_y = db.get_setting(&format!("note_scroll_{}", id))
                                 .ok()
                                 .flatten()
                                 .and_then(|s| s.parse::<f32>().ok())
                                 .unwrap_or(0.0);
+                            let c_pos = db.get_setting(&format!("note_caret_{}", id))
+                                .ok()
+                                .flatten()
+                                .and_then(|s| s.parse::<usize>().ok())
+                                .or_else(|| {
+                                    db.get_setting("last_caret_pos")
+                                        .ok()
+                                        .flatten()
+                                        .and_then(|s| s.parse::<usize>().ok())
+                                })
+                                .unwrap_or(0);
+                            note_ed.cur = c_pos.min(note_ed.buf.len());
                             app.open_notes.push(OpenNote {
                                 id: note.id,
                                 title: note.topic.clone(),
@@ -146,6 +157,13 @@ impl App {
                             if let Ok(c) = c_str.parse::<usize>() {
                                 app.editor.ed.cur = c.min(app.editor.ed.buf.len());
                             }
+                        } else if let Ok(Some(c_str)) = db.get_setting("last_caret_pos") {
+                            if let Ok(c) = c_str.parse::<usize>() {
+                                app.editor.ed.cur = c.min(app.editor.ed.buf.len());
+                            }
+                        }
+                        if let Some(tab) = app.open_notes.get_mut(app.tabs.active_tab) {
+                            tab.editor.cur = app.editor.ed.cur;
                         }
                     } else {
                         // User explicitly closed all tabs in previous session
@@ -169,6 +187,10 @@ impl App {
                     app.editor.ed.clear_history();
 
                     if let Ok(Some(c_str)) = db.get_setting(&format!("note_caret_{}", n.id)) {
+                        if let Ok(c) = c_str.parse::<usize>() {
+                            app.editor.ed.cur = c.min(app.editor.ed.buf.len());
+                        }
+                    } else if let Ok(Some(c_str)) = db.get_setting("last_caret_pos") {
                         if let Ok(c) = c_str.parse::<usize>() {
                             app.editor.ed.cur = c.min(app.editor.ed.buf.len());
                         }

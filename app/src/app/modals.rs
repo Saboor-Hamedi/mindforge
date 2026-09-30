@@ -332,8 +332,8 @@ impl App {
                     }
                     crate::services::fuzzy::PaletteAction::OpenHelp => {
                         self.modal.search_open = false;
-                        self.misc.mode = Mode::Doc;
                         self.tabs.active_doc_idx = 0;
+                        self.open_docs_mode(now);
                     }
                     crate::services::fuzzy::PaletteAction::SetLunaStyle(style) => {
                         self.modal.search_open = false;

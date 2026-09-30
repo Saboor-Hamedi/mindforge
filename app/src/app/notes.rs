@@ -251,7 +251,7 @@ impl App {
 
     pub fn open_docs_mode(&mut self, now: f64) {
         self.misc.mode = Mode::Doc;
-        self.tabs.doc_sidebar_focused = true;
+        self.tabs.doc_sidebar_focused = false;
         self.sidebar.open = true;
         self.load_doc_by_index(self.tabs.active_doc_idx, now);
         self.set_status("Documentation reader opened (F2 to toggle)", now);
@@ -260,6 +260,7 @@ impl App {
     pub fn load_doc_by_index(&mut self, idx: usize, now: f64) {
         let docs = crate::ui::docs::get_docs();
         if let Some(doc) = docs.get(idx) {
+            self.tabs.doc_sidebar_focused = false;
             self.tabs.active_doc_idx = idx;
             self.tabs.doc_selected_idx = idx;
 
@@ -276,7 +277,7 @@ impl App {
             self.editor.doc_ed.clear_history();
             self.editor.doc_scroll_y = 0.0;
             self.editor.inline_mode = true;
-            let msg = format!("Viewing Documentation: {}", doc.title);
+            let msg = format!("{} — editable practice copy; source documentation stays unchanged", doc.title);
             self.set_status(&msg, now);
         }
     }

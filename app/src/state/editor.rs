@@ -110,3 +110,22 @@ impl EditorState {
         self.show_line_numbers = !self.show_line_numbers;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_editor_toggles() {
+        let mut ed = EditorState::new();
+        assert!(!ed.inline_mode);
+        ed.toggle_inline_mode();
+        assert!(ed.inline_mode);
+        assert!(!ed.preview_open);
+        ed.toggle_preview();
+        assert!(ed.preview_open);
+        assert!(ed.show_line_numbers);
+        ed.toggle_line_numbers();
+        assert!(!ed.show_line_numbers);
+    }
+}

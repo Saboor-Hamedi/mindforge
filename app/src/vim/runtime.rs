@@ -141,13 +141,15 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     backend.tick();
                     let _ = backend.take_text_update();
+                    let (row, column) = app.editor.ed.row_col();
+                    let _ = backend.set_document(&app.editor.ed.text(), row, column);
                 }
             } else {
                 sync_neovim_changes(app, now);
-            }
-            let (row, column) = app.editor.ed.row_col();
-            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-                let _ = backend.set_document(&app.editor.ed.text(), row, column);
+                let (row, column) = app.editor.ed.row_col();
+                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                    let _ = backend.set_document(&app.editor.ed.text(), row, column);
+                }
             }
             app.services.vim_runtime.note_id = app.notes.active_note_id;
             app.services.vim_runtime.tab_index = Some(app.tabs.active_tab);

@@ -56,3 +56,27 @@ impl NotesState {
         self.sidebar_notes_limit = if self.sidebar_notes_limit >= 100 { 50 } else { 100 };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_notes_active() {
+        let mut notes = NotesState::new();
+        assert!(notes.active_note_id.is_none());
+        notes.set_active(42, "Test Note");
+        assert_eq!(notes.active_note_id, Some(42));
+        assert_eq!(notes.active_note_title, "Test Note");
+        notes.clear_active();
+        assert!(notes.active_note_id.is_none());
+    }
+
+    #[test]
+    fn test_notes_limit_toggle() {
+        let mut notes = NotesState::new();
+        assert_eq!(notes.sidebar_notes_limit, 50);
+        notes.toggle_notes_limit();
+        assert_eq!(notes.sidebar_notes_limit, 100);
+    }
+}

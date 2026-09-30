@@ -7,6 +7,8 @@
 //! Also tracks the doc sidebar (right-hand panel for doc navigation)
 //! and scroll offsets for both tab strips.
 
+use crate::app::OpenNote;
+
 /// State for all tab bars and tab-related UI.
 #[derive(Clone)]
 pub struct TabsState {
@@ -17,6 +19,8 @@ pub struct TabsState {
     pub last_active_tab: usize,
     /// Horizontal scroll offset for the note tab strip
     pub tab_scroll_offset: f32,
+    /// Open note tabs with their own editor buffers
+    pub open_notes: Vec<OpenNote>,
 
     // Doc tabs (documentation reader)
     /// Indices of open documentation tabs
@@ -43,6 +47,7 @@ impl Default for TabsState {
             active_tab: 0,
             last_active_tab: 0,
             tab_scroll_offset: 0.0,
+            open_notes: Vec::new(),
             open_doc_tabs: vec![0],
             active_doc_tab: 0,
             last_active_doc_tab: 0,

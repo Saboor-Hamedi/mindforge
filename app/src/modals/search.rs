@@ -1,3 +1,5 @@
+//! Spotlight-style Search and Command Palette modal dialog.
+
 use crate::services::fuzzy::SearchItem;
 use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
@@ -181,7 +183,7 @@ pub fn render_search_modal(
                 }
                 crate::services::fuzzy::PaletteAction::ApplyTheme(_) => {
                     action.selected_item = Some(item.clone());
-                    action.should_close = false; // live change theme without moving away!
+                    action.should_close = false;
                 }
                 crate::services::fuzzy::PaletteAction::ShowSoundPicker => {
                     *query = ">sound ".to_string();
@@ -191,7 +193,7 @@ pub fn render_search_modal(
                 }
                 crate::services::fuzzy::PaletteAction::ApplySoundProfile(_) => {
                     action.selected_item = Some(item.clone());
-                    action.should_close = false; // preview sound without closing picker!
+                    action.should_close = false;
                 }
                 crate::services::fuzzy::PaletteAction::OpenCaretPicker => {
                     *query = ">caret ".to_string();
@@ -201,7 +203,7 @@ pub fn render_search_modal(
                 }
                 crate::services::fuzzy::PaletteAction::ApplyCaretKind(_) => {
                     action.selected_item = Some(item.clone());
-                    action.should_close = false; // live preview caret without closing picker!
+                    action.should_close = false;
                 }
                 crate::services::fuzzy::PaletteAction::OpenFontPicker => {
                     *query = ">font ".to_string();
@@ -211,7 +213,7 @@ pub fn render_search_modal(
                 }
                 crate::services::fuzzy::PaletteAction::ApplyFont(_) => {
                     action.selected_item = Some(item.clone());
-                    action.should_close = false; // live apply font without closing picker!
+                    action.should_close = false;
                 }
                 crate::services::fuzzy::PaletteAction::OpenModePicker => {
                     *query = ">mode ".to_string();
@@ -221,7 +223,7 @@ pub fn render_search_modal(
                 }
                 crate::services::fuzzy::PaletteAction::ApplyEditorMode(_) => {
                     action.selected_item = Some(item.clone());
-                    action.should_close = false; // switch mode without closing picker!
+                    action.should_close = false;
                 }
                 _ => {
                     action.selected_item = Some(item.clone());
@@ -231,7 +233,6 @@ pub fn render_search_modal(
         }
     }
     if nav_esc {
-        // If in any sub-picker mode (theme/sound/caret/font/mode/luna), return to > commands
         if is_theme_picker || is_sound_picker || is_caret_picker || is_font_picker || is_mode_picker || is_luna_picker {
             *query = ">".to_string();
             *selected_idx = 0;
@@ -248,6 +249,7 @@ pub fn render_search_modal(
         pos2(modal_rect.min.x + 48.0, bar_center_y - input_h * 0.5),
         vec2(modal_w - 48.0 - 54.0, input_h),
     );
+
     let response = ui.put(
         edit_rect,
         egui::TextEdit::singleline(query)
@@ -258,13 +260,10 @@ pub fn render_search_modal(
             .frame(false),
     );
     if response.changed() {
-        // Search and command results must follow edits to the query field,
-        // including deleting `>` to return from commands to note search.
         *selected_idx = 0;
         action.new_query = Some(query.clone());
     }
 
-    // Auto-focus immediately when modal opens and place cursor at the end (e.g. after '>')
     if just_opened || switch_to_cmd {
         response.request_focus();
         let end_idx = query.chars().count();
@@ -275,9 +274,8 @@ pub fn render_search_modal(
         response.request_focus();
     }
 
-    // ── Expanded Results (When querying or when notes exist) ──────────────────────────────
+    // ── Expanded Results ──────────────────────────────────────────────────────────
     if show_results {
-        // Subtle divider separating search input from results
         let div_y = modal_rect.min.y + bar_h;
         painter.line_segment(
             [pos2(modal_rect.min.x, div_y), pos2(modal_rect.max.x, div_y)],
@@ -337,7 +335,7 @@ pub fn render_search_modal(
                         }
                         crate::services::fuzzy::PaletteAction::ApplyTheme(_) => {
                             action.selected_item = Some(item.clone());
-                            action.should_close = false; // stay in theme picker
+                            action.should_close = false;
                         }
                         crate::services::fuzzy::PaletteAction::ShowSoundPicker => {
                             *query = ">sound ".to_string();
@@ -347,7 +345,7 @@ pub fn render_search_modal(
                         }
                         crate::services::fuzzy::PaletteAction::ApplySoundProfile(_) => {
                             action.selected_item = Some(item.clone());
-                            action.should_close = false; // stay in sound picker, play preview
+                            action.should_close = false;
                         }
                         crate::services::fuzzy::PaletteAction::OpenCaretPicker => {
                             *query = ">caret ".to_string();
@@ -357,7 +355,7 @@ pub fn render_search_modal(
                         }
                         crate::services::fuzzy::PaletteAction::ApplyCaretKind(_) => {
                             action.selected_item = Some(item.clone());
-                            action.should_close = false; // stay in caret picker, preview live
+                            action.should_close = false;
                         }
                         crate::services::fuzzy::PaletteAction::OpenFontPicker => {
                             *query = ">font ".to_string();
@@ -386,7 +384,7 @@ pub fn render_search_modal(
                     }
                 }
 
-                // Left Icon rendered as modern vector graphic
+                // Left Icon
                 let icon_rect = Rect::from_center_size(
                     pos2(item_rect.min.x + 22.0, item_rect.center().y),
                     vec2(14.0, 14.0),
@@ -442,7 +440,6 @@ pub fn render_search_modal(
                     );
                 }
 
-                // Sleek borderless text badge on far right (NO background box, NO border!)
                 if !item.badge.is_empty() {
                     let badge_color = if is_selected {
                         theme.accent
@@ -492,311 +489,6 @@ pub fn render_search_modal(
             FontId::monospace(10.5),
             theme.muted,
         );
-    }
-
-    action
-}
-
-pub struct RenameModalAction {
-    pub confirmed_title: Option<String>,
-    pub should_close: bool,
-}
-
-pub fn render_rename_modal(
-    ui: &mut egui::Ui,
-    painter: &egui::Painter,
-    bounds: Rect,
-    input_text: &mut String,
-    theme: &Theme,
-    just_opened: bool,
-) -> RenameModalAction {
-    let backdrop_alpha = if theme.is_light() { 90 } else { 160 };
-    painter.rect_filled(bounds, 0.0, Color32::from_black_alpha(backdrop_alpha));
-
-    let modal_w = 460.0;
-    let modal_h = 160.0;
-    let modal_rect = Rect::from_center_size(bounds.center(), vec2(modal_w, modal_h));
-
-    painter.rect(
-        modal_rect,
-        5.0,
-        theme.surface(),
-        Stroke::new(1.0_f32, theme.border()),
-        egui::StrokeKind::Inside,
-    );
-
-    let m_origin = modal_rect.min + vec2(24.0, 20.0);
-    painter.text(
-        m_origin,
-        Align2::LEFT_TOP,
-        "Rename Document",
-        FontId::monospace(15.0),
-        theme.highlight,
-    );
-    painter.text(
-        m_origin + vec2(0.0, 22.0),
-        Align2::LEFT_TOP,
-        "Enter a new title for this document",
-        FontId::monospace(12.0),
-        theme.muted,
-    );
-
-    let input_rect = Rect::from_min_size(m_origin + vec2(0.0, 48.0), vec2(modal_w - 48.0, 34.0));
-    let input_bg = if theme.is_light() {
-        Color32::from_rgb(255, 255, 255)
-    } else {
-        theme.bg
-    };
-    painter.rect(
-        input_rect,
-        5.0,
-        input_bg,
-        Stroke::new(1.0_f32, theme.border()),
-        egui::StrokeKind::Inside,
-    );
-
-    let edit_rect = input_rect.shrink2(vec2(10.0, 6.0));
-    let response = ui.put(
-        edit_rect,
-        egui::TextEdit::singleline(input_text)
-            .font(FontId::monospace(14.0))
-            .text_color(theme.text)
-            .frame(false),
-    );
-
-    if just_opened {
-        response.request_focus();
-        let mut state = egui::text_edit::TextEditState::load(ui.ctx(), response.id).unwrap_or_default();
-        let char_count = input_text.chars().count();
-        state.cursor.set_char_range(Some(egui::text::CCursorRange::two(
-            egui::text::CCursor::new(0),
-            egui::text::CCursor::new(char_count),
-        )));
-        state.store(ui.ctx(), response.id);
-    } else if !response.has_focus() && !ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-        response.request_focus();
-    }
-
-    let mut action = RenameModalAction {
-        confirmed_title: None,
-        should_close: false,
-    };
-
-    let (enter, esc) = ui.input(|i| (
-        i.key_pressed(egui::Key::Enter),
-        i.key_pressed(egui::Key::Escape),
-    ));
-
-    if enter {
-        let trimmed = input_text.trim();
-        if !trimmed.is_empty() {
-            action.confirmed_title = Some(trimmed.to_string());
-        }
-        action.should_close = true;
-    } else if esc {
-        action.should_close = true;
-    }
-
-    // Bottom subtle hint line
-    painter.text(
-        pos2(m_origin.x, modal_rect.max.y - 22.0),
-        Align2::LEFT_TOP,
-        "Enter to rename  ·  Esc to cancel",
-        FontId::monospace(11.0),
-        theme.accent,
-    );
-
-    action
-}
-
-pub struct DeleteModalAction {
-    pub confirmed: bool,
-    pub should_close: bool,
-}
-
-pub fn render_delete_confirm_modal(
-    ui: &egui::Ui,
-    painter: &egui::Painter,
-    bounds: Rect,
-    doc_title: &str,
-    theme: &Theme,
-    just_opened: bool,
-) -> DeleteModalAction {
-    // Dimmed background overlay
-    let backdrop_alpha = if theme.is_light() { 90 } else { 160 };
-    painter.rect_filled(bounds, 0.0, Color32::from_black_alpha(backdrop_alpha));
-
-    let modal_w = 460.0;
-    let modal_h = 175.0;
-    let modal_rect = Rect::from_center_size(bounds.center(), vec2(modal_w, modal_h));
-
-    // Surface container with subtle border
-    painter.rect(
-        modal_rect,
-        5.0,
-        theme.surface(),
-        Stroke::new(1.0_f32, theme.border()),
-        egui::StrokeKind::Inside,
-    );
-
-    let m_origin = modal_rect.min + vec2(24.0, 22.0);
-
-    // Red warning pill badge
-    let badge_rect = Rect::from_min_size(m_origin, vec2(54.0, 20.0));
-    let (badge_bg, badge_text_col) = if theme.is_light() {
-        (Color32::from_rgb(254, 226, 226), Color32::from_rgb(185, 28, 28))
-    } else {
-        (Color32::from_rgb(48, 20, 24), Color32::from_rgb(255, 100, 110))
-    };
-    painter.rect_filled(badge_rect, 4.0, badge_bg);
-    painter.text(
-        badge_rect.center(),
-        Align2::CENTER_CENTER,
-        "DELETE",
-        FontId::monospace(10.0),
-        badge_text_col,
-    );
-
-    // Modal Title
-    painter.text(
-        m_origin + vec2(64.0, 1.0),
-        Align2::LEFT_TOP,
-        "Delete Note",
-        FontId::monospace(14.5),
-        theme.highlight,
-    );
-
-    // Truncate note title cleanly if long so it never overflows the container
-    let safe_title = if doc_title.trim().is_empty() {
-        "Untitled Note".to_string()
-    } else if doc_title.chars().count() > 36 {
-        let truncated: String = doc_title.chars().take(36).collect();
-        format!("{}...", truncated)
-    } else {
-        doc_title.to_string()
-    };
-
-    // Body text - cleanly spaced across dedicated rows
-    painter.text(
-        m_origin + vec2(0.0, 32.0),
-        Align2::LEFT_TOP,
-        "Permanently delete this document?",
-        FontId::monospace(12.5),
-        theme.text,
-    );
-
-    let doc_highlight_col = if theme.is_light() {
-        Color32::from_rgb(190, 24, 38)
-    } else {
-        Color32::from_rgb(255, 130, 140)
-    };
-    painter.text(
-        m_origin + vec2(0.0, 52.0),
-        Align2::LEFT_TOP,
-        format!("\"{}\"", safe_title),
-        FontId::monospace(12.0),
-        doc_highlight_col,
-    );
-
-    painter.text(
-        m_origin + vec2(0.0, 72.0),
-        Align2::LEFT_TOP,
-        "This action cannot be undone.",
-        FontId::monospace(11.0),
-        theme.muted,
-    );
-
-    // Buttons: Cancel (Esc) & Delete (Enter)
-    let btn_h = 32.0;
-    let btn_y = modal_rect.max.y - btn_h - 18.0;
-
-    let delete_w = 125.0;
-    let cancel_w = 110.0;
-    let delete_rect = Rect::from_min_size(pos2(modal_rect.max.x - 24.0 - delete_w, btn_y), vec2(delete_w, btn_h));
-    let cancel_rect = Rect::from_min_size(pos2(modal_rect.max.x - 24.0 - delete_w - 12.0 - cancel_w, btn_y), vec2(cancel_w, btn_h));
-
-    let cancel_hover = ui.rect_contains_pointer(cancel_rect);
-    let delete_hover = ui.rect_contains_pointer(delete_rect);
-
-    let (enter, esc) = if just_opened {
-        (false, false)
-    } else {
-        ui.input(|i| (
-            i.key_pressed(egui::Key::Enter),
-            i.key_pressed(egui::Key::Escape),
-        ))
-    };
-
-    let mut action = DeleteModalAction {
-        confirmed: false,
-        should_close: false,
-    };
-
-    // Cancel button
-    let (cancel_bg, cancel_stroke, cancel_fg) = if theme.is_light() {
-        if cancel_hover {
-            (Color32::from_rgb(228, 231, 238), theme.border(), theme.highlight)
-        } else {
-            (Color32::from_rgb(241, 243, 247), theme.border(), theme.text)
-        }
-    } else {
-        if cancel_hover {
-            (Color32::from_rgb(28, 30, 38), Color32::from_gray(80), Color32::WHITE)
-        } else {
-            (Color32::from_rgb(22, 23, 28), Color32::from_gray(50), Color32::from_gray(180))
-        }
-    };
-
-    painter.rect(
-        cancel_rect,
-        5.0,
-        cancel_bg,
-        Stroke::new(1.0_f32, cancel_stroke),
-        egui::StrokeKind::Inside,
-    );
-    painter.text(
-        cancel_rect.center(),
-        Align2::CENTER_CENTER,
-        "Cancel (Esc)",
-        FontId::monospace(11.5),
-        cancel_fg,
-    );
-
-    // Delete button (Destructive red)
-    let (del_bg, del_stroke, del_fg) = if theme.is_light() {
-        if delete_hover {
-            (Color32::from_rgb(220, 38, 38), Color32::from_rgb(185, 28, 28), Color32::WHITE)
-        } else {
-            (Color32::from_rgb(239, 68, 68), Color32::from_rgb(220, 38, 38), Color32::WHITE)
-        }
-    } else {
-        if delete_hover {
-            (Color32::from_rgb(75, 22, 28), Color32::from_rgb(220, 60, 70), Color32::from_rgb(255, 140, 150))
-        } else {
-            (Color32::from_rgb(52, 16, 20), Color32::from_rgb(160, 45, 55), Color32::from_rgb(255, 140, 150))
-        }
-    };
-
-    painter.rect(
-        delete_rect,
-        5.0,
-        del_bg,
-        Stroke::new(1.0_f32, del_stroke),
-        egui::StrokeKind::Inside,
-    );
-    painter.text(
-        delete_rect.center(),
-        Align2::CENTER_CENTER,
-        "Delete (Enter)",
-        FontId::monospace(11.5),
-        del_fg,
-    );
-
-    if (delete_hover && ui.input(|i| i.pointer.primary_clicked())) || enter {
-        action.confirmed = true;
-        action.should_close = true;
-    } else if (cancel_hover && ui.input(|i| i.pointer.primary_clicked())) || esc {
-        action.should_close = true;
     }
 
     action

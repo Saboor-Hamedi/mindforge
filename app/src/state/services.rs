@@ -74,3 +74,29 @@ impl ServicesState {
         let _ = self.db_tx.send(msg);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::db_worker::DbMsg;
+
+    #[test]
+    fn test_services_db() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let mut services = ServicesState::new(tx);
+        assert!(services.db.is_none());
+        services.init_db();
+        assert!(services.db.is_some());
+    }
+
+    #[test]
+    fn test_services_send_db() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let services = ServicesState::new(tx);
+        services.send_db(DbMsg::SaveSetting {
+            key: "test".to_string(),
+            val: "value".to_string(),
+        });
+        assert!(rx.try_recv().is_ok());
+    }
+}

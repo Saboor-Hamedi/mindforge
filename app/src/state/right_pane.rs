@@ -51,3 +51,24 @@ impl RightPaneState {
         self.tab = tab;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_right_pane_toggle() {
+        let mut rp = RightPaneState::new();
+        assert!(!rp.sidebar_open);
+        rp.toggle_sidebar();
+        assert!(rp.sidebar_open);
+    }
+
+    #[test]
+    fn test_right_pane_switch_tab() {
+        let mut rp = RightPaneState::new();
+        assert_eq!(rp.tab, crate::app::RightPaneTab::Preview);
+        rp.switch_tab(crate::app::RightPaneTab::AiAgent);
+        assert_eq!(rp.tab, crate::app::RightPaneTab::AiAgent);
+    }
+}

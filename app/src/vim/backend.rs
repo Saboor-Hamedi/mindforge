@@ -624,7 +624,7 @@ impl EditorBackend for VimBackend {
         rect: Rect,
         font_size: f32,
         cell_width: f32,
-        _row_height: f32,
+        row_height: f32,
         theme: &crate::ui::theme::Theme,
         caret: &mut crate::caret::Caret,
         dt: f32,
@@ -637,7 +637,9 @@ impl EditorBackend for VimBackend {
             self.layout_font_size = font_size.to_bits();
         }
 
-        let nvim_row_height = ui.fonts(|fonts| fonts.row_height(&font)).max(1.0);
+        // Use the same line metric as Hybrid so row positions and overlays do
+        // not jump when switching editor backends.
+        let nvim_row_height = row_height.max(1.0);
         // Match the Hybrid editor's content inset so Neovim's grid occupies
         // the same text surface instead of starting at the card's top-left.
         let total_lines = self.lines.len().max(1);
@@ -766,9 +768,15 @@ impl EditorBackend for VimBackend {
                 }
                 self.row_layouts[row_idx] = Some((revision, painter.layout_job(job)));
             }
+            let font_row_height = self.row_layouts.iter()
+                .filter_map(|opt| opt.as_ref().map(|(_, g)| g.size().y))
+                .next()
+                .unwrap_or(font_size * 1.25);
+            let y_offset = ((nvim_row_height - font_row_height) * 0.5).max(0.0).round();
+
             if let Some((_, galley)) = &self.row_layouts[row_idx] {
                 painter.galley(
-                    Pos2::new(text_left, origin.y + row_idx as f32 * nvim_row_height),
+                    Pos2::new(text_left, origin.y + row_idx as f32 * nvim_row_height + y_offset),
                     Arc::clone(galley),
                     theme.text,
                 );
@@ -796,7 +804,7 @@ impl EditorBackend for VimBackend {
                 };
                 if !label.is_empty() {
                     gutter_painter.text(
-                        Pos2::new(rect.min.x + gutter_w - 4.0, origin.y + row_idx as f32 * nvim_row_height),
+                        Pos2::new(rect.min.x + gutter_w - 4.0, origin.y + row_idx as f32 * nvim_row_height + y_offset),
                         Align2::RIGHT_TOP,
                         label,
                         crate::services::font_manager::editor_font_id(font_size * 0.82),
@@ -807,18 +815,26 @@ impl EditorBackend for VimBackend {
         }
 
         // Render the configured application caret at Neovim's grid cursor.
+        // The caret height and vertical position strictly match the select background line height.
+        let font_row_height = self.row_layouts.iter()
+            .filter_map(|opt| opt.as_ref().map(|(_, g)| g.size().y))
+            .next()
+            .unwrap_or(font_size * 1.25);
+        let y_offset = ((nvim_row_height - font_row_height) * 0.5).max(0.0).round();
+
         let cursor_row = self.grid.cursor.row;
         let cursor_column = self.grid.cursor.column;
         if cursor_row < rows && cursor_column < width {
             let cursor_x = origin.x + cursor_column as f32 * cell_width;
-            let cursor_y = origin.y + cursor_row as f32 * nvim_row_height;
+            let cursor_y = origin.y + cursor_row as f32 * nvim_row_height + y_offset;
             let target = Pos2::new(cursor_x, cursor_y);
             if !self.cursor_render_initialized {
                 caret.pos = target;
                 self.cursor_render_initialized = true;
+                response.request_focus();
             }
-            caret.update(dt, target, typed && (self.is_insert_mode() || self.grid.mode.starts_with('r')), now, cell_width, nvim_row_height);
-            caret.paint(&painter, cell_width, nvim_row_height, now, theme.accent, theme.is_light());
+            caret.update(dt, target, typed && (self.is_insert_mode() || self.grid.mode.starts_with('r')), now, cell_width, font_row_height);
+            caret.paint(&painter, cell_width, font_row_height, now, theme.accent, theme.is_light());
 
             // A block caret is translucent; repaint its character in the app
             // font so Neovim's Cursor highlight cannot change the glyph size.
