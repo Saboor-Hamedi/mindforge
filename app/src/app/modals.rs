@@ -462,6 +462,10 @@ impl App {
                         if let Some(ref db) = self.services.db {
                             let _ = self.misc.accent_overrides.save_to_db(db);
                         }
+                        if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+                            backend.sync_theme(&self.misc.theme);
+                        }
+                        ui.ctx().request_repaint();
                     }
                     crate::accent::AccentAction::ResetAll => {
                         self.misc.accent_overrides.clear();
@@ -469,6 +473,10 @@ impl App {
                         if let Some(ref db) = self.services.db {
                             let _ = self.misc.accent_overrides.save_to_db(db);
                         }
+                        if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+                            backend.sync_theme(&self.misc.theme);
+                        }
+                        ui.ctx().request_repaint();
                     }
                     crate::accent::AccentAction::Close => {
                         self.misc.accent_dropdown_open = false;

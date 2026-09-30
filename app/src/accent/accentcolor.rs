@@ -22,10 +22,12 @@ impl AccentOverrides {
     pub fn apply(&self, theme: &mut Theme) {
         if let Some(c) = self.accent {
             theme.accent = c;
-            theme.highlight = c; // Accent color updates all tabs, notes, titles, and highlights
         }
         if let Some(c) = self.text {
             theme.text = c;
+        }
+        if let Some(c) = self.highlight {
+            theme.highlight = c;
         }
     }
 

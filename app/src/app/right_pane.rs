@@ -1,6 +1,7 @@
 //! Right pane split tab coordinator: Markdown live preview and DeepSeek AI Assistant.
 
 use super::{App, RightPaneTab};
+use crate::mode::Mode;
 use crate::view_editor::render_markdown_preview;
 use eframe::egui::{pos2, Painter, Rect, Ui};
 
@@ -70,7 +71,11 @@ impl App {
 
             match self.right_pane.tab {
                 RightPaneTab::Preview => {
-                    let note_text = self.editor.ed.text();
+                    let note_text = if self.misc.mode == Mode::Doc {
+                        self.editor.doc_ed.text()
+                    } else {
+                        self.editor.ed.text()
+                    };
                     render_markdown_preview(
                         ui,
                         painter,
@@ -86,8 +91,18 @@ impl App {
                 }
                 RightPaneTab::AiAgent => {
                     self.services.agent_state.is_open = true;
-                    let cur_text = self.editor.ed.text();
-                    let active_note_info = if let Some(n) = self.notes.notes_list.iter().find(|n| Some(n.id) == self.notes.active_note_id) {
+                    let cur_text = if self.misc.mode == Mode::Doc {
+                        self.editor.doc_ed.text()
+                    } else {
+                        self.editor.ed.text()
+                    };
+                    let active_note_info = if self.misc.mode == Mode::Doc {
+                        let doc_title = crate::ui::docs::BRAIN_DOCS
+                            .get(self.tabs.active_doc_idx)
+                            .map(|d| d.title)
+                            .unwrap_or("Documentation");
+                        Some((doc_title, cur_text.as_str()))
+                    } else if let Some(n) = self.notes.notes_list.iter().find(|n| Some(n.id) == self.notes.active_note_id) {
                         Some((n.topic.as_str(), cur_text.as_str()))
                     } else {
                         None

@@ -147,37 +147,42 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
         return Some(false);
     }
 
-    // Panel Navigation: Ctrl+H (Sidebar <-> Editor)
+    // Panel Navigation: Ctrl+H (Focus Sidebar)
     let ctrl_h = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::H));
     if ctrl_h && !app.command_bar.in_command {
         if app.sidebar.open {
             if app.misc.mode == Mode::Doc {
-                app.tabs.doc_sidebar_focused = !app.tabs.doc_sidebar_focused;
-                let msg = if app.tabs.doc_sidebar_focused {
-                    "Doc sidebar focused (j/k to select, Enter to open, Esc for reader)"
-                } else {
-                    "Doc reader focused"
-                };
-                app.set_status(msg, now);
+                app.tabs.doc_sidebar_focused = true;
+                app.set_status("Doc sidebar focused (j/k to select, Enter to open, Ctrl+L for reader)", now);
             } else {
-                app.sidebar.focused = !app.sidebar.focused;
-                let msg = if app.sidebar.focused {
-                    "Sidebar focused (j/k to select, Enter to open, Esc for editor)"
-                } else {
-                    "Editor focused"
-                };
-                app.set_status(msg, now);
+                app.sidebar.focused = true;
+                app.set_status("Sidebar focused (j/k to select, Enter to open, Ctrl+L for editor)", now);
             }
         }
         return Some(false);
     }
 
-    // Panel Navigation: Ctrl+L (Editor -> Right Pane Preview)
+    // Panel Navigation: Ctrl+L (Focus Editor / Right Pane)
     let ctrl_l = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::L));
-    if ctrl_l && is_panel_nav_active && !app.command_bar.in_command {
-        app.sidebar.focused = false;
-        app.set_status("Right pane focused (Ctrl+H to return to editor)", now);
-        return Some(false);
+    if ctrl_l && !app.command_bar.in_command {
+        if app.sidebar.open && (app.sidebar.focused || app.tabs.doc_sidebar_focused) {
+            if app.misc.mode == Mode::Doc {
+                app.tabs.doc_sidebar_focused = false;
+                app.set_status("Doc reader focused (Ctrl+H for sidebar)", now);
+            } else {
+                app.sidebar.focused = false;
+                app.set_status("Editor focused (Ctrl+H for sidebar)", now);
+            }
+            return Some(false);
+        } else if is_panel_nav_active {
+            app.sidebar.focused = false;
+            app.set_status("Right pane focused (Ctrl+H for editor/sidebar)", now);
+            return Some(false);
+        } else if app.sidebar.open {
+            app.sidebar.focused = false;
+            app.set_status("Editor focused (Ctrl+H for sidebar)", now);
+            return Some(false);
+        }
     }
 
     None

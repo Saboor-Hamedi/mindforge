@@ -46,7 +46,9 @@ pub fn handle_command_paste(app: &mut App, s: &str, now: f64) {
 /// Handles character typing into the command bar buffer.
 pub fn handle_command_text(app: &mut App, s: &str, now: f64) {
     for c in s.chars() {
-        app.editor.cmd_ed.insert(c);
+        if c != '\n' && c != '\r' {
+            app.editor.cmd_ed.insert(c);
+        }
     }
     app.command_bar.selected_idx = 0;
     app.command_bar.navigated = false;

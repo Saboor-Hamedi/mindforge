@@ -31,6 +31,7 @@ pub struct VimBackend {
     layout_font_size: u32,
     cursor_render_initialized: bool,
     line_numbers_enabled: Option<bool>,
+    cached_theme: Option<(Color32, Color32, Color32, Color32)>,
 }
 
 impl VimBackend {
@@ -49,14 +50,20 @@ impl VimBackend {
         client.attach_ui(width, height)?;
         // Keep shared editor navigation options consistent even when the
         // user's init.lua has absolute numbers or cursorline disabled.
+        // Enable true colors and markdown syntax highlighting engine.
+        let init_cmd = "set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ \nsyntax on\nsyntax enable\nfiletype plugin indent on\nset termguicolors\nhi Cursor NONE\nhi TermCursor NONE";
         client.request(
             "nvim_command",
-            vec![Value::from("set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ \nhi Cursor NONE\nhi TermCursor NONE")],
+            vec![Value::from(init_cmd)],
         )?;
+
+        // Give the buffer a markdown filename so Neovim filetype and syntax rules attach
+        let _ = client.request("nvim_buf_set_name", vec![Value::from(0), Value::from("note.md")]);
 
         // Load text async — no blocking round-trip needed here.
         // nvim_buf_set_lines is a notification (fire and forget).
         client.set_buffer_text_async(text)?;
+        let _ = client.notify("nvim_command", vec![Value::from("setlocal filetype=markdown syntax=markdown")]);
 
         // Attach only for future changes. The local mirror already came from
         // `text`, and the preceding set-lines notification is ordered on the
@@ -95,6 +102,7 @@ impl VimBackend {
             layout_font_size: 0,
             cursor_render_initialized: false,
             line_numbers_enabled: None,
+            cached_theme: None,
         })
     }
 
@@ -119,15 +127,26 @@ impl VimBackend {
 
     fn apply_lines_event(&mut self, args: &Value) {
         let Some(args) = args.as_array() else { return };
-        let start = args.get(2).and_then(Value::as_u64).unwrap_or(0) as usize;
-        let end = args.get(3).and_then(Value::as_u64).unwrap_or(start as u64) as usize;
+        let raw_start = args.get(2).and_then(Value::as_i64).or_else(|| args.get(2).and_then(Value::as_u64).map(|v| v as i64)).unwrap_or(0);
+        let start = if raw_start < 0 {
+            (self.lines.len() as i64 + 1 + raw_start).max(0) as usize
+        } else {
+            raw_start as usize
+        };
+        let raw_end = args.get(3).and_then(Value::as_i64).or_else(|| args.get(3).and_then(Value::as_u64).map(|v| v as i64)).unwrap_or(start as i64);
+        let end = if raw_end < 0 {
+            self.lines.len()
+        } else {
+            raw_end as usize
+        };
+        let start = start.min(self.lines.len());
+        let end = end.min(self.lines.len()).max(start);
         let mut replacement: Vec<String> = args
             .get(4)
             .and_then(Value::as_array)
             .into_iter()
             .flatten()
-            .filter_map(Value::as_str)
-            .map(str::to_owned)
+            .filter_map(|v| super::client::rmpv_value_to_str(v))
             .collect();
         if start <= self.lines.len() && end <= self.lines.len() && start <= end {
             let removed = end - start;
@@ -270,7 +289,7 @@ impl VimBackend {
             if cell.is_empty() {
                 continue;
             }
-            let text = cell[0].as_str().unwrap_or(" ").to_owned();
+            let text = cell.first().and_then(super::client::rmpv_value_to_str).unwrap_or_else(|| " ".to_string());
             if let Some(h) = cell.get(1).and_then(Value::as_u64) {
                 last_highlight = h;
             }
@@ -427,7 +446,9 @@ impl VimBackend {
     }
 
     pub fn set_document(&mut self, text: &str, row: usize, column: usize) -> EditorResult<()> {
+        let _ = self.client.request("nvim_buf_set_name", vec![Value::from(0), Value::from("note.md")]);
         self.client.set_buffer_text_async(text)?;
+        let _ = self.client.notify("nvim_command", vec![Value::from("setlocal filetype=markdown syntax=markdown\nredraw!")]);
         self.lines = text.split('\n').map(str::to_owned).collect();
         self.document_words = text.split_whitespace().count();
         self.document_lines = text.lines().count();
@@ -439,6 +460,7 @@ impl VimBackend {
         self.text_updated = false;
         self.last_buffer_change = None;
         self.dirty = false;
+        self.row_layouts.clear();
         Ok(())
     }
 
@@ -461,6 +483,146 @@ impl VimBackend {
         } else {
             None
         }
+    }
+
+    /// Immediately queries the current lines from Neovim and synchronizes the local cache,
+    /// bypassing the 300ms idle debounce. Used right after Ex-commands (:sort, :%s, :g/.../d).
+    pub fn force_sync_text(&mut self) -> Option<String> {
+        self.tick();
+        if let Ok(text) = self.client.get_buffer_text() {
+            // Guard: If Neovim returned empty string but our cached buffer has content,
+            // don't wipe out the buffer if get_buffer_text had a transient timing issue.
+            if text.is_empty() && !self.lines.is_empty() && (self.lines.len() > 1 || !self.lines[0].is_empty()) {
+                return Some(self.lines.join("\n"));
+            }
+            self.lines = text.split('\n').map(str::to_owned).collect();
+            self.document_words = text.split_whitespace().count();
+            self.document_lines = if self.lines.len() == 1 && self.lines[0].is_empty() {
+                0
+            } else if self.lines.last().is_some_and(String::is_empty) {
+                self.lines.len() - 1
+            } else {
+                self.lines.len()
+            };
+            self.document_bytes = text.len();
+            self.lines_revision = self.lines_revision.wrapping_add(1);
+            self.cursor_char_cache = None;
+            self.text_updated = false;
+            self.last_buffer_change = None;
+            self.dirty = true;
+            self.row_layouts.clear();
+            Some(text)
+        } else if self.text_updated || self.dirty {
+            self.text_updated = false;
+            self.last_buffer_change = None;
+            Some(self.lines.join("\n"))
+        } else {
+            None
+        }
+    }
+
+    /// Synchronizes MindForge's theme colors and accent into Neovim's highlight definitions
+    /// and resets cached text galleys for instant, zero-delay color updates.
+    pub fn sync_theme(&mut self, theme: &crate::ui::theme::Theme) {
+        let accent_hex = crate::accent::hex_from_color(theme.accent);
+        let text_hex = crate::accent::hex_from_color(theme.text);
+        let bg_hex = crate::accent::hex_from_color(theme.bg);
+        let muted_hex = crate::accent::hex_from_color(theme.muted);
+        let surface_hex = crate::accent::hex_from_color(theme.surface());
+        let hl_hex = crate::accent::hex_from_color(theme.highlight);
+        let is_light = theme.is_light();
+
+        let code_fg = if is_light { "#0184bc" } else { "#e5c07b" };
+        let stmt_fg = if is_light { "#a626a4" } else { "#e06c75" };
+        let ident_fg = if is_light { "#4078f2" } else { "#61afef" };
+        let str_fg = if is_light { "#50a14f" } else { "#98c379" };
+        let url_fg = "#56b6c2";
+        let type_fg = "#61afef";
+
+        let lua_code = format!(
+            r##"
+            vim.opt.termguicolors = true
+            vim.opt.background = "{bg_mode}"
+            local hls = {{
+                Normal = {{ fg = "{text}", bg = "{bg}" }},
+                NormalNC = {{ fg = "{text}", bg = "{bg}" }},
+                CursorLine = {{ bg = "{surface}" }},
+                Visual = {{ bg = "{hl}" }},
+                Search = {{ fg = "{bg}", bg = "{accent}" }},
+                CurSearch = {{ fg = "{bg}", bg = "{accent}", bold = true }},
+                Title = {{ fg = "{text}", bold = true }},
+                markdownH1 = {{ fg = "{text}", bold = true }},
+                markdownH2 = {{ fg = "{text}", bold = true }},
+                markdownH3 = {{ fg = "{text}", bold = true }},
+                markdownH4 = {{ fg = "{text}", bold = true }},
+                markdownH5 = {{ fg = "{text}", bold = true }},
+                markdownH6 = {{ fg = "{text}", bold = true }},
+                htmlH1 = {{ fg = "{text}", bold = true }},
+                htmlH2 = {{ fg = "{text}", bold = true }},
+                htmlH3 = {{ fg = "{text}", bold = true }},
+                htmlH4 = {{ fg = "{text}", bold = true }},
+                htmlH5 = {{ fg = "{text}", bold = true }},
+                htmlH6 = {{ fg = "{text}", bold = true }},
+                markdownHeadingDelimiter = {{ fg = "{muted}", bold = true }},
+                markdownH1Delimiter = {{ fg = "{muted}", bold = true }},
+                markdownH2Delimiter = {{ fg = "{muted}", bold = true }},
+                markdownH3Delimiter = {{ fg = "{muted}", bold = true }},
+                markdownBold = {{ bold = true }},
+                markdownItalic = {{ italic = true }},
+                markdownCode = {{ fg = "{code_fg}", bg = "{surface}" }},
+                markdownCodeBlock = {{ fg = "{code_fg}", bg = "{surface}" }},
+                markdownCodeDelimiter = {{ fg = "{muted}" }},
+                markdownBlockquote = {{ fg = "{muted}", italic = true }},
+                markdownListMarker = {{ fg = "{accent}", bold = true }},
+                markdownOrderedListMarker = {{ fg = "{accent}" }},
+                markdownRule = {{ fg = "{muted}" }},
+                markdownUrl = {{ fg = "{url_fg}", underline = true }},
+                markdownLinkText = {{ fg = "{accent}", underline = true }},
+                markdownLink = {{ fg = "{muted}" }},
+                ["@markup.heading"] = {{ fg = "{text}", bold = true }},
+                ["@markup.heading.1"] = {{ fg = "{text}", bold = true }},
+                ["@markup.heading.2"] = {{ fg = "{text}", bold = true }},
+                ["@markup.heading.3"] = {{ fg = "{text}", bold = true }},
+                ["@markup.heading.4"] = {{ fg = "{text}", bold = true }},
+                ["@markup.heading.5"] = {{ fg = "{text}", bold = true }},
+                ["@markup.heading.6"] = {{ fg = "{text}", bold = true }},
+                ["@markup.strong"] = {{ bold = true }},
+                ["@markup.italic"] = {{ italic = true }},
+                ["@markup.raw"] = {{ fg = "{code_fg}", bg = "{surface}" }},
+                ["@markup.raw.block"] = {{ fg = "{code_fg}", bg = "{surface}" }},
+                ["@markup.quote"] = {{ fg = "{muted}", italic = true }},
+                ["@markup.list"] = {{ fg = "{accent}", bold = true }},
+                ["@markup.link.url"] = {{ fg = "{url_fg}", underline = true }},
+                ["@markup.link.label"] = {{ fg = "{accent}", underline = true }},
+                Comment = {{ fg = "{muted}", italic = true }},
+                Statement = {{ fg = "{stmt_fg}" }},
+                Identifier = {{ fg = "{ident_fg}" }},
+                Type = {{ fg = "{type_fg}" }},
+                Special = {{ fg = "{accent}" }},
+                String = {{ fg = "{str_fg}" }},
+            }}
+            for name, opts in pairs(hls) do
+                pcall(vim.api.nvim_set_hl, 0, name, opts)
+            end
+            pcall(vim.cmd, "redraw!")
+            "##,
+            bg_mode = if is_light { "light" } else { "dark" },
+            text = text_hex,
+            bg = bg_hex,
+            surface = surface_hex,
+            hl = hl_hex,
+            accent = accent_hex,
+            muted = muted_hex,
+            code_fg = code_fg,
+            stmt_fg = stmt_fg,
+            ident_fg = ident_fg,
+            str_fg = str_fg,
+            url_fg = url_fg,
+            type_fg = type_fg,
+        );
+        let _ = self.client.notify("nvim_exec_lua", vec![Value::from(lua_code), Value::Array(vec![])]);
+        self.row_layouts.clear();
+        self.grid.highlights.clear();
     }
 
     /// Cached document statistics updated from Neovim's incremental line events.
@@ -729,6 +891,13 @@ impl EditorBackend for VimBackend {
 
         // Clip all painter output strictly to the editor rectangle
         let painter = ui.painter().with_clip_rect(rect);
+
+        // Keep Neovim syntax highlighting and accent color in sync with MindForge theme
+        let current_theme_colors = (theme.accent, theme.text, theme.bg, theme.highlight);
+        if self.cached_theme != Some(current_theme_colors) {
+            self.cached_theme = Some(current_theme_colors);
+            self.sync_theme(theme);
+        }
 
         if self.grid.width == 0 || self.grid.height == 0 {
             painter.text(

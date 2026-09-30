@@ -255,7 +255,7 @@ impl App {
         }
 
         // Bottom Dock (active editing mode badge, status feedback, word stats)
-        let (row, col) = if self.misc.mode == Mode::Normal
+        let (row, col) = if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
             && self.services.editor_controller.mode == EditorInputMode::Vim
         {
             self.services.vim_runtime
@@ -268,7 +268,7 @@ impl App {
         } else {
             self.editor.ed.visual_row_col(&self.editor.visual_lines)
         };
-        let (total_rows, word_count, total_chars) = if self.misc.mode == Mode::Normal
+        let (total_rows, word_count, total_chars) = if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
             && self.services.editor_controller.mode == EditorInputMode::Vim
         {
             self.services.vim_runtime

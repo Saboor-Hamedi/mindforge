@@ -233,13 +233,20 @@ impl NeovimClient {
                 Value::Map(vec![
                     (Value::from("ext_linegrid"), Value::from(true)),
                     (Value::from("ext_popupmenu"), Value::from(true)),
+                    (Value::from("ext_cmdline"), Value::from(true)),
+                    (Value::from("ext_messages"), Value::from(true)),
                 ]),
             ],
         )?;
         Ok(())
     }
 
-    pub fn request(&mut self, method: &str, args: Vec<Value>) -> Result<Value, String> {
+    pub fn request_timeout(
+        &mut self,
+        method: &str,
+        args: Vec<Value>,
+        timeout: std::time::Duration,
+    ) -> Result<Value, String> {
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1).max(1);
         let (result_tx, result_rx) = mpsc::channel();
@@ -253,8 +260,12 @@ impl NeovimClient {
             .send(req)
             .map_err(|_| "Neovim RPC writer queue stopped".to_string())?;
         result_rx
-            .recv_timeout(std::time::Duration::from_secs(15))
-            .map_err(|_| "Timed out waiting for Neovim RPC response (15s)".to_string())?
+            .recv_timeout(timeout)
+            .map_err(|_| format!("Timed out waiting for Neovim RPC response ({:?})", timeout))?
+    }
+
+    pub fn request(&mut self, method: &str, args: Vec<Value>) -> Result<Value, String> {
+        self.request_timeout(method, args, std::time::Duration::from_millis(800))
     }
 
     pub fn notify(&self, method: &str, args: Vec<Value>) -> Result<(), String> {
@@ -389,6 +400,29 @@ impl NeovimClient {
         .map(|_| ())
     }
 
+    /// Retrieve the entire buffer text directly from Neovim via RPC.
+    pub fn get_buffer_text(&mut self) -> Result<String, String> {
+        let val = self.request_timeout(
+            "nvim_buf_get_lines",
+            vec![
+                Value::from(0),
+                Value::from(0),
+                Value::from(-1),
+                Value::from(false),
+            ],
+            std::time::Duration::from_millis(800),
+        )?;
+        let lines: Vec<String> = val
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(rmpv_value_to_str)
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(lines.join("\n"))
+    }
+
     pub fn set_buffer_text_async(&mut self, text: &str) -> Result<(), String> {
         let lines: Vec<Value> = text.split('\n').map(Value::from).collect();
         self.notify(
@@ -472,5 +506,14 @@ pub fn format_rpc_value(val: &Value) -> String {
             format!("{{{}}}", entries.join(", "))
         }
         Value::Ext(type_id, _) => format!("<ext:{type_id}>"),
+    }
+}
+
+/// Helper to extract string from rmpv Value, handling both String and Binary variants.
+pub fn rmpv_value_to_str(val: &Value) -> Option<String> {
+    match val {
+        Value::String(s) => s.as_str().map(|s| s.to_string()),
+        Value::Binary(b) => String::from_utf8(b.clone()).ok().or_else(|| Some(String::from_utf8_lossy(b).into_owned())),
+        _ => None,
     }
 }

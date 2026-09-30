@@ -104,6 +104,15 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 app.set_status("Closed Help", now);
                 return true;
             }
+            if app.misc.mode == Mode::Doc {
+                if app.tabs.open_doc_tabs.len() > 1 {
+                    app.close_doc_tab(app.tabs.active_doc_tab, now);
+                    return true;
+                }
+            } else if app.open_notes.len() > 1 {
+                app.close_tab(app.tabs.active_tab, now);
+                return true;
+            }
             std::process::exit(0);
         }
         _ => false,

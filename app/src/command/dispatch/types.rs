@@ -43,5 +43,6 @@ pub const COMMAND_CATALOG: &[CommandInfo] = &[
     CommandInfo { name: "zen", desc: "Toggle Zen mode (:zen)" },
     CommandInfo { name: "ai", desc: "Toggle DeepSeek AI Assistant (:ai)" },
     CommandInfo { name: "tabs", desc: "Toggle document tabs bar (:tabs)" },
+    CommandInfo { name: "sort", desc: "Sort lines alphabetically (:sort, :sort!, :sort u, :sort n)" },
     CommandInfo { name: "quit", desc: "Quit or close view" },
 ];

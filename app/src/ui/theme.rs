@@ -157,14 +157,14 @@ impl Theme {
     /// Slightly elevated surface color for cards and active tabs
     pub fn surface(&self) -> Color32 {
         if self.is_light() {
-            let r = self.bg.r().saturating_sub(7);
-            let g = self.bg.g().saturating_sub(7);
-            let b = self.bg.b().saturating_sub(9);
+            let r = self.bg.r().saturating_sub(10);
+            let g = self.bg.g().saturating_sub(10);
+            let b = self.bg.b().saturating_sub(12);
             Color32::from_rgb(r, g, b)
         } else {
-            let r = (self.bg.r() as u16 + 8).min(255) as u8;
-            let g = (self.bg.g() as u16 + 9).min(255) as u8;
-            let b = (self.bg.b() as u16 + 12).min(255) as u8;
+            let r = (self.bg.r() as u16 + 14).min(255) as u8;
+            let g = (self.bg.g() as u16 + 16).min(255) as u8;
+            let b = (self.bg.b() as u16 + 22).min(255) as u8;
             Color32::from_rgb(r, g, b)
         }
     }
@@ -172,14 +172,14 @@ impl Theme {
     /// Border color for containers and dividers
     pub fn border(&self) -> Color32 {
         if self.is_light() {
-            let r = self.bg.r().saturating_sub(22);
-            let g = self.bg.g().saturating_sub(22);
-            let b = self.bg.b().saturating_sub(24);
+            let r = self.bg.r().saturating_sub(30);
+            let g = self.bg.g().saturating_sub(30);
+            let b = self.bg.b().saturating_sub(34);
             Color32::from_rgb(r, g, b)
         } else {
-            let r = (self.bg.r() as u16 + 20).min(255) as u8;
-            let g = (self.bg.g() as u16 + 22).min(255) as u8;
-            let b = (self.bg.b() as u16 + 28).min(255) as u8;
+            let r = (self.bg.r() as u16 + 28).min(255) as u8;
+            let g = (self.bg.g() as u16 + 32).min(255) as u8;
+            let b = (self.bg.b() as u16 + 40).min(255) as u8;
             Color32::from_rgb(r, g, b)
         }
     }

@@ -50,7 +50,7 @@ impl App {
         };
 
         // Detached Editor & Preview Panel Surface (subtle card background & border derived from theme)
-        let is_preview_active = self.editor.preview_open && self.misc.mode == Mode::Normal;
+        let is_preview_active = self.editor.preview_open && (self.misc.mode == Mode::Normal || self.misc.mode == Mode::Doc);
         let divider_w = 11.0;
         let available_w = (top_panel_rect.width() - divider_w).max(300.0);
         let min_w = 150.0f32;
@@ -76,6 +76,20 @@ impl App {
         };
 
         // Draw card surfaces: preserve desktop blur & window opacity across editor and preview
+        let is_editor_focused = !self.sidebar.open || (!self.sidebar.focused && !self.tabs.doc_sidebar_focused);
+        let ed_stroke = if self.sidebar.open && is_editor_focused {
+            Stroke::new(1.0, self.misc.theme.accent.gamma_multiply(0.40))
+        } else {
+            Stroke::new(1.0, self.misc.theme.border().gamma_multiply(0.60))
+        };
+        painter.rect(
+            ed_card_rect,
+            5.0,
+            Color32::TRANSPARENT,
+            ed_stroke,
+            egui::StrokeKind::Inside,
+        );
+
         if let Some(p_card) = preview_card_rect {
             let p_alpha = ((self.misc.opacity * 255.0) as u8).saturating_sub(15).max(30);
             let p_bg = Color32::from_rgba_unmultiplied(
@@ -84,7 +98,13 @@ impl App {
                 self.misc.theme.surface().b(),
                 p_alpha,
             );
-            painter.rect(p_card, 5.0, p_bg, Stroke::NONE, egui::StrokeKind::Inside);
+            painter.rect(
+                p_card,
+                5.0,
+                p_bg,
+                Stroke::new(1.0, self.misc.theme.border().gamma_multiply(0.60)),
+                egui::StrokeKind::Inside,
+            );
         }
 
         // Tab strip on the editor card
@@ -294,7 +314,7 @@ impl App {
             && matches!(self.misc.mode, Mode::Normal | Mode::Doc);
 
         self.editor.visual_lines = if in_vim_mode {
-            vec![crate::types::VisualLine { char_start: 0, char_end: self.editor.ed.buf.len() }]
+            vec![crate::types::VisualLine { char_start: 0, char_end: target_ed.buf.len() }]
         } else if self.editor.inline_mode {
             let gutter_w = if self.editor.show_line_numbers {
                 let total_lines = (target_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
@@ -518,6 +538,12 @@ impl App {
                         );
                     }
                 } else if self.editor.inline_mode {
+                    let mut dummy_dirty = false;
+                    let target_dirty = if self.misc.mode == Mode::Doc {
+                        &mut dummy_dirty
+                    } else {
+                        &mut self.editor.is_dirty
+                    };
                     render_inline_editor(
                         ui,
                         painter,
@@ -538,7 +564,7 @@ impl App {
                         search_matches,
                         self.editor.show_line_numbers,
                         &mut self.misc.sound,
-                        &mut self.editor.is_dirty,
+                        target_dirty,
                     );
                 } else {
                     render_editor_body(

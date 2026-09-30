@@ -1,6 +1,7 @@
 //! Vim mode toggling, Lua script execution, and native Neovim MessagePack-RPC command forwarding.
 
 use crate::app::{App, EditorInputMode};
+use crate::mode::Mode;
 
 pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> bool {
     match cmd {
@@ -128,16 +129,46 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
 pub fn handle_fallback(app: &mut App, cmd: &str, raw: &str, now: f64) {
     if app.services.editor_controller.mode == EditorInputMode::Vim {
         if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-            // First attempt native RPC execution for immediate output/feedback
-            match backend.execute_command(raw) {
+            // First check if user typed Lua syntax directly (e.g. `vim.opt.wrap` or `vim.api...`)
+            let is_lua = raw.starts_with("vim.") || raw.starts_with("require(");
+            let result = if is_lua {
+                backend.execute_lua(raw)
+            } else {
+                backend.execute_command(raw)
+            };
+
+            match result {
                 Ok(output) => {
+                    // Force Neovim to redraw and sync modified text immediately (:sort, :%s, :g/.../d, :.,$d)
+                    let _ = backend.execute_command("redraw");
+                    if let Some(new_text) = backend.force_sync_text() {
+                        let current_text = if app.misc.mode == Mode::Doc {
+                            app.editor.doc_ed.text()
+                        } else {
+                            app.editor.ed.text()
+                        };
+                        if new_text != current_text {
+                            if app.misc.mode == Mode::Doc {
+                                let cur = app.editor.doc_ed.cur;
+                                app.editor.doc_ed.set_text(&new_text);
+                                app.editor.doc_ed.cur = cur.min(app.editor.doc_ed.buf.len());
+                            } else {
+                                let cur = app.editor.ed.cur;
+                                app.editor.ed.set_text(&new_text);
+                                app.editor.ed.cur = cur.min(app.editor.ed.buf.len());
+                                app.editor.is_dirty = true;
+                                app.misc.last_char_time = now;
+                                app.sync_active_tab();
+                            }
+                        }
+                    }
                     if !output.is_empty() {
                         app.set_status(output, now);
                     }
                 }
                 Err(err) => {
-                    // Also forward to interactive input stream to ensure UI redraw / interactive prompts
-                    let _ = backend.send_input(&format!(":{}<CR>", raw));
+                    // Clean error reporting: do NOT send raw keys into Neovim input stream,
+                    // which causes interactive prompt deadlocks, keystroke pollution, or exits.
                     if !err.is_empty() {
                         app.set_status(format!("Vim: {}", err), now);
                     }

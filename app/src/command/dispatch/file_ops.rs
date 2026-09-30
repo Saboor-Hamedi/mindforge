@@ -1,6 +1,6 @@
 //! File and document lifecycle commands (:w, :r, :d, :clear, :backup, :export, :import, :edit, :new).
 
-use crate::app::App;
+use crate::app::{App, EditorInputMode};
 use crate::mode::Mode;
 use crate::services::db_worker::DbMsg;
 
@@ -27,6 +27,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 app.modal.rename_just_opened = true;
             }
             true
+        }
+        "d" if app.services.editor_controller.mode == EditorInputMode::Vim => {
+            // In Vim mode, `:d` is line deletion — let it fall through to Neovim MessagePack-RPC
+            false
         }
         "d" | "delete" | "rm" => {
             if app.misc.mode == Mode::Doc {
@@ -66,6 +70,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
         }
         "new" | "n" => {
             app.create_new_note(now);
+            true
+        }
+        "sort" | "sort!" => {
+            handle_sort(app, cmd, args, now);
             true
         }
         _ => false,
@@ -236,4 +244,102 @@ fn handle_import(app: &mut App, args: &str, now: f64) {
     } else {
         app.set_status("Import cancelled", now);
     }
+}
+
+fn handle_sort(app: &mut App, cmd: &str, args: &str, now: f64) {
+    let (target_ed, is_doc) = if app.misc.mode == Mode::Doc {
+        (&mut app.editor.doc_ed, true)
+    } else {
+        (&mut app.editor.ed, false)
+    };
+
+    let text = target_ed.text();
+    if text.trim().is_empty() {
+        app.set_status("Sort: buffer is empty", now);
+        return;
+    }
+
+    let has_trailing_newline = text.ends_with('\n');
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    if lines.is_empty() {
+        app.set_status("Sort: no lines to sort", now);
+        return;
+    }
+
+    let is_reverse = cmd.ends_with('!')
+        || args.contains('!')
+        || args.split_whitespace().any(|a| a == "reverse" || a == "r" || a == "!r");
+    let is_unique = args.split_whitespace().any(|a| a.contains('u'));
+    let is_numeric = args.split_whitespace().any(|a| a.contains('n'));
+    let is_case_insensitive = args.split_whitespace().any(|a| a.contains('i'));
+
+    if is_numeric {
+        lines.sort_by(|a, b| {
+            let parse_leading_num = |s: &str| -> f64 {
+                let trimmed = s.trim_start();
+                let num_str: String = trimmed
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
+                    .collect();
+                num_str.parse::<f64>().unwrap_or(0.0)
+            };
+            let ord = parse_leading_num(a)
+                .partial_cmp(&parse_leading_num(b))
+                .unwrap_or(std::cmp::Ordering::Equal);
+            if is_reverse {
+                ord.reverse()
+            } else {
+                ord
+            }
+        });
+    } else if is_case_insensitive {
+        lines.sort_by(|a, b| {
+            let ord = a.to_lowercase().cmp(&b.to_lowercase());
+            if is_reverse {
+                ord.reverse()
+            } else {
+                ord
+            }
+        });
+    } else if is_reverse {
+        lines.sort_by(|a, b| b.cmp(a));
+    } else {
+        lines.sort();
+    }
+
+    if is_unique {
+        lines.dedup();
+    }
+
+    let mut new_text = lines.join("\n");
+    if has_trailing_newline && !new_text.is_empty() {
+        new_text.push('\n');
+    }
+
+    let cur = target_ed.cur;
+    target_ed.set_text(&new_text);
+    target_ed.cur = cur.min(target_ed.buf.len());
+
+    if !is_doc {
+        app.editor.is_dirty = true;
+        app.misc.last_char_time = now;
+        app.sync_active_tab();
+    }
+
+    // Keep Neovim backend in sync if initialized
+    if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+        let _ = backend.set_document(&new_text, 0, 0);
+    }
+
+    let count = lines.len();
+    let desc = match (is_reverse, is_unique, is_numeric, is_case_insensitive) {
+        (true, true, _, _) => "reverse unique",
+        (true, false, true, _) => "reverse numeric",
+        (true, false, false, _) => "reverse alphabetical",
+        (false, true, _, _) => "unique alphabetical",
+        (false, false, true, _) => "numeric",
+        (false, false, false, true) => "case-insensitive",
+        _ => "alphabetical",
+    };
+    app.set_status(format!("Sorted {} lines ({})", count, desc), now);
 }

@@ -65,7 +65,7 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
     let ctrl_dedent = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::OpenBracket));
     if ctrl_indent {
         if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-            && app.misc.mode == Mode::Normal
+            && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
             && !app.command_bar.in_command
         {
             return None;
@@ -84,7 +84,7 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
     }
     if ctrl_dedent {
         if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-            && app.misc.mode == Mode::Normal
+            && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
             && !app.command_bar.in_command
         {
             return None;

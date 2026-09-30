@@ -74,5 +74,21 @@ mod tests {
         assert!(COMMAND_CATALOG.iter().any(|c| c.name == "backlinks"));
         assert!(COMMAND_CATALOG.iter().any(|c| c.name == "outline"));
         assert!(COMMAND_CATALOG.iter().any(|c| c.name == "lua"));
+        assert!(COMMAND_CATALOG.iter().any(|c| c.name == "sort"));
+    }
+
+    #[test]
+    fn test_sort_command_dispatch() {
+        let mut app = App::new();
+        app.editor.ed.set_text("zebra\napple\nmango\nbanana");
+        execute_command(&mut app, ":sort", 0.0);
+        assert_eq!(app.editor.ed.text(), "apple\nbanana\nmango\nzebra");
+
+        execute_command(&mut app, ":sort!", 0.0);
+        assert_eq!(app.editor.ed.text(), "zebra\nmango\nbanana\napple");
+
+        app.editor.ed.set_text("b\na\nb\na\nc");
+        execute_command(&mut app, ":sort u", 0.0);
+        assert_eq!(app.editor.ed.text(), "a\nb\nc");
     }
 }

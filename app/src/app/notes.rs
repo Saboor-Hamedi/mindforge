@@ -276,6 +276,11 @@ impl App {
             self.editor.doc_ed.cur = 0;
             self.editor.doc_ed.clear_history();
             self.editor.doc_scroll_y = 0.0;
+            if self.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
+                if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+                    let _ = backend.set_document(doc.content, 0, 0);
+                }
+            }
             let msg = format!("{} — editable practice copy; source documentation stays unchanged", doc.title);
             self.set_status(&msg, now);
         }

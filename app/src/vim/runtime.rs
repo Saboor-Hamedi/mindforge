@@ -97,9 +97,7 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
 
     if app.services.editor_controller.mode == EditorInputMode::Hybrid {
         replay_pending_hybrid_input(app, now);
-        if let Some(mut backend) = app.services.vim_runtime.backend.take() {
-            backend.shutdown();
-        }
+        sync_neovim_changes(app, now);
     }
 
     let (active_text, active_row, active_col, active_doc_id, active_tab_idx) = if app.misc.mode == Mode::Doc {
@@ -128,10 +126,18 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         let start_context = ctx.clone();
         let repaint_context = ctx.clone();
         let text_clone = active_text.clone();
+        let (init_cols, init_rows) = if let (Some(rect), Some(font_size)) = (app.editor.last_editor_rect, app.editor.last_ed_font_size) {
+            let (_, cw, lh) = app.misc.zoom.editor_metrics(font_size, ctx);
+            let cols = (rect.width() / cw.max(1.0)).floor().max(20.0) as usize;
+            let rows = (rect.height() / lh.max(1.0)).floor().max(5.0) as usize;
+            (cols, rows)
+        } else {
+            (80, 24)
+        };
         let spawn = std::thread::Builder::new()
             .name("neovim-startup".into())
             .spawn(move || {
-                let result = super::VimBackend::start(&text_clone, 80, 24, active_row, active_col, Some(start_context));
+                let result = super::VimBackend::start(&text_clone, init_cols, init_rows, active_row, active_col, Some(start_context));
                 let _ = tx.send(result);
                 repaint_context.request_repaint();
             });
@@ -149,6 +155,7 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
                     backend.tick();
                     let _ = backend.take_text_update();
                     let _ = backend.set_document(&active_text, active_row, active_col);
+                    backend.sync_theme(&app.misc.theme);
                 }
             } else {
                 sync_neovim_changes(app, now);

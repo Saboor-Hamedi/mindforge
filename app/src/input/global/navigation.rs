@@ -67,17 +67,30 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
 
     // 2. Documentation Sidebar Navigation
     if app.misc.mode == Mode::Doc && app.tabs.doc_sidebar_focused && !app.command_bar.in_command {
-        let (doc_up, doc_down, doc_enter, doc_esc, doc_to_reader) = ctx.input(|i| (
+        let (doc_up, doc_down, doc_enter, doc_esc, doc_edit, doc_to_reader) = ctx.input(|i| (
             (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K)) || i.key_pressed(egui::Key::ArrowUp),
             (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J)) || i.key_pressed(egui::Key::ArrowDown),
             i.key_pressed(egui::Key::Enter),
             i.key_pressed(egui::Key::Escape),
+            !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::I),
             (!i.modifiers.alt && (i.key_pressed(egui::Key::L) || i.key_pressed(egui::Key::ArrowRight))),
         ));
 
         if doc_esc {
             app.tabs.doc_sidebar_focused = false;
             app.set_status("Doc reader active (Esc returns to the sidebar)", now);
+            return Some(false);
+        }
+
+        if doc_edit {
+            app.tabs.doc_sidebar_focused = false;
+            if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
+                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                    let _ = backend.handle_text("i");
+                } else {
+                    app.services.vim_runtime.queue_input(crate::vim::PendingVimInput::Text("i".into()));
+                }
+            }
             return Some(false);
         }
 

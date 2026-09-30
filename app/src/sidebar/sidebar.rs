@@ -15,7 +15,7 @@ pub use footer::render_sidebar_footer;
 pub use header::render_sidebar_header;
 
 use core::Note;
-use eframe::egui::{self, vec2, Color32, Rect};
+use eframe::egui::{self, vec2, Color32, Rect, Stroke};
 
 pub enum SidebarAction {
     SwitchMode(usize),
@@ -53,6 +53,17 @@ pub fn render_sidebar(
         (opacity * 255.0) as u8,
     );
     painter.rect_filled(sb_rect, 0.0, sb_bg);
+
+    // Subtle focus divider indicator: glows with accent when sidebar is focused
+    let (divider_w, divider_color) = if sidebar_focused {
+        (1.5, theme.accent.gamma_multiply(0.75))
+    } else {
+        (1.0, theme.border())
+    };
+    painter.line_segment(
+        [sb_rect.right_top(), sb_rect.right_bottom()],
+        Stroke::new(divider_w, divider_color),
+    );
 
     let sb_origin = sb_rect.min + vec2(16.0, 18.0);
 
