@@ -25,6 +25,47 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
         return Some(false);
     }
 
+    // Rename Active Note (Ctrl+R)
+    let ctrl_r = ctx.input(|i| {
+        (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::R)
+    });
+    if ctrl_r && !app.command_bar.in_command {
+        if app.misc.mode == Mode::Doc {
+            app.set_status("Documentation notes cannot be renamed", now);
+            return Some(false);
+        }
+        if !app.misc.show_welcome && (!app.open_notes.is_empty() || app.notes.active_note_id.is_some()) {
+            let title = if !app.notes.active_note_title.is_empty() {
+                app.notes.active_note_title.clone()
+            } else if let Some(tab) = app.open_notes.get(app.tabs.active_tab) {
+                tab.title.clone()
+            } else {
+                "Untitled Note".to_string()
+            };
+            app.modal.rename_open = true;
+            app.modal.rename_input = title;
+            app.modal.rename_just_opened = true;
+            return Some(false);
+        }
+    }
+
+    // Delete Active Note (Ctrl+D)
+    let ctrl_d = ctx.input(|i| {
+        (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::D)
+    });
+    if ctrl_d && !app.command_bar.in_command {
+        if app.misc.mode == Mode::Doc {
+            app.set_status("Documentation notes cannot be deleted", now);
+            return Some(false);
+        }
+        if !app.misc.show_welcome && (!app.open_notes.is_empty() || app.notes.active_note_id.is_some()) {
+            app.modal.delete_confirm_open = true;
+            app.modal.delete_just_opened = true;
+            app.modal.pending_delete_note_id = app.notes.active_note_id.or_else(|| app.open_notes.get(app.tabs.active_tab).map(|t| t.id));
+            return Some(false);
+        }
+    }
+
     // Tab Navigation: Ctrl+Tab and Ctrl+Shift+Tab
     let ctrl_tab = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::Tab));
     let ctrl_shift_tab = ctx.input(|i| i.modifiers.ctrl && i.modifiers.shift && i.key_pressed(egui::Key::Tab));

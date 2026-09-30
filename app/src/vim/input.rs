@@ -15,10 +15,10 @@ pub fn handle_event(
     has_text_event: bool,
     has_colon_text: bool,
 ) -> Option<bool> {
-    let owns_input = app.misc.mode == Mode::Normal
+    let owns_input = matches!(app.misc.mode, Mode::Normal | Mode::Doc)
         && app.services.editor_controller.mode == EditorInputMode::Vim
-        && !app.misc.show_welcome
-        && !app.open_notes.is_empty()
+        && (!app.misc.show_welcome || app.misc.mode == Mode::Doc)
+        && (!app.open_notes.is_empty() || app.misc.mode == Mode::Doc)
         && !app.modal.search_open
         && !app.modal.settings_open
         && !app.modal.rename_open

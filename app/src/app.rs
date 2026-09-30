@@ -156,9 +156,9 @@ impl eframe::App for App {
         };
         let (ed_font_size, _, _) = self.misc.zoom.editor_metrics(self.misc.font_size, ctx);
         let active_ed = if self.misc.mode == Mode::Doc { &self.editor.doc_ed } else { &self.editor.ed };
-        let in_vim = self.services.editor_controller.mode == EditorInputMode::Vim && self.misc.mode == Mode::Normal;
+        let in_vim = self.services.editor_controller.mode == EditorInputMode::Vim && matches!(self.misc.mode, Mode::Normal | Mode::Doc);
         self.editor.visual_lines = if in_vim {
-            vec![crate::types::VisualLine { char_start: 0, char_end: self.editor.ed.buf.len() }]
+            vec![crate::types::VisualLine { char_start: 0, char_end: active_ed.buf.len() }]
         } else if self.editor.inline_mode {
             let gutter_w = if self.editor.show_line_numbers {
                 let total_lines = (active_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);

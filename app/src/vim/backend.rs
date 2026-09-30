@@ -51,7 +51,7 @@ impl VimBackend {
         // user's init.lua has absolute numbers or cursorline disabled.
         client.request(
             "nvim_command",
-            vec![Value::from("set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler")],
+            vec![Value::from("set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor\nhi Cursor NONE\nhi TermCursor NONE")],
         )?;
 
         // Load text async — no blocking round-trip needed here.
@@ -346,6 +346,22 @@ impl VimBackend {
                 }
             }
         }
+        if let Some(info) = args.get(3).and_then(Value::as_array) {
+            for map in info {
+                if let Some(map) = map.as_map() {
+                    for (k, v) in map {
+                        if k.as_str() == Some("ui_name") {
+                            if let Some(name) = v.as_str() {
+                                if name == "Cursor" || name == "TermCursor" {
+                                    reverse = false;
+                                    background = None;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         self.grid.highlights.insert(id, super::state::HighlightStyle { foreground, background, reverse });
         for revision in &mut self.grid.row_revision {
             *revision = revision.wrapping_add(1);
@@ -631,6 +647,7 @@ impl EditorBackend for VimBackend {
         typed: bool,
         show_line_numbers: bool,
     ) {
+        self.tick();
         let font = crate::services::font_manager::editor_font_id(font_size);
         if self.layout_font_size != font_size.to_bits() {
             self.row_layouts.clear();
@@ -658,9 +675,9 @@ impl EditorBackend for VimBackend {
         let number_columns = if show_line_numbers && effective_gutter_w > 0.0 { 4 } else { 0 };
         if self.line_numbers_enabled != Some(show_line_numbers) {
             let options = if show_line_numbers {
-                "set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler"
+                "set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor\nhi Cursor NONE\nhi TermCursor NONE"
             } else {
-                "set nonumber norelativenumber cursorline signcolumn=no laststatus=0 noruler"
+                "set nonumber norelativenumber cursorline signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor\nhi Cursor NONE\nhi TermCursor NONE"
             };
             let _ = self.client.notify("nvim_command", vec![Value::from(options)]);
             self.line_numbers_enabled = Some(show_line_numbers);
@@ -738,22 +755,33 @@ impl EditorBackend for VimBackend {
         for row_idx in 0..rows {
             let row = &self.grid.cells[row_idx];
             let revision = self.grid.row_revision.get(row_idx).copied().unwrap_or(0);
+            let is_last_row = row_idx + 1 >= rows;
+            let is_mode_msg = is_last_row && row.iter().skip(number_columns).any(|c| c.text.contains("--"));
+            let row_font = if is_mode_msg {
+                crate::services::font_manager::editor_font_id(13.0)
+            } else {
+                font.clone()
+            };
             if self.row_layouts[row_idx]
                 .as_ref()
                 .is_none_or(|(cached_revision, _)| *cached_revision != revision)
             {
                 let mut job = egui::text::LayoutJob::default();
-                for cell in row.iter().skip(number_columns).take(width.saturating_sub(number_columns)) {
+                for (col_offset, cell) in row.iter().skip(number_columns).take(width.saturating_sub(number_columns)).enumerate() {
+                    let col_idx = number_columns + col_offset;
+                    let is_cursor_cell = row_idx == self.grid.cursor.row && col_idx == self.grid.cursor.column;
                     let mut foreground = theme.text;
                     let mut format = egui::TextFormat {
-                        font_id: font.clone(),
+                        font_id: row_font.clone(),
                         color: foreground,
                         ..Default::default()
                     };
                     if let Some(style) = self.grid.highlights.get(&cell.highlight) {
                         if style.reverse {
-                            foreground = style.background.map(rgb).unwrap_or(theme.bg);
-                            format.background = style.foreground.map(rgb).unwrap_or(theme.text);
+                            if !is_cursor_cell || caret.kind == crate::caret::CaretKind::Block {
+                                foreground = style.background.map(rgb).unwrap_or(theme.bg);
+                                format.background = style.foreground.map(rgb).unwrap_or(theme.text);
+                            }
                         } else {
                             if let Some(color) = style.foreground {
                                 foreground = rgb(color);
@@ -775,13 +803,18 @@ impl EditorBackend for VimBackend {
             let y_offset = ((nvim_row_height - font_row_height) * 0.5).max(0.0).round();
 
             if let Some((_, galley)) = &self.row_layouts[row_idx] {
+                let y_pos = if is_mode_msg {
+                    rect.max.y - 20.0
+                } else {
+                    origin.y + row_idx as f32 * nvim_row_height + y_offset
+                };
                 painter.galley(
-                    Pos2::new(text_left, origin.y + row_idx as f32 * nvim_row_height + y_offset),
+                    Pos2::new(text_left, y_pos),
                     Arc::clone(galley),
                     theme.text,
                 );
             }
-            if number_columns > 0 {
+            if number_columns > 0 && !is_mode_msg {
                 let number = row.iter().take(number_columns).map(|cell| cell.text.as_str()).collect::<String>();
                 let number = number.trim();
                 let current = row_idx == self.grid.cursor.row;
@@ -833,6 +866,10 @@ impl EditorBackend for VimBackend {
                 self.cursor_render_initialized = true;
                 response.request_focus();
             }
+            if self.is_insert_mode() || self.grid.mode.starts_with('r') {
+                caret.pos = target;
+                caret.gliding = false;
+            }
             caret.update(dt, target, typed && (self.is_insert_mode() || self.grid.mode.starts_with('r')), now, cell_width, font_row_height);
             caret.paint(&painter, cell_width, font_row_height, now, theme.accent, theme.is_light());
 
@@ -855,12 +892,14 @@ impl EditorBackend for VimBackend {
 
         // The app's LunaLine owns command entry; do not paint Neovim's
         // captured command line beneath the editor as a second prompt.
+        // If a message is displayed, use a fixed font size so it never zooms in or out.
         if !self.grid.message.is_empty() {
+            let fixed_font = crate::services::font_manager::editor_font_id(13.0);
             painter.text(
-                Pos2::new(origin.x, rect.max.y - nvim_row_height),
+                Pos2::new(origin.x, rect.max.y - 20.0),
                 Align2::LEFT_TOP,
                 &self.grid.message,
-                font.clone(),
+                fixed_font,
                 theme.highlight,
             );
         }

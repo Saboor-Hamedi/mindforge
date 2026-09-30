@@ -76,7 +76,7 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         });
         let has_text_event = i.events.iter().any(|event| matches!(event, egui::Event::Text(text) if !text.is_empty()));
         for ev in &i.events {
-            let command_surface_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc | Mode::ScanReport | Mode::ScanHistory)
+            let command_surface_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc | Mode::ScanReport | Mode::ScanHistory | Mode::Stats)
                 && !app.terminal.focused
                 && !app.modal.search_open
                 && !app.modal.settings_open

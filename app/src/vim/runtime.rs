@@ -102,29 +102,36 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         }
     }
 
-    let vim_active = app.misc.mode == Mode::Normal
+    let (active_text, active_row, active_col, active_doc_id, active_tab_idx) = if app.misc.mode == Mode::Doc {
+        let text = app.editor.doc_ed.text();
+        let (r, c) = app.editor.doc_ed.row_col();
+        (text, r, c, Some(-(app.tabs.active_doc_idx as i64 + 1)), Some(app.tabs.active_doc_tab))
+    } else {
+        let text = app.editor.ed.text();
+        let (r, c) = app.editor.ed.row_col();
+        (text, r, c, app.notes.active_note_id, Some(app.tabs.active_tab))
+    };
+
+    let vim_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc)
         && app.services.editor_controller.mode == EditorInputMode::Vim
-        && !app.misc.show_welcome
-        && !app.open_notes.is_empty();
+        && (!app.misc.show_welcome || app.misc.mode == Mode::Doc)
+        && (!app.open_notes.is_empty() || app.misc.mode == Mode::Doc);
     if vim_active
         && app.services.vim_runtime.backend.is_none()
         && app.services.vim_runtime.start_rx.is_none()
         && app.services.vim_runtime.start_error.is_none()
     {
-        let text = app.editor.ed.text();
-        let (row, column) = app.editor.ed.row_col();
-        let note_id = app.notes.active_note_id;
-        let tab_index = app.tabs.active_tab;
         let (tx, rx) = std::sync::mpsc::channel();
         app.services.vim_runtime.start_rx = Some(rx);
-        app.services.vim_runtime.start_note_id = note_id;
-        app.services.vim_runtime.start_tab_index = Some(tab_index);
+        app.services.vim_runtime.start_note_id = active_doc_id;
+        app.services.vim_runtime.start_tab_index = active_tab_idx;
         let start_context = ctx.clone();
         let repaint_context = ctx.clone();
+        let text_clone = active_text.clone();
         let spawn = std::thread::Builder::new()
             .name("neovim-startup".into())
             .spawn(move || {
-                let result = super::VimBackend::start(&text, 80, 24, row, column, Some(start_context));
+                let result = super::VimBackend::start(&text_clone, 80, 24, active_row, active_col, Some(start_context));
                 let _ = tx.send(result);
                 repaint_context.request_repaint();
             });
@@ -134,25 +141,23 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
             app.set_status(&format!("Neovim worker could not start: {error}"), now);
         }
     } else if vim_active && app.services.vim_runtime.backend.is_some() {
-        let switched_document = app.services.vim_runtime.note_id != app.notes.active_note_id
-            || app.services.vim_runtime.tab_index != Some(app.tabs.active_tab);
+        let switched_document = app.services.vim_runtime.note_id != active_doc_id
+            || app.services.vim_runtime.tab_index != active_tab_idx;
         if switched_document || (entering_vim && !vim_started_this_frame) {
             if entering_vim {
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     backend.tick();
                     let _ = backend.take_text_update();
-                    let (row, column) = app.editor.ed.row_col();
-                    let _ = backend.set_document(&app.editor.ed.text(), row, column);
+                    let _ = backend.set_document(&active_text, active_row, active_col);
                 }
             } else {
                 sync_neovim_changes(app, now);
-                let (row, column) = app.editor.ed.row_col();
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-                    let _ = backend.set_document(&app.editor.ed.text(), row, column);
+                    let _ = backend.set_document(&active_text, active_row, active_col);
                 }
             }
-            app.services.vim_runtime.note_id = app.notes.active_note_id;
-            app.services.vim_runtime.tab_index = Some(app.tabs.active_tab);
+            app.services.vim_runtime.note_id = active_doc_id;
+            app.services.vim_runtime.tab_index = active_tab_idx;
         }
     }
     sync_neovim_changes(app, now);
@@ -181,7 +186,14 @@ fn sync_neovim_changes(app: &mut App, now: f64) {
         (update, cursor, app.services.vim_runtime.tab_index, app.services.vim_runtime.note_id)
     };
     let changed = update.is_some();
-    if tab_index == Some(app.tabs.active_tab) && note_id == app.notes.active_note_id {
+    if app.misc.mode == Mode::Doc {
+        if let Some(text) = update {
+            app.editor.doc_ed.set_text(&text);
+        }
+        if let Some(cursor) = cursor {
+            app.editor.doc_ed.cur = cursor.min(app.editor.doc_ed.buf.len());
+        }
+    } else if tab_index == Some(app.tabs.active_tab) && note_id == app.notes.active_note_id {
         if let Some(text) = update { app.editor.ed.set_text(&text); }
         if let Some(cursor) = cursor { app.editor.ed.cur = cursor.min(app.editor.ed.buf.len()); }
         if changed {

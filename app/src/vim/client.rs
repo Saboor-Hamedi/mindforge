@@ -53,7 +53,7 @@ impl NeovimClient {
             .as_ref()
             .and_then(|path| std::fs::metadata(path).ok())
             .and_then(|metadata| metadata.modified().ok());
-        cmd.args(["--cmd", "set mouse=a shortmess+=I nomore noswapfile"])
+        cmd.args(["--cmd", "set mouse=a shortmess+=I nomore noswapfile guicursor=a:ver1-Cursor/lCursor"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());

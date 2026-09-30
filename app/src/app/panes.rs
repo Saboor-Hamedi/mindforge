@@ -287,7 +287,7 @@ impl App {
         // In Vim mode Neovim owns the editor surface — skip the inline layout
         // computation entirely; it's expensive and serves no purpose here.
         let in_vim_mode = self.services.editor_controller.mode == EditorInputMode::Vim
-            && self.misc.mode == Mode::Normal;
+            && matches!(self.misc.mode, Mode::Normal | Mode::Doc);
 
         self.editor.visual_lines = if in_vim_mode {
             vec![crate::types::VisualLine { char_start: 0, char_end: self.editor.ed.buf.len() }]
@@ -481,7 +481,7 @@ impl App {
                         }
                     }
                 } else if self.services.editor_controller.mode == EditorInputMode::Vim
-                    && self.misc.mode == Mode::Normal
+                    && matches!(self.misc.mode, Mode::Normal | Mode::Doc)
                     && self.services.vim_runtime.backend.is_none()
                     && self.services.vim_runtime.start_error.is_some()
                 {
@@ -490,7 +490,7 @@ impl App {
                             ui.colored_label(self.misc.theme.highlight, format!("Neovim could not start: {error}"));
                         }
                     });
-                } else if self.misc.mode == Mode::Normal
+                } else if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
                     && self.services.vim_runtime.backend.is_some()
                     && self.services.editor_controller.mode == EditorInputMode::Vim
                 {

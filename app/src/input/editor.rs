@@ -10,7 +10,7 @@ pub fn handle_editor_paste(app: &mut App, s: &str, now: f64) -> bool {
     if app.misc.mode != Mode::Normal && app.misc.mode != Mode::Doc {
         return false;
     }
-    if app.misc.mode == Mode::Normal && app.services.editor_controller.mode == EditorInputMode::Vim {
+    if matches!(app.misc.mode, Mode::Normal | Mode::Doc) && app.services.editor_controller.mode == EditorInputMode::Vim {
         return false;
     }
 
@@ -32,7 +32,7 @@ pub fn handle_editor_paste(app: &mut App, s: &str, now: f64) -> bool {
 }
 
 pub fn handle_editor_text(app: &mut App, s: &str, now: f64) -> bool {
-    if app.misc.mode == Mode::Normal && app.services.editor_controller.mode == EditorInputMode::Vim {
+    if matches!(app.misc.mode, Mode::Normal | Mode::Doc) && app.services.editor_controller.mode == EditorInputMode::Vim {
         return false;
     }
 
@@ -63,7 +63,7 @@ pub fn handle_editor_text(app: &mut App, s: &str, now: f64) -> bool {
 pub fn handle_editor_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64) -> bool {
     let is_doc = app.misc.mode == Mode::Doc;
 
-    if app.misc.mode == Mode::Normal && app.services.editor_controller.mode == EditorInputMode::Vim {
+    if matches!(app.misc.mode, Mode::Normal | Mode::Doc) && app.services.editor_controller.mode == EditorInputMode::Vim {
         return false;
     }
 
