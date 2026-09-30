@@ -22,12 +22,13 @@ pub fn render_rename_modal(
 
     // Sleek floating modal — just a little bigger than the input field itself
     let modal_w = 460.0;
-    let modal_h = 50.0;
+    let modal_h = 46.0;
     let center_pos = egui::pos2(bounds.center().x, bounds.center().y - 40.0);
     let modal_rect = Rect::from_center_size(center_pos, vec2(modal_w, modal_h));
 
-    // Clicking outside closes the modal
-    let clicked_outside = ui.input(|i| i.pointer.primary_clicked())
+    // Clicking outside closes the modal (ignoring the frame it was opened on)
+    let clicked_outside = !just_opened
+        && ui.input(|i| i.pointer.primary_clicked())
         && !modal_rect.contains(ui.input(|i| i.pointer.interact_pos().unwrap_or_default()));
 
     // Sleek modal container with 10px rounded corners and accent border
@@ -44,13 +45,19 @@ pub fn render_rename_modal(
         egui::StrokeKind::Inside,
     );
 
-    // Inner input area
-    let edit_rect = modal_rect.shrink2(vec2(16.0, 10.0));
+    // Inner input area vertically centered and aligned on the left
+    let input_h = 24.0;
+    let input_y = modal_rect.center().y - input_h * 0.5;
+    let edit_rect = Rect::from_min_size(
+        egui::pos2(modal_rect.min.x + 18.0, input_y),
+        vec2(modal_w - 36.0, input_h),
+    );
     let response = ui.put(
         edit_rect,
         egui::TextEdit::singleline(input_text)
             .font(FontId::monospace(14.0))
             .text_color(theme.text)
+            .margin(egui::Margin::symmetric(0, 2))
             .frame(false),
     );
 

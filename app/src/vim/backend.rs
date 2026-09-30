@@ -51,7 +51,7 @@ impl VimBackend {
         // user's init.lua has absolute numbers or cursorline disabled.
         client.request(
             "nvim_command",
-            vec![Value::from("set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor\nhi Cursor NONE\nhi TermCursor NONE")],
+            vec![Value::from("set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ \nhi Cursor NONE\nhi TermCursor NONE")],
         )?;
 
         // Load text async — no blocking round-trip needed here.
@@ -675,9 +675,9 @@ impl EditorBackend for VimBackend {
         let number_columns = if show_line_numbers && effective_gutter_w > 0.0 { 4 } else { 0 };
         if self.line_numbers_enabled != Some(show_line_numbers) {
             let options = if show_line_numbers {
-                "set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor\nhi Cursor NONE\nhi TermCursor NONE"
+                "set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ \nhi Cursor NONE\nhi TermCursor NONE"
             } else {
-                "set nonumber norelativenumber cursorline signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor\nhi Cursor NONE\nhi TermCursor NONE"
+                "set nonumber norelativenumber cursorline signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ \nhi Cursor NONE\nhi TermCursor NONE"
             };
             let _ = self.client.notify("nvim_command", vec![Value::from(options)]);
             self.line_numbers_enabled = Some(show_line_numbers);
@@ -733,24 +733,6 @@ impl EditorBackend for VimBackend {
 
         let rows = self.grid.cells.len().min(height);
         self.row_layouts.resize_with(rows, || None);
-        let grid_has_text = self
-            .grid
-            .cells
-            .iter()
-            .flatten()
-            .any(|cell| !cell.text.trim().is_empty());
-
-        if !grid_has_text && self.lines.iter().any(|line| !line.is_empty()) {
-            for (row, line) in self.lines.iter().take(height).enumerate() {
-                painter.text(
-                    Pos2::new(origin.x + number_columns as f32 * cell_width, origin.y + row as f32 * nvim_row_height),
-                    Align2::LEFT_TOP,
-                    line,
-                    font.clone(),
-                    theme.text,
-                );
-            }
-        }
 
         for row_idx in 0..rows {
             let row = &self.grid.cells[row_idx];
@@ -858,7 +840,24 @@ impl EditorBackend for VimBackend {
         let cursor_row = self.grid.cursor.row;
         let cursor_column = self.grid.cursor.column;
         if cursor_row < rows && cursor_column < width {
-            let cursor_x = origin.x + cursor_column as f32 * cell_width;
+            let is_visual = self.grid.mode == "visual" || self.grid.mode.starts_with('v') || self.grid.mode.starts_with('V') || self.grid.mode == "\x16";
+            let visual_offset_x = if is_visual && caret.kind != crate::caret::CaretKind::Block {
+                let next_col = cursor_column + 1;
+                let current_highlight = self.grid.cells.get(cursor_row).and_then(|r| r.get(cursor_column)).map(|c| c.highlight).unwrap_or(0);
+                let next_is_same_highlight = if next_col < width {
+                    self.grid.cells.get(cursor_row).and_then(|r| r.get(next_col)).map(|c| c.highlight) == Some(current_highlight)
+                } else {
+                    false
+                };
+                if next_is_same_highlight {
+                    0.0
+                } else {
+                    cell_width
+                }
+            } else {
+                0.0
+            };
+            let cursor_x = origin.x + cursor_column as f32 * cell_width + visual_offset_x;
             let cursor_y = origin.y + cursor_row as f32 * nvim_row_height + y_offset;
             let target = Pos2::new(cursor_x, cursor_y);
             if !self.cursor_render_initialized {

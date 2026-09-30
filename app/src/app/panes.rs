@@ -216,10 +216,14 @@ impl App {
         }
 
         // Body area below tab strip (for editor, gutter, preview, help)
-        let body_rect = if are_tabs_visible
-            && !self.open_notes.is_empty()
-            && (self.misc.mode == Mode::Normal || self.misc.mode == Mode::Doc || self.misc.mode == Mode::Help)
-        {
+        let has_active_tabs = match self.misc.mode {
+            Mode::Normal => !self.open_notes.is_empty(),
+            Mode::Doc => !self.tabs.open_doc_tabs.is_empty(),
+            Mode::Help => true,
+            _ => false,
+        };
+
+        let body_rect = if are_tabs_visible && has_active_tabs {
             let body_min_y = tab_bar_rect.max.y;
             let body_max_y = top_panel_rect.max.y.max(body_min_y + 30.0);
             Rect::from_min_max(
@@ -458,6 +462,7 @@ impl App {
                             crate::views::dashboard::DashboardAction::OpenSettings => {
                                 self.modal.settings_open = true;
                                 self.modal.settings_just_opened = true;
+                                self.modal.settings_opened_at = now;
                             }
                             crate::views::dashboard::DashboardAction::ToggleZen => {
                                 self.misc.zen_mode = !self.misc.zen_mode;

@@ -227,6 +227,7 @@ impl App {
                         crate::ui::docs::DocSidebarAction::OpenSettings => {
                             self.modal.settings_open = true;
                             self.modal.settings_just_opened = true;
+                            self.modal.settings_opened_at = now;
                         }
                     }
                 }
@@ -432,6 +433,7 @@ impl App {
                         SidebarAction::OpenSettings => {
                             self.modal.settings_open = true;
                             self.modal.settings_just_opened = true;
+                            self.modal.settings_opened_at = now;
                         }
                     }
                     }

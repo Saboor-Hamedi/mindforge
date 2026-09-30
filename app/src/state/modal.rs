@@ -13,6 +13,7 @@ pub struct ModalState {
     // Settings modal (Ctrl+,)
     pub settings_open: bool,
     pub settings_just_opened: bool,
+    pub settings_opened_at: f64,
     pub active_setting_tab: SettingTab,
     pub backup_dir: String,
     pub last_backup_status: Option<String>,
@@ -48,6 +49,7 @@ impl Default for ModalState {
         Self {
             settings_open: false,
             settings_just_opened: false,
+            settings_opened_at: 0.0,
             active_setting_tab: SettingTab::Carets,
             backup_dir: String::new(),
             last_backup_status: None,

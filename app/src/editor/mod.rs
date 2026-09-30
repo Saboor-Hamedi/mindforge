@@ -55,7 +55,7 @@ impl Editor {
     }
 
     pub fn set_text(&mut self, s: &str) {
-        self.buf = s.chars().collect();
+        self.buf = s.chars().filter(|&c| c != '\r').collect();
         self.cur = 0;
         self.selection = None;
         self.selection_inclusive = false;

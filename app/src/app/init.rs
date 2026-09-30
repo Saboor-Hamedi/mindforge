@@ -40,6 +40,7 @@ impl App {
             modal: crate::state::modal::ModalState {
                 settings_open: false,
                 settings_just_opened: false,
+                settings_opened_at: 0.0,
                 active_setting_tab: SettingTab::Carets,
                 backup_dir: default_backup_dir().to_string_lossy().to_string(),
                 last_backup_status: None,

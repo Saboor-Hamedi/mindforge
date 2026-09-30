@@ -19,8 +19,10 @@ impl Editor {
         }
         self.save_undo_snapshot();
         for c in s.chars() {
-            self.buf.insert(self.cur, c);
-            self.cur += 1;
+            if c != '\r' {
+                self.buf.insert(self.cur, c);
+                self.cur += 1;
+            }
         }
         self.selection = None;
     }

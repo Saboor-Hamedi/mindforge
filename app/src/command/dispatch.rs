@@ -725,6 +725,9 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
         "settings" | "setting" | "preferences" | "pref" | "config" => {
             app.modal.settings_open = !app.modal.settings_open;
             app.modal.settings_just_opened = app.modal.settings_open;
+            if app.modal.settings_open {
+                app.modal.settings_opened_at = now;
+            }
             let msg = if app.modal.settings_open {
                 "Preferences & Settings opened (Esc to close)"
             } else {
@@ -893,6 +896,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
             if target.is_empty() {
                 app.modal.settings_open = true;
                 app.modal.settings_just_opened = true;
+                app.modal.settings_opened_at = now;
                 app.modal.active_setting_tab = crate::settings::SettingTab::Fonts;
                 app.set_status("Font preferences opened", now);
             } else {

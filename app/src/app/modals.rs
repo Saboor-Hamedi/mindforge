@@ -111,6 +111,7 @@ impl App {
             // Close preferences on Escape key or outside click (ignoring the click that opened the modal)
             let escape = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
             let outside_click = !self.modal.settings_just_opened
+                && (now - self.modal.settings_opened_at) > 0.35
                 && ui.input(|i| i.pointer.primary_clicked())
                 && !ui.rect_contains_pointer(modal_rect);
             self.modal.settings_just_opened = false;
@@ -176,6 +177,7 @@ impl App {
                         self.modal.active_setting_tab = tab;
                         self.modal.settings_open = true;
                         self.modal.settings_just_opened = true;
+                        self.modal.settings_opened_at = now;
                     }
                     crate::services::fuzzy::PaletteAction::ToggleSidebar => {
                         self.modal.search_open = false;
