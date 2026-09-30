@@ -441,6 +441,10 @@ impl App {
                             crate::views::dashboard::DashboardAction::FindNote => {
                                 self.modal.search_open = true;
                                 self.modal.search_just_opened = true;
+                                self.modal.search_opened_at = now;
+                                self.modal.search_query.clear();
+                                self.modal.search_selected = 0;
+                                self.update_search_results();
                             }
                             crate::views::dashboard::DashboardAction::OpenRecent(id) => {
                                 self.misc.show_welcome = false;

@@ -1,0 +1,70 @@
+================================================================================
+VIM MOTIONS & TEXT OBJECTS
+================================================================================
+
+Quick reference for moving around and selecting text in MindForge's Vim mode.
+
+
+1. BASIC MOVEMENT
+--------------------------------------------------------------------------------
+  h / l             Move left / right one character
+  j / k             Move down / up one line
+  w / b             Jump forward / backward to next word start
+  e                 Jump forward to end of current word
+  0 / $             Jump to beginning / end of line
+  gg / G            Jump to top / bottom of note
+
+
+2. TEXT OBJECTS (vi', va", vi[, etc.)
+--------------------------------------------------------------------------------
+Text objects let you select by meaning rather than counting characters.
+The pattern is always: operator + scope (i/a) + delimiter
+
+Scope:
+  i                 Inner: content only, omitting delimiters
+  a                 Around: content plus delimiters
+
+Delimiters:
+  '                 Single quotes ('...')
+  "                 Double quotes ("...")
+  `                 Backticks (`...`)
+  ( or )            Parentheses ((...))
+  [ or ]            Square brackets ([...])
+  { or }            Curly braces ({...})
+  w                 Word under cursor
+  p                 Paragraph block (bounded by blank lines)
+
+Examples:
+  vi'               Select text inside single quotes
+  va'               Select quotes and their inner text
+  vi"               Select content inside double quotes
+  vi(               Select content inside parentheses
+  viw               Select word under cursor
+  vip               Select whole inner paragraph
+  vap               Select paragraph plus adjacent blank line
+
+
+3. OPERATORS ON TEXT OBJECTS
+--------------------------------------------------------------------------------
+You can combine operators directly with text objects without visual selection:
+  di'               Delete inside quotes
+  ci'               Change inside quotes (deletes + enters Insert mode)
+  yi'               Yank (copy) text inside quotes
+  dap               Delete entire paragraph including separator
+  yip               Yank entire paragraph linewise
+  cip               Delete paragraph and start typing replacement
+
+
+4. SEARCH MOTIONS
+--------------------------------------------------------------------------------
+  /pattern          Search forward for pattern
+  ?pattern          Search backward for pattern
+  n                 Jump to next occurrence
+  N                 Jump to previous occurrence
+
+
+5. VISUAL SELECTION
+--------------------------------------------------------------------------------
+  v                 Start character-wise visual selection
+  V                 Start visual line selection
+  Esc               Cancel selection and return to Normal mode

@@ -19,6 +19,8 @@ pub fn render_search_modal(
     selected_idx: &mut usize,
     theme: &Theme,
     just_opened: bool,
+    opened_at: f64,
+    now: f64,
 ) -> SearchModalAction {
     let mut action = SearchModalAction {
         selected_item: None,
@@ -76,8 +78,11 @@ pub fn render_search_modal(
 
     let modal_rect = Rect::from_min_size(pos2(modal_x, modal_top), vec2(modal_w, modal_h));
 
-    // Click outside dismisses modal (Mac Spotlight behavior)
-    if ui.input(|i| i.pointer.primary_clicked()) {
+    // Click outside dismisses modal (Mac Spotlight behavior, debounced to ignore opening click)
+    let outside_click = !just_opened
+        && (now - opened_at) > 0.35
+        && ui.input(|i| i.pointer.primary_clicked());
+    if outside_click {
         if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
             if !modal_rect.contains(pos) {
                 action.should_close = true;

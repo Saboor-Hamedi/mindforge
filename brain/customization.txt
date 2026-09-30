@@ -1,0 +1,56 @@
+================================================================================
+MINDFORGE FEATURES & CUSTOMIZATION
+================================================================================
+
+MindForge provides deep personalization settings and built-in power features to
+match your exact workspace preferences.
+
+
+1. DYNAMIC KEYBINDINGS MANAGER
+--------------------------------------------------------------------------------
+Access via Settings ([Ctrl+,] -> Keybindings):
+  * Live Keystroke Recorder: Click any key slot to record a new key combination.
+  * Multi-Key Bindings: Bind multiple keys to a single command using [+].
+  * Conflict Detection: Alerts you in real time if a key combination is taken.
+  * Factory Reset: Revert any modified command or restore all defaults.
+  * JSON Persistence: Bindings are automatically saved to keymap.json.
+
+
+2. INLINE LIVE MARKDOWN VS RAW MONOSPACE MODE
+--------------------------------------------------------------------------------
+Press [Ctrl+E] to toggle between two writing modes:
+  * Inline Live Markdown: Headings, blockquotes, code blocks, tables, and task
+    checkboxes render in real time right where you write.
+  * Raw Monospace Mode: Clean, distraction-free plaintext editing for exact
+    syntactic precision and line numbering.
+
+
+3. ZEN MODE & MODULAR INTERFACE CONTROL
+--------------------------------------------------------------------------------
+Press [Ctrl+.] or type ":zen" to enter distraction-free Zen mode:
+  * Maximized Canvas: Hides titlebar, tabs, sidebar, preview, and terminal.
+  * SQLite Persistence: Zen mode state is faithfully remembered across launches.
+  * Granular Toggles: Hide or show individual surfaces anytime via commands
+    (:titlebar, :sidebar, :tabs, :ai, :preview, :settings).
+
+
+4. CURATED DEVELOPER TYPOGRAPHY
+--------------------------------------------------------------------------------
+Access via Settings ([Ctrl+,] -> Fonts & Type) or type ":font <name>":
+  * Curated Monospace Fonts: JetBrains Mono (embedded default), Iosevka, Victor
+    Mono, Fira Code, Caskaydia Cove, Berkeley Mono.
+  * Interactive Font Size: Smooth zoom adjustment from 12px to 28px.
+
+
+5. WINDOW BACKDROP BLUR & OPACITY
+--------------------------------------------------------------------------------
+  * Hardware Blur: Native Windows Acrylic and Mica frosted-glass blur (:blur).
+  * Opacity Slider: Adjust window transparency (:opacity 0.20 to 1.00).
+  * Alt+Drag Anywhere: Move the window from any canvas position without titlebar.
+
+
+6. DEEPSEEK AI WRITING ASSISTANT
+--------------------------------------------------------------------------------
+Toggle with [Ctrl+Shift+I] or type ":ai":
+  * Context-aware writing, coding assistance, and note analysis.
+  * Clean typographic cards with copyable code blocks and prompt suggestions.

@@ -1,0 +1,77 @@
+================================================================================
+MINDFORGE BASICS
+================================================================================
+
+Working with your notes in MindForge is straightforward, fast, and completely
+reliable. Everything is designed around distraction-free keyboard workflows.
+
+
+1. CREATING & WRITING NOTES
+--------------------------------------------------------------------------------
+Press [Ctrl+N] anywhere in the app to create a fresh note. MindForge immediately
+opens a blank canvas ready for typing.
+
+Automatic Saving:
+  You never have to worry about losing work. MindForge automatically saves your
+  buffer to the local SQLite database after 1.2 seconds of idle typing time.
+  * Press [Ctrl+S] anytime for instant manual save confirmation.
+  * The bottom statusline confirms when your note is safely written.
+  * An asterisk (*) appears next to the title whenever unsaved changes exist.
+
+
+2. TASK CHECKLISTS & ORGANIZATION
+--------------------------------------------------------------------------------
+Create and manage interactive task lists directly in your notes:
+  * Type "- [ ] Task item" to create an unchecked task row.
+  * Press [Ctrl+Shift+X] to toggle "- [ ]" to "- [x]" (or vice versa).
+  * In Visual Mode, select multiple rows and press [Ctrl+Shift+X] to toggle
+    all selected tasks simultaneously.
+  * Checklists automatically persist to the database upon toggle.
+
+
+3. INLINE LIVE MARKDOWN VS RAW PLAINTEXT
+--------------------------------------------------------------------------------
+Press [Ctrl+E] to switch between two viewing experiences:
+  * Inline Live Markdown: Headings, blockquotes, code blocks, tables, and task
+    checkboxes render in real time right where you write.
+  * Raw Monospace Mode: Clean, distraction-free plaintext editing with exact
+    syntactic precision and line numbering.
+
+
+4. DISTRACTION-FREE ZEN MODE
+--------------------------------------------------------------------------------
+Press [Ctrl+.] (or type ":zen") to clear away window chrome (titlebar, tabs,
+sidebar, preview) and enter pure distraction-free focus:
+  * Only your active editor canvas and the bottom status dock remain visible.
+  * If you need the sidebar or AI assistant while in Zen mode, press [Ctrl+B]
+    or [Ctrl+Shift+I] to reveal them instantly without leaving Zen mode.
+  * Use command bar controls (:titlebar, :sidebar, :tabs, :ai, :preview) to
+    customize exactly which surfaces you want visible.
+
+
+5. MANAGING YOUR NOTES LIBRARY
+--------------------------------------------------------------------------------
+The sidebar provides instant access to your notes collection:
+  * Toggle Sidebar: Press [Ctrl+B] or click the sidebar toggle icon.
+  * Open Note:      Click any note in the list or select it with arrow keys.
+  * Rename Note:    Press [Ctrl+R] to open the quick rename dialog.
+  * Delete Note:    Press [Ctrl+Shift+D] (or type ":delete") to delete with
+                    confirmation.
+
+
+6. FAST FUZZY NOTE SEARCH
+--------------------------------------------------------------------------------
+Press [Ctrl+P] to open the lightning-fast fuzzy search overlay:
+  * Start typing any word or phrase from a note title or body content.
+  * Use [Up] and [Down] (or [Ctrl+J] / [Ctrl+K]) to navigate filtered results.
+  * Press [Enter] to open the selected note immediately.
+  * Press [Esc] to dismiss search and return to your active document.
+
+
+7. SWITCHING BETWEEN HYBRID AND VIM MODES
+--------------------------------------------------------------------------------
+MindForge lets you seamlessly switch between standard modern editing and full
+Vim modal editing:
+  * Turn Vim ON:    Type ":vim on" or select VIM in Settings ([Ctrl+,]).
+  * Turn Vim OFF:   Type ":vim off" or select HYBRID in Settings.
+  * Quick Toggle:   Type ":vim" in the command bar to toggle between them.

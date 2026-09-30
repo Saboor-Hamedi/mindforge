@@ -1,0 +1,245 @@
+================================================================================
+NATIVE NEOVIM -- MessagePack-RPC & Lua Execution
+================================================================================
+
+MindForge does NOT emulate Vim.
+It spawns a real Neovim process (nvim --embed) and speaks the official
+MessagePack-RPC protocol. Every feature of native Neovim works here.
+
+
+HOW IT CONNECTS
+--------------------------------------------------------------------------------
+At startup, MindForge runs:
+
+    nvim --embed -u <AppData>/mindforge/mindforge/nvim/init.lua
+
+Neovim reads from STDIN and writes to STDOUT using MessagePack-encoded packets.
+There are three packet types:
+
+    [0, id, method, args]       -- Request  (expects a reply)
+    [1, id, error, result]      -- Response (Neovim replies to our request)
+    [2, method, args]           -- Notification (Neovim pushes events to us)
+
+All redraw events (cursor move, text change, highlight, mode change) arrive as
+notifications. MindForge decodes them and repaints the egui canvas up to 60fps.
+
+
+THE CONFIG FILE -- init.lua
+--------------------------------------------------------------------------------
+Location: %APPDATA%\mindforge\mindforge\nvim\init.lua
+
+This is a real Neovim init.lua. Everything you can do in Neovim config works.
+MindForge hot-reloads this file automatically when it is saved.
+
+EXAMPLE -- basic quality-of-life config:
+
+    -- init.lua
+
+    -- Indentation
+    vim.opt.tabstop      = 4
+    vim.opt.shiftwidth   = 4
+    vim.opt.expandtab    = true
+    vim.opt.smartindent  = true
+
+    -- Search
+    vim.opt.ignorecase   = true
+    vim.opt.smartcase    = true
+    vim.opt.hlsearch     = false
+
+    -- Line wrapping
+    vim.opt.wrap         = false
+    vim.opt.linebreak    = true
+
+    -- Save on focus lost
+    vim.api.nvim_create_autocmd("FocusLost", {
+        callback = function()
+            vim.cmd("silent! wa")
+        end,
+    })
+
+
+RUNNING EX COMMANDS FROM THE COMMAND BAR
+--------------------------------------------------------------------------------
+In MindForge press Colon (:) to open the command bar.
+Anything you type is forwarded to Neovim verbatim via nvim_command.
+
+EXAMPLE -- Ex commands:
+
+    :set wrap               -- turn word-wrap on
+    :set nowrap             -- turn word-wrap off
+    :set spell              -- enable spell checking
+    :noh                    -- clear current search highlight
+    :w                      -- write buffer (saves note in MindForge)
+    :sort                   -- sort lines alphabetically
+    :g/TODO/d               -- delete every line that contains TODO
+    :%s/hello/world/g       -- replace all occurrences of hello with world
+    :%s/\s\+$//e            -- strip trailing whitespace from every line
+    :.,$d                   -- delete from current line to end of file
+    :10,20y                 -- yank lines 10 through 20
+
+
+RUNNING LUA FROM THE COMMAND BAR
+--------------------------------------------------------------------------------
+Prefix any Lua expression with lua or call it from a mapping in init.lua.
+
+EXAMPLE -- inline Lua calls:
+
+    :lua print(vim.version())           -- show Neovim version in message bar
+    :lua vim.opt.colorcolumn = "80"     -- draw a ruler at column 80
+    :lua vim.opt.conceallevel = 2       -- collapse Markdown syntax markers
+    :lua vim.wo.foldmethod = "indent"   -- fold by indentation level
+    :lua vim.diagnostic.enable(false)   -- disable LSP diagnostics
+
+
+VIM KEYMAPS IN init.lua
+--------------------------------------------------------------------------------
+Define custom mappings exactly as you would in a native Neovim config.
+They work inside MindForge without any extra steps.
+
+EXAMPLE -- useful note-taking mappings:
+
+    -- init.lua
+
+    local map = vim.keymap.set
+    local opts = { noremap = true, silent = true }
+
+    -- Center view after search jump
+    map("n", "n",  "nzzzv",  opts)
+    map("n", "N",  "Nzzzv",  opts)
+
+    -- Move selected lines up / down in Visual mode
+    map("v", "J",  ":m '>+1<CR>gv=gv", opts)
+    map("v", "K",  ":m '<-2<CR>gv=gv", opts)
+
+    -- Duplicate current line below
+    map("n", "<leader>d",  "yyp",  opts)
+
+    -- Select entire file
+    map("n", "<leader>a",  "ggVG", opts)
+
+    -- Quick save
+    map("n", "<leader>w",  "<cmd>w<CR>", opts)
+
+    -- Clear trailing whitespace
+    map("n", "<leader>cw", ":%s/\\s\\+$//e<CR>", opts)
+
+
+AUTOCOMMANDS (AUTOCMDS)
+--------------------------------------------------------------------------------
+Autocommands fire on Neovim events and work exactly as in native Neovim.
+
+EXAMPLE -- format on events:
+
+    -- init.lua
+
+    -- Highlight yanked text for 150ms
+    vim.api.nvim_create_autocmd("TextYankPost", {
+        callback = function()
+            vim.highlight.on_yank({ higroup = "IncSearch", timeout = 150 })
+        end,
+    })
+
+    -- Auto-wrap prose at 80 chars in text files
+    vim.api.nvim_create_autocmd("FileType", {
+        pattern = { "text", "markdown" },
+        callback = function()
+            vim.opt_local.textwidth = 80
+        end,
+    })
+
+    -- Jump to last edit position when reopening
+    vim.api.nvim_create_autocmd("BufReadPost", {
+        callback = function()
+            local mark = vim.api.nvim_buf_get_mark(0, '"')
+            if mark[1] > 0 and mark[1] <= vim.api.nvim_buf_line_count(0) then
+                pcall(vim.api.nvim_win_set_cursor, 0, mark)
+            end
+        end,
+    })
+
+
+PLUGINS VIA LAZY.NVIM (ADVANCED)
+--------------------------------------------------------------------------------
+Because this is a real Neovim, plugin managers work.
+Keep plugins minimal -- MindForge's window is an editor pane, not a full IDE.
+
+EXAMPLE -- load only a syntax / text-object plugin:
+
+    -- init.lua
+    local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+    if not vim.loop.fs_stat(lazypath) then
+        vim.fn.system({ "git", "clone", "--filter=blob:none",
+            "https://github.com/folke/lazy.nvim.git", lazypath })
+    end
+    vim.opt.rtp:prepend(lazypath)
+
+    require("lazy").setup({
+        -- smart text objects: select inside sentence, paragraph, etc.
+        { "nvim-treesitter/nvim-treesitter-textobjects" },
+        -- surround: ys iw " to wrap word in quotes
+        { "kylechui/nvim-surround", config = true },
+    }, { performance = { rtp = { disabled_plugins = { "netrw" } } } })
+
+
+THE Rust CLIENT API (FOR CONTRIBUTORS)
+--------------------------------------------------------------------------------
+Inside MindForge the Neovim connection is wrapped by NeovimClient in
+app/src/vim/client.rs. Three calls cover most needs:
+
+    -- Fire-and-forget (no reply needed, non-blocking)
+    client.notify("nvim_command", vec![Value::from("set wrap")])
+
+    -- Blocking request (waits up to 15s for Neovim reply)
+    let result = client.request("nvim_buf_get_lines",
+        vec![Value::from(0), Value::from(0), Value::from(-1), Value::from(true)]);
+
+    -- Named wrappers (preferred, self-documenting)
+    client.input("<Esc>");                          -- send a keystroke
+    client.input_text("Hello world");              -- insert literal text
+    client.paste("line1\nline2");                  -- paste multi-line content
+    client.execute_command("set nowrap");          -- run an Ex command
+    client.execute_lua("return vim.bo.filetype", vec![]);  -- run Lua, get result
+    client.resize(80, 24);                         -- resize the Neovim grid
+    client.set_buffer_text("new content\nhere");   -- replace buffer (blocking)
+    client.set_buffer_text_async("fast replace");  -- replace buffer (async)
+
+
+REPAINT ARCHITECTURE
+--------------------------------------------------------------------------------
+Neovim emits redraw notification packets on its RPC channel.
+A dedicated reader thread receives them and gates repaint requests to 60 fps
+using an Instant timestamp lock. The egui Context.request_repaint() call wakes
+the UI thread at exactly the right cadence -- no polling, no busy-wait.
+
+Each frame, drain_events() pulls up to 200 pending packets and applies them to
+the VimGrid (the in-memory cell buffer). The backend.paint() method then
+renders the grid into egui geometry: colored text galleys, filled selection
+rectangles, and a block or beam caret.
+
+
+HOT RELOAD
+--------------------------------------------------------------------------------
+MindForge checks init.lua's filesystem mtime every 400ms.
+When the file is saved, it re-executes it inside the live Neovim process
+via dofile(...). No restart needed. Mapping changes, option changes, and
+autocommand changes all take effect immediately.
+
+
+TROUBLESHOOTING
+--------------------------------------------------------------------------------
+Neovim not found
+    Make sure nvim is on PATH. Run nvim --version in a terminal.
+    MindForge reports the error on the editor pane if spawn fails.
+
+Config errors
+    If init.lua has a Lua syntax error, Neovim prints it to its message area.
+    MindForge forwards that text to the status bar at the bottom of the editor.
+
+Slow startup
+    Disable heavy plugins. The --embed mode skips the terminal UI layer but
+    still pays the full plugin load cost.
+
+fillchars / tilde lines still visible
+    MindForge passes fillchars+=eob:\  via --cmd at startup. If your init.lua
+    overrides it, add this line back:
+        vim.opt.fillchars:append({ eob = " " })

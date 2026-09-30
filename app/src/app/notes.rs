@@ -276,7 +276,6 @@ impl App {
             self.editor.doc_ed.cur = 0;
             self.editor.doc_ed.clear_history();
             self.editor.doc_scroll_y = 0.0;
-            self.editor.inline_mode = true;
             let msg = format!("{} — editable practice copy; source documentation stays unchanged", doc.title);
             self.set_status(&msg, now);
         }

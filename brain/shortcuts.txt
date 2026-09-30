@@ -1,0 +1,90 @@
+================================================================================
+MINDFORGE KEYBOARD SHORTCUTS REFERENCE
+================================================================================
+
+MindForge provides an extensive suite of intuitive, ergonomic keyboard shortcuts
+so you can write, navigate, and edit at maximum speed without taking your hands
+off the home row.
+
+
+1. GLOBAL SHORTCUTS
+--------------------------------------------------------------------------------
+  [Ctrl+N]          Create a new blank note
+  [Ctrl+S]          Quick save active note to local SQLite database
+  [Ctrl+W]          Close active note or documentation tab
+  [Ctrl+1 .. 9]     Switch directly to tab 1 through 9
+  [Ctrl+Tab]        Switch to next open tab
+  [Ctrl+Shift+Tab]  Switch to previous open tab
+  [Ctrl+B]          Toggle notes sidebar open or closed
+  [Ctrl+I]          Toggle Backlinks panel in right pane (:backlinks, :bl)
+  [Ctrl+Shift+O]    Toggle Document Outline (H1-H6) in right pane (:outline)
+  [Ctrl+.]          Toggle Zen mode (distraction-free writing canvas)
+  [Ctrl+P]          Open fast fuzzy note search
+  [Ctrl+Shift+P]    Open Command Palette (: commands, theme/sound pickers)
+  [Ctrl+R]          Quick rename active note
+  [Ctrl+E]          Toggle Inline Live Markdown vs Raw Plaintext editor
+  [Ctrl+J]          Toggle integrated interactive Terminal dock (:term)
+  [Ctrl+\]          Toggle side-by-side Live Markdown preview split
+  [Ctrl+Shift+I]    Toggle DeepSeek AI Assistant right pane (:ai)
+  [Ctrl+,]          Open Settings & Preferences dialog
+  [Ctrl+Shift+D]    Safely delete active note (with confirmation modal)
+  [[                Open Wikilink Autocomplete popup in Insert mode
+  [Esc]             Dismiss popups, modals, or return to Normal mode
+
+
+2. ZEN MODE & INTERFACE COMMANDS
+--------------------------------------------------------------------------------
+MindForge provides granular control over every UI surface:
+  :zen              Toggle Zen mode (hides titlebar, tabs, sidebar, preview)
+  :titlebar         Toggle the top window titlebar (:tb, :set titlebar)
+  :sidebar          Toggle notes sidebar (:sb, :set sidebar)
+  :tabs             Toggle document tabs strip (:tabbar, :set tabs)
+  :ai               Toggle AI Assistant pane (:agent, :set ai)
+  :backlinks        Toggle Backlinks reference panel (:bl, :links)
+  :outline          Toggle Outline headings panel (:ol, :headings)
+  :preview          Toggle side-by-side Markdown preview (:set preview)
+  :blur             Toggle Windows Acrylic/Mica backdrop blur
+  :opacity <0.2-1>  Set window transparency percentage (:opacity 0.95)
+  :font <name>      Switch editor typography (JetBrains Mono, Fira Code, etc.)
+  :settings         Open Preferences & Settings modal (:pref, :set)
+
+
+3. TASK LISTS & CHECKLIST TOGGLES
+--------------------------------------------------------------------------------
+  [Ctrl+Shift+X]    Toggle task checkbox (- [ ] <-> - [x])
+  Normal Mode:      Toggles checkbox on the current line and saves immediately.
+  Visual Mode:      Toggles every task checkbox within selection simultaneously.
+
+
+4. TEXT EDITING & LINE MANIPULATION
+--------------------------------------------------------------------------------
+  [Tab]             Indent 4 spaces (or advance to next table cell)
+  [Shift+Tab]       Dedent 4 spaces (or retreat to previous table cell)
+  [Ctrl+]]          Indent line or selected block 4 spaces right
+  [Ctrl+[]          Dedent line or selected block 4 spaces left
+  [Ctrl+D]          Duplicate current line or selection directly below
+  [Ctrl+C]          Copy selected text to system clipboard
+  [Ctrl+X]          Cut selected text to system clipboard
+  [Ctrl+V]          Paste text from system clipboard
+  [Ctrl+A]          Select all text in active note
+  [D] in Vim        Delete from cursor to end of current line (d$)
+  [C] in Vim        Change from cursor to end of current line (c$)
+
+
+5. WORD & CURSOR NAVIGATION
+--------------------------------------------------------------------------------
+  [Ctrl+Left]       Jump cursor one word to the left
+  [Ctrl+Right]      Jump cursor one word to the right
+  [Ctrl+Backspace]  Delete entire word behind cursor
+  [Ctrl+Delete]     Delete entire word ahead of cursor
+  [Home]            Jump cursor to start of current line
+  [End]             Jump cursor to end of current line
+  [Page Up/Down]    Scroll viewport by full page
+
+
+6. LINE NUMBERS & GUTTER CONTROLS
+--------------------------------------------------------------------------------
+  :nu               Show line numbers in the gutter (:set nu)
+  :nonu             Hide line numbers in the gutter (:set nonu)
+  :preview          Toggle side-by-side markdown preview (:set preview)
+  :nopreview        Close markdown preview (:set nopreview)

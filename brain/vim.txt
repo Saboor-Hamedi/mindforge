@@ -1,0 +1,65 @@
+================================================================================
+VIM MODAL EDITING ENGINE
+================================================================================
+
+MindForge features an authentic embedded Neovim editing engine for users who
+prefer home-row navigation, text-object composition, and precision editing.
+
+
+1. HOW TO TURN VIM MODE ON AND OFF
+--------------------------------------------------------------------------------
+Command Bar (:):
+  * Turn ON:        Type ":vim on" (or ":mode vim") and press Enter.
+  * Turn OFF:       Type ":vim off" (or ":mode hybrid") and press Enter.
+  * Toggle Quick:   Type ":vim" with no arguments to flip mode immediately.
+
+Preferences Dialog ([Ctrl+,]):
+  Open Settings -> Editor Mode tab. Click either VIM or HYBRID chip.
+
+
+2. EDITOR SUBMODES
+--------------------------------------------------------------------------------
+  NORMAL            Default navigation, operators, motions, and text objects.
+  INSERT            Text entry (i, I, a, A, o, O).
+  VISUAL            Character-wise selection (v).
+  VISUAL LINE       Full-line selection and block operations (V).
+  COMMAND-LINE      Command bar for file operations, settings, and lua (:).
+
+
+3. HOME-ROW NAVIGATION
+--------------------------------------------------------------------------------
+  h / j / k / l     Move cursor Left, Down, Up, and Right
+  w                 Jump forward to beginning of next word
+  b                 Jump backward to beginning of previous word
+  e                 Jump forward to end of current word
+  0 / ^             Jump to beginning / first non-blank of line
+  $                 Jump to end of line
+  gg                Jump to beginning of document
+  G                 Jump to end of document
+
+
+4. MODE TRANSITIONS
+--------------------------------------------------------------------------------
+  i / I             Enter Insert mode before cursor / at line start
+  a / A             Enter Insert mode after cursor / at line end
+  o / O             Open new line below / above and enter Insert mode
+  v / V             Enter Visual / Visual Line selection mode
+  Esc               Return to Normal mode
+
+
+5. OPERATORS & TEXT OBJECTS
+--------------------------------------------------------------------------------
+  d{motion}         Delete text covered by motion (e.g. dw, d$, dd)
+  c{motion}         Change text and enter Insert mode (e.g. cw, ci", c$)
+  y{motion}         Yank (copy) text into register (e.g. yw, yy)
+  p / P             Put (paste) yanked text after / before cursor
+  u / Ctrl+R        Undo / Redo changes
+
+
+6. SHOWCMD KEYSTROKE HUD
+--------------------------------------------------------------------------------
+MindForge includes a floating Heads-Up Display in the bottom-right corner:
+  * [VIM]   Tracks multi-key operators in progress (e.g. "ci\"", "3dd", "d$").
+  * [VIS]   Visual mode selection chords.
+  * [FIND]  Active search queries (/needle, ?pattern).
+  * [CMD]   Live command-line buffer tracking.

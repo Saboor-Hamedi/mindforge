@@ -1,11 +1,11 @@
 //! Modal dialogs and overlay menus (Preferences, Search, Rename, Delete confirmation, Accent picker).
 
 use super::App;
-use crate::services::db_worker::DbMsg;
 use crate::mode::Mode;
 use crate::modals::{render_delete_confirm_modal, render_rename_modal, render_search_modal};
-use crate::settings::{render_setting_panel, render_setting_tabs, SettingPanelAction};
-use eframe::egui::{self, pos2, Color32, Rect, Stroke, Ui};
+use crate::services::db_worker::DbMsg;
+use crate::setting::{render_setting_container, SettingPanelAction};
+use eframe::egui::{self, Rect, Ui};
 
 impl App {
     /// Renders open modals (Preferences, Search, Rename, Delete, Accent Dropdown).
@@ -19,41 +19,6 @@ impl App {
     ) {
         // 1. Two-Column Preferences Modal (Ctrl+,)
         if self.modal.settings_open {
-            let backdrop_alpha = if self.misc.theme.is_light() { 90 } else { 160 };
-            painter.rect_filled(bounds, 0.0, Color32::from_black_alpha(backdrop_alpha));
-
-            let modal_w = (bounds.width() - 80.0).clamp(640.0, 880.0);
-            let modal_h = (bounds.height() - 80.0).clamp(480.0, 680.0);
-            let modal_rect = Rect::from_center_size(bounds.center(), eframe::egui::vec2(modal_w, modal_h));
-
-            // Surface container
-            painter.rect(
-                modal_rect,
-                5.0,
-                self.misc.theme.surface(),
-                Stroke::new(1.0_f32, self.misc.theme.border()),
-                egui::StrokeKind::Inside,
-            );
-
-            // Left tab strip
-            let tab_w = 180.0;
-            let tabs_rect = Rect::from_min_max(
-                modal_rect.min,
-                pos2(modal_rect.min.x + tab_w, modal_rect.max.y),
-            );
-            let panel_rect = Rect::from_min_max(
-                pos2(modal_rect.min.x + tab_w, modal_rect.min.y),
-                modal_rect.max,
-            );
-
-            render_setting_tabs(
-                ui,
-                painter,
-                tabs_rect,
-                &mut self.modal.active_setting_tab,
-                &self.misc.theme,
-            );
-
             let db_tx_clone = self.services.db_tx.clone();
             let mut on_save = |key: &str, val: &str| {
                 let _ = db_tx_clone.send(DbMsg::SaveSetting {
@@ -63,27 +28,24 @@ impl App {
             };
 
             let prev_font = self.misc.selected_font.clone();
-            let p_action = render_setting_panel(
+            let p_action = render_setting_container(
                 ui,
                 painter,
-                panel_rect,
-                self.modal.active_setting_tab,
+                bounds,
+                &mut self.modal,
                 &mut self.services.editor_controller.mode,
                 &mut self.misc.caret,
                 &mut self.misc.sound,
                 &mut self.misc.theme,
-                &mut self.modal.backup_dir,
-                self.modal.last_backup_status.as_deref(),
-                &self.services.updater,
-                &mut self.services.agent_state.deepseek_api_key_enc,
-                &mut self.services.agent_state.deepseek_model,
-                &mut self.modal.keymap,
-                &mut self.modal.keybind_capture,
                 &mut self.misc.selected_font,
                 &mut self.misc.font_size,
                 &mut self.misc.opacity,
                 &mut self.misc.blur_effect,
+                &self.services.updater,
+                &mut self.services.agent_state.deepseek_api_key_enc,
+                &mut self.services.agent_state.deepseek_model,
                 &mut self.services.lunaline_config,
+                now,
                 &mut on_save,
             );
 
@@ -107,26 +69,6 @@ impl App {
                     }
                 }
             }
-
-            // Close preferences on Escape key or outside click (ignoring the click that opened the modal)
-            let escape = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
-            let outside_click = !self.modal.settings_just_opened
-                && (now - self.modal.settings_opened_at) > 0.35
-                && ui.input(|i| i.pointer.primary_clicked())
-                && !ui.rect_contains_pointer(modal_rect);
-            self.modal.settings_just_opened = false;
-
-            if escape {
-                if self.modal.keybind_capture.is_some() {
-                    self.modal.keybind_capture = None;
-                } else {
-                    self.modal.settings_open = false;
-                    self.set_status("Preferences closed", now);
-                }
-            } else if outside_click {
-                self.modal.settings_open = false;
-                self.set_status("Preferences closed", now);
-            }
         }
 
         // 2. Fuzzy Search & Command Palette Modal (Ctrl+P / Ctrl+Shift+P)
@@ -140,6 +82,8 @@ impl App {
                 &mut self.modal.search_selected,
                 &self.misc.theme,
                 self.modal.search_just_opened,
+                self.modal.search_opened_at,
+                now,
             );
             self.modal.search_just_opened = false;
             if let Some(ref new_q) = act.new_query {

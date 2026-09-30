@@ -27,7 +27,7 @@ pub enum PaletteAction {
     ApplyFont(String),
     OpenModePicker,
     ApplyEditorMode(crate::app::EditorInputMode),
-    OpenSetting(crate::settings::SettingTab),
+    OpenSetting(crate::setting::SettingTab),
     ToggleSidebar,
     ToggleRightSidebar,
     ToggleBacklinks,
@@ -121,14 +121,14 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         snippet: "Customize active color palette, window opacity, and blur",
         badge: "Ctrl+,",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Theme),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Theme),
     },
     BuiltinCommand {
         title: "Keyboard Shortcuts & Cheatsheet",
         snippet: "Review global shortcuts, editing commands, and markdown combos",
         badge: "F1",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Shortcuts),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Shortcuts),
     },
     BuiltinCommand {
         title: "Editor Mode (Vim / Hybrid)",
@@ -142,14 +142,14 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         snippet: "Adjust window opacity level from solid to translucent",
         badge: "Opacity",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Theme),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Theme),
     },
     BuiltinCommand {
         title: "Window Blur Effect (Acrylic / Mica / Off)",
         snippet: "Configure Windows desktop acrylic or mica glass blur",
         badge: "Blur",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Theme),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Theme),
     },
 
     // --- Carets & Typography Settings ---
@@ -158,7 +158,7 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         snippet: "Customize cursor animation, kind (Beam, Block, Neon), and width",
         badge: "Caret",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Carets),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Carets),
     },
     BuiltinCommand {
         title: "Fonts & Monospace Typography",
@@ -174,35 +174,35 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         snippet: "Switch mechanical switch audio profiles (Thocky, Clacky, Silent)",
         badge: "Audio",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Sounds),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Sounds),
     },
     BuiltinCommand {
         title: "Custom Keybindings & Remapping",
         snippet: "Configure custom keybindings and inspect motion keymaps",
         badge: "Keymap",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Keybindings),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Keybindings),
     },
     BuiltinCommand {
         title: "Vault Backup & Data Safety",
         snippet: "Configure automated SQLite snapshots and export paths",
         badge: "Backup",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Backup),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Backup),
     },
     BuiltinCommand {
         title: "Check for App Updates",
         snippet: "Verify GitHub release packages and apply live updates",
         badge: "Updates",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Updates),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Updates),
     },
     BuiltinCommand {
         title: "AI Engine & DeepSeek",
         snippet: "Configure DeepSeek API key and model parameters",
         badge: "Ctrl+Shift+I",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Ai),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Ai),
     },
 
     // --- LunaLine Statusline Settings ---
@@ -211,7 +211,7 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         snippet: "Customize dock style (Pill, Powerline, Floating) & component toggles",
         badge: "LunaLine",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::LunaLine),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::LunaLine),
     },
     BuiltinCommand {
         title: "LunaLine Style - Modern Pill Capsules",
@@ -376,7 +376,7 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         snippet: "Open full preferences dialog (theme, sounds, keys, AI, carets)",
         badge: "Ctrl+,",
         icon: "⚙",
-        action: PaletteAction::OpenSetting(crate::settings::SettingTab::Theme),
+        action: PaletteAction::OpenSetting(crate::setting::SettingTab::Theme),
     },
     BuiltinCommand {
         title: "Import Obsidian Vault or Folder",
@@ -635,3 +635,4 @@ mod tests {
         assert_eq!(note_results[0].badge, "");
     }
 }
+

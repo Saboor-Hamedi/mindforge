@@ -12,10 +12,9 @@ use eframe::egui;
 /// Processes all keyboard shortcuts and text typing.
 /// Returns true if a character or text edit occurred in the editor.
 pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
-    // Route the two palette shortcuts from the raw key event before Vim input
-    // or focused widgets can consume them. Ctrl+P searches notes; Ctrl+Shift+P
-    // opens built-in commands even when the notes database is empty.
-    let (ctrl_p, ctrl_shift_p) = ctx.input(|i| {
+    // Route critical modal shortcuts (Ctrl+P, Ctrl+Shift+P, Ctrl+,) from the raw key event
+    // before Vim input or focused widgets can consume them.
+    let (ctrl_p, ctrl_shift_p, ctrl_comma) = ctx.input(|i| {
         let pressed = |wanted: egui::Key, shifted: bool| {
             i.events.iter().any(|event| matches!(event,
                 egui::Event::Key { key, pressed: true, repeat: false, modifiers, .. }
@@ -25,8 +24,24 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                         && !modifiers.alt
             ))
         };
-        (pressed(egui::Key::P, false), pressed(egui::Key::P, true))
+        (
+            pressed(egui::Key::P, false),
+            pressed(egui::Key::P, true),
+            pressed(egui::Key::Comma, false),
+        )
     });
+
+    if ctrl_comma {
+        if app.modal.settings_open {
+            app.modal.settings_open = false;
+        } else {
+            app.modal.close_all();
+            app.modal.settings_open = true;
+            app.modal.settings_just_opened = true;
+            app.modal.settings_opened_at = now;
+        }
+        return false;
+    }
     let other_modal_open = app.modal.settings_open
         || app.modal.rename_open
         || app.modal.delete_confirm_open
@@ -39,6 +54,7 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
             app.modal.search_query = ">".to_string();
             app.modal.search_selected = 0;
             app.modal.search_just_opened = true;
+            app.modal.search_opened_at = now;
             app.update_search_results();
         }
         return false;
@@ -51,6 +67,7 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
             app.modal.search_query.clear();
             app.modal.search_selected = 0;
             app.modal.search_just_opened = true;
+            app.modal.search_opened_at = now;
             app.update_search_results();
         }
         return false;

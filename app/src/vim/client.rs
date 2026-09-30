@@ -416,6 +416,21 @@ impl NeovimClient {
         )
     }
 
+    /// Execute an arbitrary Neovim Ex-command synchronously via MessagePack-RPC.
+    pub fn execute_command(&mut self, command: &str) -> Result<String, String> {
+        let val = self.request("nvim_command", vec![Value::from(command)])?;
+        Ok(format_rpc_value(&val))
+    }
+
+    /// Execute arbitrary Lua code in Neovim synchronously via MessagePack-RPC.
+    pub fn execute_lua(&mut self, code: &str, args: Vec<Value>) -> Result<String, String> {
+        let val = self.request(
+            "nvim_exec_lua",
+            vec![Value::from(code), Value::Array(args)],
+        )?;
+        Ok(format_rpc_value(&val))
+    }
+
     pub fn shutdown(&mut self) {
         let Some(mut child) = self.child.take() else {
             return;
@@ -434,5 +449,28 @@ impl NeovimClient {
 impl Drop for NeovimClient {
     fn drop(&mut self) {
         self.shutdown();
+    }
+}
+
+pub fn format_rpc_value(val: &Value) -> String {
+    match val {
+        Value::Nil => String::new(),
+        Value::Boolean(b) => b.to_string(),
+        Value::Integer(i) => i.to_string(),
+        Value::F32(f) => f.to_string(),
+        Value::F64(f) => f.to_string(),
+        Value::String(s) => s.as_str().unwrap_or("").to_string(),
+        Value::Binary(b) => String::from_utf8_lossy(b).into_owned(),
+        Value::Array(arr) => {
+            let items: Vec<String> = arr.iter().map(format_rpc_value).collect();
+            format!("[{}]", items.join(", "))
+        }
+        Value::Map(m) => {
+            let entries: Vec<String> = m.iter()
+                .map(|(k, v)| format!("{}: {}", format_rpc_value(k), format_rpc_value(v)))
+                .collect();
+            format!("{{{}}}", entries.join(", "))
+        }
+        Value::Ext(type_id, _) => format!("<ext:{type_id}>"),
     }
 }

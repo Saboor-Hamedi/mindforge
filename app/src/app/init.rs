@@ -5,7 +5,7 @@ use crate::caret::CaretKind;
 use crate::services::db_worker::{spawn_db_worker, DbMsg};
 use crate::editor::Editor;
 use crate::services::sound::SoundProfile;
-use crate::settings::SettingTab;
+use crate::setting::SettingTab;
 use crate::ui::theme::{Theme, ThemeKind};
 
 use chrono::Local;
@@ -45,12 +45,13 @@ impl App {
                 backup_dir: default_backup_dir().to_string_lossy().to_string(),
                 last_backup_status: None,
                 keybind_capture: None,
-                keymap: crate::settings::keymap::VimKeymap::load_or_init(),
+                keymap: crate::setting::keymap::VimKeymap::load_or_init(),
                 search_open: false,
                 search_query: String::new(),
                 search_results: Vec::new(),
                 search_selected: 0,
                 search_just_opened: false,
+                search_opened_at: 0.0,
                 rename_open: false,
                 rename_input: String::new(),
                 rename_just_opened: false,

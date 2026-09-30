@@ -1,0 +1,48 @@
+================================================================================
+MINDFORGE: MINIMALIST KEYBOARD NOTEBOOK
+================================================================================
+
+MindForge is a lightweight, distraction-free notebook engineered for capturing
+your thoughts, code, and ideas with fluid responsiveness and zero friction.
+
+All notes are stored locally and securely on your computer in an embedded
+SQLite database. Your thoughts and files remain 100% private and yours.
+
+
+1. CORE PRINCIPLES
+--------------------------------------------------------------------------------
+  * Instant & Offline     Zero loading spinners, no cloud sync lag, no accounts.
+  * Private by Default    Notes, settings, and activity logs stay on your device.
+  * Silky Smooth Render   High refresh-rate UI with monospace font ligatures.
+  * Keyboard Ergonomics   Navigate, search, edit, and organize without a mouse.
+  * Fully Customizable    Custom keybindings, color themes, carets, and sounds.
+
+
+2. QUICK START GUIDE
+--------------------------------------------------------------------------------
+  [Ctrl+N]          Create a new blank note and start typing immediately.
+  [Ctrl+S]          Manual note save (MindForge also auto-saves continuously).
+  [Ctrl+Shift+X]    Toggle checklist checkbox between [ ] and [x].
+  [Ctrl+E]          Toggle between Inline Live Markdown and Raw Plaintext mode.
+  [Ctrl+J]          Open the embedded interactive terminal dock (:term).
+  [Ctrl+Shift+I]    Open the DeepSeek AI Assistant right pane.
+  [Ctrl+.]          Enter distraction-free Zen focus mode (:zen).
+  [Ctrl+B]          Toggle the notes sidebar library.
+  [Ctrl+P]          Fast fuzzy search across all notes by title or content.
+  [Ctrl+,]          Open preferences (themes, carets, sounds, keys, AI).
+
+
+3. BUILT-IN DOCUMENTATION CHAPTERS
+--------------------------------------------------------------------------------
+Browse the files in /brain to master every MindForge subsystem:
+
+  * introduction.txt       Quick start, core principles, and chapter guide.
+  * architecture.txt       Purpose, mission, SQLite storage, and dual-engine design.
+  * notes.txt              Creating notes, checklists, auto-saving, and search.
+  * shortcuts.txt          Complete cheat-sheet for all keyboard shortcuts.
+  * vim_editor.txt         Vim modal editing, modes, operators, and HUD.
+  * vim_motions.txt        Precision text object editing (ci", da(, vi[, etc.).
+  * customization.txt      Keybindings, fonts, blur, opacity, themes, and AI.
+  * terminal.txt           Interactive embedded shell, PTY, and terminal tabs.
+  * security_scanner.txt   Built-in web security and vulnerability scanner (:scan).
+  * neovim_rpc.txt         Native Neovim MessagePack-RPC, Lua, and init.lua guide.

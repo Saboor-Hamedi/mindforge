@@ -1,0 +1,54 @@
+================================================================================
+WEBSCAN: BUILT-IN WEB SECURITY SCANNER
+================================================================================
+
+MindForge includes a built-in security auditing and vulnerability scanning engine
+designed to inspect web targets directly from your workspace without interrupting
+your note-taking workflow.
+
+
+1. QUICK START & COMMAND SYNTAX
+--------------------------------------------------------------------------------
+Launch a scan from the command bar (:) at any time:
+
+  :scan <url> [--full] [--forms] [--delay <ms>] [--timeout <secs>] [--note "<text>"]
+
+MindForge runs the scan asynchronously in a background thread so your editor
+remains completely responsive. When finished, MindForge opens the report view.
+
+
+2. COMMAND PARAMETERS & FLAGS
+--------------------------------------------------------------------------------
+  <url>               Target domain or URL (e.g. example.com or https://site.dev).
+  --full              Enables deep active checks: sensitive files (.env, .git,
+                      backups, admin portals) and endpoint discovery.
+  --forms             Enables active input probes against discovered HTML forms
+                      (XSS, SQLi, open redirects).
+  --delay <ms>        Throttle delay in milliseconds before each HTTP request
+                      (default: 200ms) to respect rate limits.
+  --timeout <secs>    Network timeout in seconds per HTTP request (default: 10s).
+  --note "<text>"     Audit note, client name, or ticket reference saved with
+                      the report in your SQLite database.
+
+
+3. COMMAND EXAMPLES
+--------------------------------------------------------------------------------
+  * Passive Audit (Default):
+    :scan example.com
+
+  * Full Active Audit with Note:
+    :scan https://staging.myapp.dev --full --note "Pre-launch security review"
+
+  * Deep Form & Injection Testing:
+    :scan https://testphp.vulnweb.com --full --forms --note "OWASP Form Audit"
+
+  * Throttled Low-Impact Scan:
+    :scan api.target.com --full --delay 500 --timeout 15
+
+
+4. SCAN HISTORY & REPORT BROWSER
+--------------------------------------------------------------------------------
+Type ":scans" at any time to open the historical audit dashboard:
+  * Browse past scan dates, target URLs, and risk scores.
+  * Use [Up] / [Down] to navigate records and [Enter] to open full reports.
+  * Press [Esc] to return to your notes editor.

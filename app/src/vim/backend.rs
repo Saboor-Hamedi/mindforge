@@ -512,6 +512,15 @@ impl VimBackend {
         self.dirty = false;
     }
 
+    /// Execute an arbitrary Neovim Ex-command synchronously via MessagePack-RPC.
+    pub fn execute_command(&mut self, command: &str) -> Result<String, String> {
+        self.client.execute_command(command)
+    }
+
+    /// Execute arbitrary Lua code synchronously in Neovim via MessagePack-RPC.
+    pub fn execute_lua(&mut self, code: &str) -> Result<String, String> {
+        self.client.execute_lua(code, vec![])
+    }
 }
 
 fn num(value: &Value) -> usize {
@@ -756,21 +765,16 @@ impl EditorBackend for VimBackend {
                     let mut format = egui::TextFormat {
                         font_id: row_font.clone(),
                         color: foreground,
+                        background: Color32::TRANSPARENT,
                         ..Default::default()
                     };
                     if let Some(style) = self.grid.highlights.get(&cell.highlight) {
                         if style.reverse {
                             if !is_cursor_cell || caret.kind == crate::caret::CaretKind::Block {
                                 foreground = style.background.map(rgb).unwrap_or(theme.bg);
-                                format.background = style.foreground.map(rgb).unwrap_or(theme.text);
                             }
-                        } else {
-                            if let Some(color) = style.foreground {
-                                foreground = rgb(color);
-                            }
-                            if let Some(color) = style.background {
-                                format.background = rgb(color);
-                            }
+                        } else if let Some(color) = style.foreground {
+                            foreground = rgb(color);
                         }
                     }
                     format.color = foreground;
@@ -783,6 +787,60 @@ impl EditorBackend for VimBackend {
                 .next()
                 .unwrap_or(font_size * 1.25);
             let y_offset = ((nvim_row_height - font_row_height) * 0.5).max(0.0).round();
+
+            let row_top = if is_mode_msg {
+                rect.max.y - 20.0
+            } else {
+                origin.y + row_idx as f32 * nvim_row_height
+            };
+            let row_h = if is_mode_msg { 20.0 } else { nvim_row_height + 0.5 };
+
+            // Render contiguous cell highlight backgrounds (e.g. visual selection) with full row height
+            // to completely eliminate gaps between consecutive lines and paragraphs.
+            let mut span_start: Option<(usize, Color32)> = None;
+            for (col_offset, cell) in row.iter().skip(number_columns).take(width.saturating_sub(number_columns)).enumerate() {
+                let col_idx = number_columns + col_offset;
+                let is_cursor_cell = row_idx == self.grid.cursor.row && col_idx == self.grid.cursor.column;
+                let mut bg_color = None;
+                if let Some(style) = self.grid.highlights.get(&cell.highlight) {
+                    if style.reverse {
+                        if !is_cursor_cell || caret.kind == crate::caret::CaretKind::Block {
+                            bg_color = Some(style.foreground.map(rgb).unwrap_or(theme.text));
+                        }
+                    } else if let Some(color) = style.background {
+                        bg_color = Some(rgb(color));
+                    }
+                }
+                match (span_start, bg_color) {
+                    (Some((_start_col, cur_bg)), Some(new_bg)) if cur_bg == new_bg => {
+                        // continue contiguous span
+                    }
+                    (Some((start_col, cur_bg)), _) => {
+                        let x1 = text_left + start_col as f32 * cell_width;
+                        let x2 = text_left + col_offset as f32 * cell_width;
+                        painter.rect_filled(
+                            Rect::from_min_max(Pos2::new(x1, row_top), Pos2::new(x2, row_top + row_h)),
+                            0.0,
+                            cur_bg,
+                        );
+                        span_start = bg_color.map(|c| (col_offset, c));
+                    }
+                    (None, Some(new_bg)) => {
+                        span_start = Some((col_offset, new_bg));
+                    }
+                    (None, None) => {}
+                }
+            }
+            if let Some((start_col, cur_bg)) = span_start {
+                let max_col = width.saturating_sub(number_columns);
+                let x1 = text_left + start_col as f32 * cell_width;
+                let x2 = text_left + max_col as f32 * cell_width;
+                painter.rect_filled(
+                    Rect::from_min_max(Pos2::new(x1, row_top), Pos2::new(x2, row_top + row_h)),
+                    0.0,
+                    cur_bg,
+                );
+            }
 
             if let Some((_, galley)) = &self.row_layouts[row_idx] {
                 let y_pos = if is_mode_msg {
@@ -858,7 +916,7 @@ impl EditorBackend for VimBackend {
                 0.0
             };
             let cursor_x = origin.x + cursor_column as f32 * cell_width + visual_offset_x;
-            let cursor_y = origin.y + cursor_row as f32 * nvim_row_height + y_offset;
+            let cursor_y = origin.y + cursor_row as f32 * nvim_row_height;
             let target = Pos2::new(cursor_x, cursor_y);
             if !self.cursor_render_initialized {
                 caret.pos = target;
@@ -869,8 +927,8 @@ impl EditorBackend for VimBackend {
                 caret.pos = target;
                 caret.gliding = false;
             }
-            caret.update(dt, target, typed && (self.is_insert_mode() || self.grid.mode.starts_with('r')), now, cell_width, font_row_height);
-            caret.paint(&painter, cell_width, font_row_height, now, theme.accent, theme.is_light());
+            caret.update(dt, target, typed && (self.is_insert_mode() || self.grid.mode.starts_with('r')), now, cell_width, nvim_row_height);
+            caret.paint(&painter, cell_width, nvim_row_height, now, theme.accent, theme.is_light());
 
             // A block caret is translucent; repaint its character in the app
             // font so Neovim's Cursor highlight cannot change the glyph size.
@@ -878,7 +936,7 @@ impl EditorBackend for VimBackend {
                 if let Some(cell) = self.grid.cells.get(cursor_row).and_then(|row| row.get(cursor_column)) {
                     if !cell.text.trim().is_empty() {
                         painter.text(
-                            caret.pos,
+                            Pos2::new(caret.pos.x, caret.pos.y + y_offset),
                             Align2::LEFT_TOP,
                             &cell.text,
                             font.clone(),

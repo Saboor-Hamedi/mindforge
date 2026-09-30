@@ -1,0 +1,49 @@
+================================================================================
+MINDFORGE: PURPOSE, ARCHITECTURE & DESIGN VISION
+================================================================================
+
+MindForge is an ultra-fast, local-first personal knowledge hub and engineering
+workspace engineered for thinking, writing, coding, and continuous learning with
+zero latency and zero distraction.
+
+
+1. CORE PURPOSE & MISSION
+--------------------------------------------------------------------------------
+Modern note-taking tools are often burdened with cloud sync lag, Electron runtime
+bloat, forced logins, and visual clutter. MindForge delivers the exact opposite:
+
+  * Instantaneous Speed: Built in Rust with GPU-accelerated graphics (egui).
+    Every keystroke renders at native display refresh rates (60Hz to 144Hz).
+  * Local-First & Private: Notes, metadata, settings, search indices, and daily
+    activity logs live in an embedded SQLite database. No telemetry, no accounts.
+  * Cognitive Ergonomics: You never need to lift your hands off the keyboard.
+    Modal Vim motions, Hybrid shortcuts, and command-palette controls keep you
+    in deep focus.
+  * Unified Workspace: Notes, code blocks with syntax highlighting, an embedded
+    terminal emulator, security scanning tools, and an AI assistant under one roof.
+
+
+2. KEY ARCHITECTURE & CAPABILITIES
+--------------------------------------------------------------------------------
+The Hybrid / Vim Dual-Engine Editor:
+  * Vim Mode: Full modal editing (NORMAL, INSERT, VISUAL, VISUAL LINE, COMMAND)
+    with standard motions, text objects, search jumps, and showcmd HUD.
+  * Hybrid Mode: Familiar modern conventions (Ctrl+D duplicate, Ctrl+Backspace,
+    auto-closing brackets and quotes).
+  * Inline Live Markdown: Seamless transition between raw syntax and live styled
+    typography (headings, checkboxes, blockquotes, code blocks, tables).
+
+The Right Pane (Preview, AI Assistant, Backlinks, Outline):
+  * Unified 4-Tab Suite sharing the same split-ratio and tactile resize knob.
+  * Live Markdown Preview with proportional typography and table rendering.
+  * DeepSeek AI Assistant for code explanation, drafting, and note analysis.
+  * Bidirectional Backlinks indexing and Document Outline tree navigation.
+
+Zen Mode & Modular Layout:
+  * Ctrl+. strips away all window framing (titlebar, tabs, sidebar, preview)
+    leaving only your writing canvas and statusline.
+  * Granular surface controls (:titlebar, :sidebar, :tabs, :ai, :preview).
+
+Embedded Terminal Dock:
+  * Hardware-accelerated interactive PTY emulator (Ctrl+J or :term).
+  * Multi-session process management with Bash and PowerShell support.

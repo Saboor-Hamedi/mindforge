@@ -1,0 +1,40 @@
+================================================================================
+MINDFORGE EMBEDDED TERMINAL ARCHITECTURE & GUIDE
+================================================================================
+
+MindForge integrates a full-featured, hardware-accelerated terminal emulator
+directly inside the application canvas. Unlike simple text output boxes, this is
+an interactive PTY backed by the Alacritty terminal engine.
+
+
+1. SYSTEM OVERVIEW
+--------------------------------------------------------------------------------
+  * PTY Engine: ConPTY on Windows and POSIX PTY on macOS/Linux.
+  * Shell Auto-Discovery: Detects Git Bash, PowerShell, or default system shell.
+  * Interactive Multi-Session: Launch concurrent terminal tabs with [+].
+  * Tactile Knob Splitter: Smoothly resize the terminal dock height.
+
+
+2. KEYBOARD SHORTCUTS
+--------------------------------------------------------------------------------
+  [Ctrl+J]          Toggle bottom terminal dock open / closed (:term)
+  [Ctrl+Shift+T]    Create a new concurrent terminal session tab
+  [Ctrl+Shift+W]    Close active terminal session
+  [Alt+Up / Down]   Cycle between terminal tabs
+  [Ctrl+Shift+C]    Copy selected terminal output
+  [Ctrl+Shift+V]    Paste clipboard text directly into PTY stdin
+
+
+3. SHELL ENVIRONMENT & BASH CONFIGURATION
+--------------------------------------------------------------------------------
+When Git Bash is available, MindForge automatically launches it with login shell
+flags (--login) and ensures HOME is bridged to your user profile directory so
+that your personal ~/.bashrc, aliases, and starship/oh-my-posh prompts load
+seamlessly out of the box.
+
+
+4. COMMAND CONTROLS
+--------------------------------------------------------------------------------
+  :term             Toggle bottom terminal dock open or closed
+  :term bash        Launch a fresh Bash session
+  :term powershell  Launch a fresh PowerShell session

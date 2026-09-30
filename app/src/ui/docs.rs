@@ -19,52 +19,64 @@ pub struct DocItem {
 
 pub const BRAIN_DOCS: &[DocItem] = &[
     DocItem {
-        id: "welcome",
-        title: "Welcome",
-        filename: "welcome.md",
-        content: include_str!("../../../brain/welcome.md"),
+        id: "introduction",
+        title: "Introduction",
+        filename: "introduction.txt",
+        content: include_str!("../../../brain/introduction.txt"),
     },
     DocItem {
-        id: "basics",
-        title: "Basics",
-        filename: "basics.md",
-        content: include_str!("../../../brain/basics.md"),
+        id: "architecture",
+        title: "Architecture",
+        filename: "architecture.txt",
+        content: include_str!("../../../brain/architecture.txt"),
+    },
+    DocItem {
+        id: "notes",
+        title: "Notes & Checklists",
+        filename: "notes.txt",
+        content: include_str!("../../../brain/notes.txt"),
     },
     DocItem {
         id: "shortcuts",
         title: "Shortcuts",
-        filename: "shortcuts.md",
-        content: include_str!("../../../brain/shortcuts.md"),
+        filename: "shortcuts.txt",
+        content: include_str!("../../../brain/shortcuts.txt"),
     },
     DocItem {
         id: "vim",
-        title: "Vim",
-        filename: "vim.md",
-        content: include_str!("../../../brain/vim.md"),
+        title: "Vim Editor",
+        filename: "vim.txt",
+        content: include_str!("../../../brain/vim.txt"),
     },
     DocItem {
         id: "motions",
-        title: "Motions",
-        filename: "motions.md",
-        content: include_str!("../../../brain/motions.md"),
+        title: "Vim Motions & Objects",
+        filename: "motions.txt",
+        content: include_str!("../../../brain/motions.txt"),
     },
     DocItem {
-        id: "features",
-        title: "Features",
-        filename: "features.md",
-        content: include_str!("../../../brain/features.md"),
+        id: "neovim",
+        title: "Native Neovim RPC & Lua",
+        filename: "neovim.txt",
+        content: include_str!("../../../brain/neovim.txt"),
     },
     DocItem {
-        id: "scan",
-        title: "WebScan",
-        filename: "scan.md",
-        content: include_str!("../../../brain/scan.md"),
+        id: "customization",
+        title: "Customization & AI",
+        filename: "customization.txt",
+        content: include_str!("../../../brain/customization.txt"),
     },
     DocItem {
         id: "terminal",
-        title: "Terminal",
-        filename: "terminal.md",
-        content: include_str!("../../../brain/terminal.md"),
+        title: "Embedded Terminal",
+        filename: "terminal.txt",
+        content: include_str!("../../../brain/terminal.txt"),
+    },
+    DocItem {
+        id: "security",
+        title: "Security Scanner",
+        filename: "security.txt",
+        content: include_str!("../../../brain/security.txt"),
     },
 ];
 
@@ -550,7 +562,7 @@ mod tests {
 
     #[test]
     fn test_brain_docs_embedded_and_valid() {
-        assert_eq!(BRAIN_DOCS.len(), 8);
+        assert_eq!(BRAIN_DOCS.len(), 10);
         for doc in BRAIN_DOCS {
             assert!(!doc.id.is_empty());
             assert!(!doc.title.is_empty());
@@ -577,7 +589,7 @@ mod tests {
     #[test]
     fn test_doc_selection_bounds() {
         let total = BRAIN_DOCS.len();
-        assert_eq!(total, 8);
+        assert_eq!(total, 10);
         let mut selected = 0usize;
         // simulate Down / j moves
         for _ in 0..10 {

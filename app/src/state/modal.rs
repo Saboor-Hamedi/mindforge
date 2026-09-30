@@ -5,7 +5,7 @@
 //! visibility, input text, selection index, and scroll position.
 
 use crate::services::fuzzy::SearchItem;
-use crate::settings::SettingTab;
+use crate::setting::SettingTab;
 
 /// State for all modal dialogs rendered as overlays on top of the editor.
 #[derive(Clone)]
@@ -17,8 +17,8 @@ pub struct ModalState {
     pub active_setting_tab: SettingTab,
     pub backup_dir: String,
     pub last_backup_status: Option<String>,
-    pub keybind_capture: Option<crate::settings::keymap::KeybindCapture>,
-    pub keymap: crate::settings::keymap::VimKeymap,
+    pub keybind_capture: Option<crate::setting::keymap::KeybindCapture>,
+    pub keymap: crate::setting::keymap::VimKeymap,
 
     // Fuzzy search modal (Ctrl+P)
     pub search_open: bool,
@@ -26,6 +26,7 @@ pub struct ModalState {
     pub search_results: Vec<SearchItem>,
     pub search_selected: usize,
     pub search_just_opened: bool,
+    pub search_opened_at: f64,
 
     // Rename modal (Ctrl+R)
     pub rename_open: bool,
@@ -54,12 +55,13 @@ impl Default for ModalState {
             backup_dir: String::new(),
             last_backup_status: None,
             keybind_capture: None,
-            keymap: crate::settings::keymap::VimKeymap::load_or_init(),
+            keymap: crate::setting::keymap::VimKeymap::load_or_init(),
             search_open: false,
             search_query: String::new(),
             search_results: Vec::new(),
             search_selected: 0,
             search_just_opened: false,
+            search_opened_at: 0.0,
             rename_open: false,
             rename_input: String::new(),
             rename_just_opened: false,
