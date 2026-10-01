@@ -294,13 +294,16 @@ pub fn render_accent_dropdown(
 
         if p_resp.clicked() {
             *blur_effect = p_eff;
-            if (p_eff == crate::services::blur::BlurEffect::Acrylic || p_eff == crate::services::blur::BlurEffect::Mica) && *opacity > 0.95 {
+            if p_eff == crate::services::blur::BlurEffect::None {
+                *opacity = 1.0;
+                on_save_setting("opacity", "1.00");
+            } else if *opacity > 0.95 {
                 *opacity = 0.88;
                 on_save_setting("opacity", "0.88");
             }
             crate::services::blur::apply_window_blur(p_eff);
             on_save_setting("blur", p_eff.name().to_lowercase().as_str());
-            changed = true;
+            ui.ctx().request_repaint();
         }
     }
 
@@ -328,7 +331,7 @@ pub fn render_accent_dropdown(
             if (*opacity - rounded_op).abs() > 0.005 {
                 *opacity = rounded_op;
                 on_save_setting("opacity", &format!("{:.2}", *opacity));
-                changed = true;
+                ui.ctx().request_repaint();
             }
         }
     }
@@ -377,11 +380,11 @@ pub fn render_accent_dropdown(
     );
     if reset_resp.clicked() {
         overrides.clear();
-        *opacity = 0.88;
-        *blur_effect = crate::services::blur::BlurEffect::Acrylic;
-        crate::services::blur::apply_window_blur(crate::services::blur::BlurEffect::Acrylic);
-        on_save_setting("opacity", "0.88");
-        on_save_setting("blur", "acrylic");
+        *opacity = 1.0;
+        *blur_effect = crate::services::blur::BlurEffect::None;
+        crate::services::blur::apply_window_blur(crate::services::blur::BlurEffect::None);
+        on_save_setting("opacity", "1.00");
+        on_save_setting("blur", "none");
         action = Some(AccentAction::ResetAll);
     }
 

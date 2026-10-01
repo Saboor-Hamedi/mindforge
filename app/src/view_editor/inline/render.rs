@@ -181,14 +181,14 @@ pub fn render_inline_editor(
             theme.accent.r(),
             theme.accent.g(),
             theme.accent.b(),
-            90,
+            55,
         )
     } else {
         Color32::from_rgba_unmultiplied(
             theme.accent.r(),
             theme.accent.g(),
             theme.accent.b(),
-            60,
+            40,
         )
     };
 

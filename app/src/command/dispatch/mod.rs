@@ -91,4 +91,17 @@ mod tests {
         execute_command(&mut app, ":sort u", 0.0);
         assert_eq!(app.editor.ed.text(), "a\nb\nc");
     }
+
+    #[test]
+    fn test_syntax_command_dispatch() {
+        let mut app = App::new();
+        execute_command(&mut app, ":syntax on", 0.0);
+        assert_eq!(app.misc.status_msg.as_str(), "Syntax highlighting enabled");
+
+        execute_command(&mut app, ":syntax enable", 0.0);
+        assert_eq!(app.misc.status_msg.as_str(), "Syntax highlighting enabled");
+
+        execute_command(&mut app, ":syntax off", 0.0);
+        assert_eq!(app.misc.status_msg.as_str(), "Syntax highlighting disabled");
+    }
 }

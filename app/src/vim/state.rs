@@ -12,6 +12,7 @@ pub struct HighlightStyle {
     pub foreground: Option<u32>,
     pub background: Option<u32>,
     pub reverse: bool,
+    pub is_visual: bool,
 }
 
 #[derive(Debug, Clone, Default)]

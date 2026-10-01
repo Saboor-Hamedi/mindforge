@@ -13,12 +13,16 @@ impl App {
         let bounds = ui.max_rect();
 
         // 5px Rounded window background frame
-        let win_bg = Color32::from_rgba_unmultiplied(
-            self.misc.theme.bg.r(),
-            self.misc.theme.bg.g(),
-            self.misc.theme.bg.b(),
-            (self.misc.opacity * 255.0) as u8,
-        );
+        let win_bg = if self.misc.blur_effect == crate::services::blur::BlurEffect::None {
+            self.misc.theme.bg
+        } else {
+            Color32::from_rgba_unmultiplied(
+                self.misc.theme.bg.r(),
+                self.misc.theme.bg.g(),
+                self.misc.theme.bg.b(),
+                (self.misc.opacity * 255.0) as u8,
+            )
+        };
         painter.rect(
             bounds,
             5.0,

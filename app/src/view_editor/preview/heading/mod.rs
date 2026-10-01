@@ -17,8 +17,8 @@ pub fn preview_heading_metrics(level: u8, base_font_size: f32) -> (FontId, f32) 
 }
 
 /// Returns the heading text color resolving strictly to the active theme's palette.
-pub fn preview_heading_color(_level: u8, theme: &Theme) -> Color32 {
-    theme.text
+pub fn preview_heading_color(level: u8, theme: &Theme) -> Color32 {
+    crate::view_editor::inline::elements::heading_color(level, theme)
 }
 
 /// Renders a markdown heading (levels 1..=6) with proportional typography and comfortable spacing.

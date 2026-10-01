@@ -50,12 +50,27 @@ impl VimBackend {
         client.attach_ui(width, height)?;
         // Keep shared editor navigation options consistent even when the
         // user's init.lua has absolute numbers or cursorline disabled.
-        // Enable true colors and markdown syntax highlighting engine.
-        let init_cmd = "set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ \nsyntax on\nsyntax enable\nfiletype plugin indent on\nset termguicolors\nhi Cursor NONE\nhi TermCursor NONE";
-        client.request(
-            "nvim_command",
-            vec![Value::from(init_cmd)],
-        )?;
+        // Enable true colors, markdown syntax highlighting engine, and smooth visual line navigation.
+        let init_lua = r#"
+            vim.cmd([[
+                set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\ 
+                syntax on
+                syntax enable
+                filetype plugin indent on
+                set termguicolors
+                hi Cursor NONE
+                hi TermCursor NONE
+            ]])
+            local opts = { noremap = true, silent = true, expr = true }
+            vim.keymap.set("n", "j", "v:count == 0 ? 'gj' : 'j'", opts)
+            vim.keymap.set("n", "k", "v:count == 0 ? 'gk' : 'k'", opts)
+            vim.keymap.set("n", "<Down>", "v:count == 0 ? 'gj' : '<Down>'", opts)
+            vim.keymap.set("n", "<Up>", "v:count == 0 ? 'gk' : '<Up>'", opts)
+        "#;
+        let _ = client.request(
+            "nvim_exec_lua",
+            vec![Value::from(init_lua), Value::Array(vec![])],
+        );
 
         // Give the buffer a markdown filename so Neovim filetype and syntax rules attach
         let _ = client.request("nvim_buf_set_name", vec![Value::from(0), Value::from("note.md")]);
@@ -226,10 +241,20 @@ impl VimBackend {
                 "grid_scroll" if args.len() >= 7 => self.apply_grid_scroll(args),
                 // grid_cursor_goto payload: [grid, row, column]
                 "grid_cursor_goto" if args.len() >= 3 && num(&args[0]) == 1 => {
-                    self.grid.cursor = crate::editor::types::CursorPosition {
-                        row: num(&args[1]),
-                        column: num(&args[2]),
-                    };
+                    let target_row = num(&args[1]);
+                    let target_col = num(&args[2]);
+                    let is_bottom_cmd_row = self.grid.height > 0 && target_row >= self.grid.height.saturating_sub(1);
+                    let in_cmd_or_msg = self.grid.mode == "c"
+                        || self.grid.mode.starts_with("cmdline")
+                        || !self.grid.command_line.is_empty()
+                        || !self.grid.message.is_empty();
+
+                    if !(is_bottom_cmd_row && in_cmd_or_msg) {
+                        self.grid.cursor = crate::editor::types::CursorPosition {
+                            row: target_row,
+                            column: target_col,
+                        };
+                    }
                 }
                 "mode_change" if !args.is_empty() => {
                     // Event payload is [mode_name, mode_index]. The previous
@@ -354,6 +379,7 @@ impl VimBackend {
     fn apply_highlight(&mut self, args: &[Value]) {
         let id = num(&args[0]) as u64;
         let (mut foreground, mut background, mut reverse) = (None, None, false);
+        let mut is_visual = false;
         if let Some(attrs) = args[1].as_map() {
             for (key, value) in attrs {
                 let color = value.as_u64().map(|n| n as u32);
@@ -369,8 +395,11 @@ impl VimBackend {
             for map in info {
                 if let Some(map) = map.as_map() {
                     for (k, v) in map {
-                        if k.as_str() == Some("ui_name") {
+                        if k.as_str() == Some("ui_name") || k.as_str() == Some("hi_name") {
                             if let Some(name) = v.as_str() {
+                                if name == "Visual" || name == "VisualNOS" {
+                                    is_visual = true;
+                                }
                                 if name == "Cursor" || name == "TermCursor" {
                                     reverse = false;
                                     background = None;
@@ -381,7 +410,7 @@ impl VimBackend {
                 }
             }
         }
-        self.grid.highlights.insert(id, super::state::HighlightStyle { foreground, background, reverse });
+        self.grid.highlights.insert(id, super::state::HighlightStyle { foreground, background, reverse, is_visual });
         for revision in &mut self.grid.row_revision {
             *revision = revision.wrapping_add(1);
         }
@@ -448,7 +477,8 @@ impl VimBackend {
     pub fn set_document(&mut self, text: &str, row: usize, column: usize) -> EditorResult<()> {
         let _ = self.client.request("nvim_buf_set_name", vec![Value::from(0), Value::from("note.md")]);
         self.client.set_buffer_text_async(text)?;
-        let _ = self.client.notify("nvim_command", vec![Value::from("setlocal filetype=markdown syntax=markdown\nredraw!")]);
+        let _ = self.client.notify("nvim_command", vec![Value::from("setlocal filetype=markdown syntax=markdown")]);
+        let _ = self.client.notify("nvim_command", vec![Value::from("redraw!")]);
         self.lines = text.split('\n').map(str::to_owned).collect();
         self.document_words = text.split_whitespace().count();
         self.document_lines = text.lines().count();
@@ -532,12 +562,21 @@ impl VimBackend {
         let hl_hex = crate::accent::hex_from_color(theme.highlight);
         let is_light = theme.is_light();
 
-        let code_fg = if is_light { "#0184bc" } else { "#e5c07b" };
-        let stmt_fg = if is_light { "#a626a4" } else { "#e06c75" };
-        let ident_fg = if is_light { "#4078f2" } else { "#61afef" };
-        let str_fg = if is_light { "#50a14f" } else { "#98c379" };
-        let url_fg = "#56b6c2";
-        let type_fg = "#61afef";
+        let h1_fg = accent_hex.clone();
+        let h2_fg = if is_light { "#d97706" } else { "#e5c07b" };
+        let h3_fg = if is_light { "#0284c7" } else { "#61afef" };
+        let h4_fg = if is_light { "#16a34a" } else { "#98c379" };
+        let h5_fg = if is_light { "#9333ea" } else { "#c678dd" };
+        let h6_fg = if is_light { "#0d9488" } else { "#56b6c2" };
+
+        let bold_fg = if is_light { "#b91c1c" } else { "#e06c75" };
+        let italic_fg = if is_light { "#0284c7" } else { "#61afef" };
+        let code_fg = if is_light { "#059669" } else { "#98c379" };
+        let stmt_fg = if is_light { "#9333ea" } else { "#c678dd" };
+        let ident_fg = if is_light { "#0284c7" } else { "#61afef" };
+        let str_fg = if is_light { "#16a34a" } else { "#98c379" };
+        let url_fg = if is_light { "#0284c7" } else { "#56b6c2" };
+        let type_fg = if is_light { "#ea580c" } else { "#e5c07b" };
 
         let lua_code = format!(
             r##"
@@ -550,25 +589,33 @@ impl VimBackend {
                 Visual = {{ bg = "{hl}" }},
                 Search = {{ fg = "{bg}", bg = "{accent}" }},
                 CurSearch = {{ fg = "{bg}", bg = "{accent}", bold = true }},
-                Title = {{ fg = "{text}", bold = true }},
-                markdownH1 = {{ fg = "{text}", bold = true }},
-                markdownH2 = {{ fg = "{text}", bold = true }},
-                markdownH3 = {{ fg = "{text}", bold = true }},
-                markdownH4 = {{ fg = "{text}", bold = true }},
-                markdownH5 = {{ fg = "{text}", bold = true }},
-                markdownH6 = {{ fg = "{text}", bold = true }},
-                htmlH1 = {{ fg = "{text}", bold = true }},
-                htmlH2 = {{ fg = "{text}", bold = true }},
-                htmlH3 = {{ fg = "{text}", bold = true }},
-                htmlH4 = {{ fg = "{text}", bold = true }},
-                htmlH5 = {{ fg = "{text}", bold = true }},
-                htmlH6 = {{ fg = "{text}", bold = true }},
-                markdownHeadingDelimiter = {{ fg = "{muted}", bold = true }},
-                markdownH1Delimiter = {{ fg = "{muted}", bold = true }},
-                markdownH2Delimiter = {{ fg = "{muted}", bold = true }},
-                markdownH3Delimiter = {{ fg = "{muted}", bold = true }},
-                markdownBold = {{ bold = true }},
-                markdownItalic = {{ italic = true }},
+                Title = {{ fg = "{h1_fg}", bold = true }},
+                markdownH1 = {{ fg = "{h1_fg}", bold = true }},
+                markdownH2 = {{ fg = "{h2_fg}", bold = true }},
+                markdownH3 = {{ fg = "{h3_fg}", bold = true }},
+                markdownH4 = {{ fg = "{h4_fg}", bold = true }},
+                markdownH5 = {{ fg = "{h5_fg}", bold = true }},
+                markdownH6 = {{ fg = "{h6_fg}", bold = true }},
+                htmlH1 = {{ fg = "{h1_fg}", bold = true }},
+                htmlH2 = {{ fg = "{h2_fg}", bold = true }},
+                htmlH3 = {{ fg = "{h3_fg}", bold = true }},
+                htmlH4 = {{ fg = "{h4_fg}", bold = true }},
+                htmlH5 = {{ fg = "{h5_fg}", bold = true }},
+                htmlH6 = {{ fg = "{h6_fg}", bold = true }},
+                markdownHeadingDelimiter = {{ fg = "{accent}", bold = true }},
+                markdownH1Delimiter = {{ fg = "{h1_fg}", bold = true }},
+                markdownH2Delimiter = {{ fg = "{h2_fg}", bold = true }},
+                markdownH3Delimiter = {{ fg = "{h3_fg}", bold = true }},
+                markdownH4Delimiter = {{ fg = "{h4_fg}", bold = true }},
+                markdownH5Delimiter = {{ fg = "{h5_fg}", bold = true }},
+                markdownH6Delimiter = {{ fg = "{h6_fg}", bold = true }},
+                markdownHeadingRule = {{ fg = "{muted}" }},
+                markdownBold = {{ fg = "{bold_fg}", bold = true }},
+                htmlBold = {{ fg = "{bold_fg}", bold = true }},
+                markdownItalic = {{ fg = "{italic_fg}", italic = true }},
+                htmlItalic = {{ fg = "{italic_fg}", italic = true }},
+                markdownBoldItalic = {{ fg = "{bold_fg}", bold = true, italic = true }},
+                htmlBoldItalic = {{ fg = "{bold_fg}", bold = true, italic = true }},
                 markdownCode = {{ fg = "{code_fg}", bg = "{surface}" }},
                 markdownCodeBlock = {{ fg = "{code_fg}", bg = "{surface}" }},
                 markdownCodeDelimiter = {{ fg = "{muted}" }},
@@ -579,19 +626,30 @@ impl VimBackend {
                 markdownUrl = {{ fg = "{url_fg}", underline = true }},
                 markdownLinkText = {{ fg = "{accent}", underline = true }},
                 markdownLink = {{ fg = "{muted}" }},
-                ["@markup.heading"] = {{ fg = "{text}", bold = true }},
-                ["@markup.heading.1"] = {{ fg = "{text}", bold = true }},
-                ["@markup.heading.2"] = {{ fg = "{text}", bold = true }},
-                ["@markup.heading.3"] = {{ fg = "{text}", bold = true }},
-                ["@markup.heading.4"] = {{ fg = "{text}", bold = true }},
-                ["@markup.heading.5"] = {{ fg = "{text}", bold = true }},
-                ["@markup.heading.6"] = {{ fg = "{text}", bold = true }},
-                ["@markup.strong"] = {{ bold = true }},
-                ["@markup.italic"] = {{ italic = true }},
+                markdownId = {{ fg = "{accent}" }},
+                markdownIdDeclaration = {{ fg = "{accent}" }},
+                markdownAutomaticLink = {{ fg = "{url_fg}", underline = true }},
+                ["@markup.heading"] = {{ fg = "{h1_fg}", bold = true }},
+                ["@markup.heading.1"] = {{ fg = "{h1_fg}", bold = true }},
+                ["@markup.heading.2"] = {{ fg = "{h2_fg}", bold = true }},
+                ["@markup.heading.3"] = {{ fg = "{h3_fg}", bold = true }},
+                ["@markup.heading.4"] = {{ fg = "{h4_fg}", bold = true }},
+                ["@markup.heading.5"] = {{ fg = "{h5_fg}", bold = true }},
+                ["@markup.heading.6"] = {{ fg = "{h6_fg}", bold = true }},
+                ["@markup.heading.1.markdown"] = {{ fg = "{h1_fg}", bold = true }},
+                ["@markup.heading.2.markdown"] = {{ fg = "{h2_fg}", bold = true }},
+                ["@markup.heading.3.markdown"] = {{ fg = "{h3_fg}", bold = true }},
+                ["@markup.heading.4.markdown"] = {{ fg = "{h4_fg}", bold = true }},
+                ["@markup.heading.5.markdown"] = {{ fg = "{h5_fg}", bold = true }},
+                ["@markup.heading.6.markdown"] = {{ fg = "{h6_fg}", bold = true }},
+                ["@markup.strong"] = {{ fg = "{bold_fg}", bold = true }},
+                ["@markup.italic"] = {{ fg = "{italic_fg}", italic = true }},
                 ["@markup.raw"] = {{ fg = "{code_fg}", bg = "{surface}" }},
                 ["@markup.raw.block"] = {{ fg = "{code_fg}", bg = "{surface}" }},
                 ["@markup.quote"] = {{ fg = "{muted}", italic = true }},
                 ["@markup.list"] = {{ fg = "{accent}", bold = true }},
+                ["@markup.list.checked"] = {{ fg = "{muted}" }},
+                ["@markup.list.unchecked"] = {{ fg = "{accent}", bold = true }},
                 ["@markup.link.url"] = {{ fg = "{url_fg}", underline = true }},
                 ["@markup.link.label"] = {{ fg = "{accent}", underline = true }},
                 Comment = {{ fg = "{muted}", italic = true }},
@@ -613,6 +671,14 @@ impl VimBackend {
             hl = hl_hex,
             accent = accent_hex,
             muted = muted_hex,
+            h1_fg = h1_fg,
+            h2_fg = h2_fg,
+            h3_fg = h3_fg,
+            h4_fg = h4_fg,
+            h5_fg = h5_fg,
+            h6_fg = h6_fg,
+            bold_fg = bold_fg,
+            italic_fg = italic_fg,
             code_fg = code_fg,
             stmt_fg = stmt_fg,
             ident_fg = ident_fg,
@@ -622,7 +688,9 @@ impl VimBackend {
         );
         let _ = self.client.notify("nvim_exec_lua", vec![Value::from(lua_code), Value::Array(vec![])]);
         self.row_layouts.clear();
-        self.grid.highlights.clear();
+        for revision in &mut self.grid.row_revision {
+            *revision = revision.wrapping_add(1);
+        }
     }
 
     /// Cached document statistics updated from Neovim's incremental line events.
@@ -676,12 +744,44 @@ impl VimBackend {
 
     /// Execute an arbitrary Neovim Ex-command synchronously via MessagePack-RPC.
     pub fn execute_command(&mut self, command: &str) -> Result<String, String> {
-        self.client.execute_command(command)
+        let res = self.client.execute_command(command);
+        if let Ok(Value::Array(pos)) = self.client.request("nvim_win_get_cursor", vec![Value::from(0)]) {
+            if pos.len() >= 2 {
+                let win_row = pos[0].as_u64().unwrap_or(1).saturating_sub(1) as usize;
+                let win_col = pos[1].as_u64().unwrap_or(0) as usize;
+                if win_row < self.lines.len() {
+                    let char_col = self.lines.get(win_row)
+                        .map(|l| l.char_indices().take_while(|(b, _)| *b < win_col).count())
+                        .unwrap_or(0);
+                    self.grid.cursor = crate::editor::types::CursorPosition {
+                        row: win_row,
+                        column: char_col,
+                    };
+                }
+            }
+        }
+        res
     }
 
     /// Execute arbitrary Lua code synchronously in Neovim via MessagePack-RPC.
     pub fn execute_lua(&mut self, code: &str) -> Result<String, String> {
-        self.client.execute_lua(code, vec![])
+        let res = self.client.execute_lua(code, vec![]);
+        if let Ok(Value::Array(pos)) = self.client.request("nvim_win_get_cursor", vec![Value::from(0)]) {
+            if pos.len() >= 2 {
+                let win_row = pos[0].as_u64().unwrap_or(1).saturating_sub(1) as usize;
+                let win_col = pos[1].as_u64().unwrap_or(0) as usize;
+                if win_row < self.lines.len() {
+                    let char_col = self.lines.get(win_row)
+                        .map(|l| l.char_indices().take_while(|(b, _)| *b < win_col).count())
+                        .unwrap_or(0);
+                    self.grid.cursor = crate::editor::types::CursorPosition {
+                        row: win_row,
+                        column: char_col,
+                    };
+                }
+            }
+        }
+        res
     }
 }
 
@@ -977,7 +1077,15 @@ impl EditorBackend for VimBackend {
                             bg_color = Some(style.foreground.map(rgb).unwrap_or(theme.text));
                         }
                     } else if let Some(color) = style.background {
-                        bg_color = Some(rgb(color));
+                        let c = rgb(color);
+                        let is_sel = style.is_visual
+                            || (c.r() == theme.highlight.r() && c.g() == theme.highlight.g() && c.b() == theme.highlight.b());
+                        if is_sel {
+                            let alpha = if theme.is_light() { 55 } else { 40 };
+                            bg_color = Some(Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha));
+                        } else {
+                            bg_color = Some(c);
+                        }
                     }
                 }
                 match (span_start, bg_color) {

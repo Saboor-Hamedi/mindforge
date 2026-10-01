@@ -174,14 +174,14 @@ pub fn render_editor_body(
             theme.accent.r(),
             theme.accent.g(),
             theme.accent.b(),
-            95,
+            55,
         )
     } else {
         Color32::from_rgba_unmultiplied(
             theme.accent.r(),
             theme.accent.g(),
             theme.accent.b(),
-            65,
+            40,
         )
     };
 

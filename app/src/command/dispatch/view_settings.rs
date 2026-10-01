@@ -18,6 +18,33 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             app.set_status("Line numbers enabled", now);
             true
         }
+        "syntax" | "syn" | "synatx" => {
+            let arg = args.trim().to_lowercase();
+            match arg.as_str() {
+                "off" => {
+                    if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                        let _ = backend.execute_command("syntax off");
+                    }
+                    app.set_status("Syntax highlighting disabled", now);
+                }
+                "on" | "enable" | "" => {
+                    if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                        let _ = backend.execute_command("syntax enable");
+                        let _ = backend.execute_command("setlocal filetype=markdown syntax=markdown");
+                        backend.sync_theme(&app.misc.theme);
+                    }
+                    app.set_status("Syntax highlighting enabled", now);
+                }
+                other => {
+                    if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                        let _ = backend.execute_command(&format!("syntax {}", other));
+                        backend.sync_theme(&app.misc.theme);
+                    }
+                    app.set_status(format!("Syntax: {}", other), now);
+                }
+            }
+            true
+        }
         "nonu" | "nonumber" => {
             app.editor.show_line_numbers = false;
             let _ = app.services.db_tx.send(DbMsg::SaveSetting {

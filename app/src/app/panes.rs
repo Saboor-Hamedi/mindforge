@@ -82,10 +82,21 @@ impl App {
         } else {
             Stroke::new(1.0, self.misc.theme.border().gamma_multiply(0.60))
         };
+        let ed_bg = if self.misc.blur_effect == crate::services::blur::BlurEffect::None || self.misc.opacity >= 0.99 {
+            self.misc.theme.bg
+        } else {
+            let alpha = ((self.misc.opacity * 255.0) as u8).max(225);
+            Color32::from_rgba_unmultiplied(
+                self.misc.theme.bg.r(),
+                self.misc.theme.bg.g(),
+                self.misc.theme.bg.b(),
+                alpha,
+            )
+        };
         painter.rect(
             ed_card_rect,
             5.0,
-            Color32::TRANSPARENT,
+            ed_bg,
             ed_stroke,
             egui::StrokeKind::Inside,
         );

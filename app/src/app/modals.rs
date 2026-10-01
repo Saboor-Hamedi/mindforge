@@ -103,6 +103,10 @@ impl App {
                     }
                     crate::services::fuzzy::PaletteAction::ApplyTheme(theme_kind) => {
                         self.misc.theme = crate::ui::theme::Theme::from_kind(theme_kind);
+                        self.misc.accent_overrides.apply(&mut self.misc.theme);
+                        if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+                            backend.sync_theme(&self.misc.theme);
+                        }
                         let _ = self.services.db_tx.send(DbMsg::SaveSetting {
                             key: "theme".into(),
                             val: theme_kind.name().into(),

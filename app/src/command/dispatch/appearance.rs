@@ -92,6 +92,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
         "theme" | "colorscheme" | "color" => {
             if let Some(kind) = ThemeKind::parse(args) {
                 app.misc.theme = Theme::from_kind(kind);
+                app.misc.accent_overrides.apply(&mut app.misc.theme);
+                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                    backend.sync_theme(&app.misc.theme);
+                }
                 let _ = app.services.db_tx.send(DbMsg::SaveSetting {
                     key: "theme".into(),
                     val: args.into(),
