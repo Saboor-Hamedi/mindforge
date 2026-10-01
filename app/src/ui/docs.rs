@@ -344,26 +344,29 @@ pub fn render_doc_sidebar(
 ) -> Option<DocSidebarAction> {
     let mut action = None;
 
-    if any_modal_open {
-        // Translucent background
-        let sb_bg = Color32::from_rgba_unmultiplied(
+    let sb_stroke = if is_focused {
+        Stroke::new(1.0, theme.accent.gamma_multiply(0.40))
+    } else {
+        Stroke::new(1.0, theme.border().gamma_multiply(0.60))
+    };
+    let sb_bg = if opacity >= 0.99 {
+        theme.sidebar_bg()
+    } else {
+        let alpha = ((opacity * 255.0) as u8).max(225);
+        Color32::from_rgba_unmultiplied(
             theme.sidebar_bg().r(),
             theme.sidebar_bg().g(),
             theme.sidebar_bg().b(),
-            (opacity * 255.0) as u8,
-        );
-        painter.rect_filled(rect, 0.0, sb_bg);
+            alpha,
+        )
+    };
+
+    if any_modal_open {
+        painter.rect(rect, 5.0, sb_bg, sb_stroke, egui::StrokeKind::Inside);
         return None;
     }
 
-    // Translucent sidebar background matching desktop backdrop blur
-    let sb_bg = Color32::from_rgba_unmultiplied(
-        theme.sidebar_bg().r(),
-        theme.sidebar_bg().g(),
-        theme.sidebar_bg().b(),
-        (opacity * 255.0) as u8,
-    );
-    painter.rect_filled(rect, 0.0, sb_bg);
+    painter.rect(rect, 5.0, sb_bg, sb_stroke, egui::StrokeKind::Inside);
 
     let origin = rect.min + vec2(16.0, 18.0);
 

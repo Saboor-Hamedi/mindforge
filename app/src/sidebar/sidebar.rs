@@ -45,24 +45,30 @@ pub fn render_sidebar(
 ) -> Option<SidebarAction> {
     let sidebar_w = sb_rect.width();
 
-    // Translucent sidebar background matching desktop backdrop blur
-    let sb_bg = Color32::from_rgba_unmultiplied(
-        theme.sidebar_bg().r(),
-        theme.sidebar_bg().g(),
-        theme.sidebar_bg().b(),
-        (opacity * 255.0) as u8,
-    );
-    painter.rect_filled(sb_rect, 0.0, sb_bg);
-
-    // Subtle focus divider indicator: glows with accent when sidebar is focused
-    let (divider_w, divider_color) = if sidebar_focused {
-        (1.5, theme.accent.gamma_multiply(0.75))
+    // Sidebar card styling matches the text area / editor card:
+    // 5px corner radius, identical background opacity/blur handling, and focus outline
+    let sb_stroke = if sidebar_focused {
+        Stroke::new(1.0, theme.accent.gamma_multiply(0.40))
     } else {
-        (1.0, theme.border())
+        Stroke::new(1.0, theme.border().gamma_multiply(0.60))
     };
-    painter.line_segment(
-        [sb_rect.right_top(), sb_rect.right_bottom()],
-        Stroke::new(divider_w, divider_color),
+    let sb_bg = if opacity >= 0.99 {
+        theme.sidebar_bg()
+    } else {
+        let alpha = ((opacity * 255.0) as u8).max(225);
+        Color32::from_rgba_unmultiplied(
+            theme.sidebar_bg().r(),
+            theme.sidebar_bg().g(),
+            theme.sidebar_bg().b(),
+            alpha,
+        )
+    };
+    painter.rect(
+        sb_rect,
+        5.0,
+        sb_bg,
+        sb_stroke,
+        egui::StrokeKind::Inside,
     );
 
     let sb_origin = sb_rect.min + vec2(16.0, 18.0);

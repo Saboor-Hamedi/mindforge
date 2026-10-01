@@ -467,6 +467,49 @@ pub fn fuzzy_match(needle: &str, haystack: &str) -> Option<i64> {
 ///    → Fuzzy searches across note titles and body content
 ///
 /// Results are sorted by score (descending).
+/// Extracts a clean, safe snippet around the matched query in the note body.
+/// Uses Unicode character indices so multi-byte UTF-8 sequences (em-dashes, emojis, etc.)
+/// are never split across byte boundaries.
+pub fn extract_snippet(body: &str, query: &str) -> String {
+    let clean = body.replace('\n', " ");
+    let chars: Vec<char> = clean.chars().collect();
+    let total_chars = chars.len();
+
+    if query.is_empty() {
+        if total_chars > 60 {
+            let s: String = chars[..60].iter().collect();
+            format!("{s}...")
+        } else {
+            clean
+        }
+    } else {
+        let clean_lower: Vec<char> = clean.to_lowercase().chars().collect();
+        let query_lower: Vec<char> = query.to_lowercase().chars().collect();
+
+        let match_pos = if query_lower.is_empty() {
+            None
+        } else {
+            clean_lower
+                .windows(query_lower.len())
+                .position(|window| window == query_lower.as_slice())
+        };
+
+        if let Some(pos) = match_pos {
+            let start = pos.saturating_sub(20);
+            let end = (pos + query_lower.len() + 40).min(total_chars);
+            let s: String = chars[start..end].iter().collect();
+            let prefix = if start > 0 { "..." } else { "" };
+            let suffix = if end < total_chars { "..." } else { "" };
+            format!("{prefix}{s}{suffix}")
+        } else if total_chars > 60 {
+            let s: String = chars[..60].iter().collect();
+            format!("{s}...")
+        } else {
+            clean
+        }
+    }
+}
+
 pub fn search_palette(
     query_str: &str,
     notes: &[core::Note],
@@ -529,21 +572,7 @@ pub fn search_palette(
         let score_topic = fuzzy_match(raw, &note.topic);
         let score_body = fuzzy_match(raw, &note.body);
         if let Some(score) = score_topic.or(score_body) {
-            let snippet = if raw.is_empty() {
-                if note.body.len() > 60 {
-                    format!("{}...", &note.body[..60].replace('\n', " "))
-                } else {
-                    note.body.replace('\n', " ")
-                }
-            } else if let Some(pos) = note.body.to_lowercase().find(&raw.to_lowercase()) {
-                let start = pos.saturating_sub(20);
-                let end = (pos + raw.len() + 40).min(note.body.len());
-                format!("...{}...", note.body[start..end].replace('\n', " "))
-            } else if note.body.len() > 60 {
-                format!("{}...", &note.body[..60].replace('\n', " "))
-            } else {
-                note.body.replace('\n', " ")
-            };
+            let snippet = extract_snippet(&note.body, raw);
 
             results.push(SearchItem::for_note(
                 note.id,
@@ -633,6 +662,20 @@ mod tests {
         let note_results = search_palette("Arch", &sample_notes, ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
         assert!(!note_results.is_empty());
         assert_eq!(note_results[0].badge, "");
+    }
+
+    #[test]
+    fn test_extract_snippet_multibyte_safety() {
+        // Multi-byte em-dash and unicode characters exactly like the user's crashing note
+        let body = "prefix text before — em-dash and some unicode: 🚀 — and even more text following";
+        let snippet = extract_snippet(body, "unicode");
+        assert!(snippet.contains("unicode"));
+        assert!(!snippet.is_empty());
+
+        // Long text with em-dash near byte boundary
+        let long_body = format!("{} — {}", "a".repeat(835), "action words");
+        let snip2 = extract_snippet(&long_body, "action");
+        assert!(snip2.contains("action"));
     }
 }
 
