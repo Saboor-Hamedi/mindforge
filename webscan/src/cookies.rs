@@ -16,10 +16,17 @@ pub fn check(headers: &HeaderMap, is_https: bool) -> Vec<Finding> {
         }
 
         let cookie_name = parts[0].split('=').next().unwrap_or("unknown");
-        let lower = cookie_str.to_lowercase();
+        let attributes: Vec<String> = parts.iter().skip(1).map(|part| part.to_ascii_lowercase()).collect();
+        let has_flag = |name: &str| attributes.iter().any(|attribute| attribute.trim() == name);
+        let has_attribute = |name: &str| attributes.iter().any(|attribute| {
+            attribute.split_once('=').is_some_and(|(key, _)| key.trim() == name)
+        });
+        let same_site_none = attributes.iter().any(|attribute| {
+            attribute.split_once('=').is_some_and(|(key, value)| key.trim() == "samesite" && value.trim() == "none")
+        });
 
         // 1. HttpOnly flag check
-        if !lower.contains("httponly") {
+        if !has_flag("httponly") {
             findings.push(Finding {
                 category: Category::Cookies,
                 severity: Severity::Medium,
@@ -29,7 +36,7 @@ pub fn check(headers: &HeaderMap, is_https: bool) -> Vec<Finding> {
         }
 
         // 2. Secure flag check
-        if is_https && !lower.contains("secure") {
+        if is_https && !has_flag("secure") {
             findings.push(Finding {
                 category: Category::Cookies,
                 severity: Severity::High,
@@ -39,14 +46,14 @@ pub fn check(headers: &HeaderMap, is_https: bool) -> Vec<Finding> {
         }
 
         // 3. SameSite flag check
-        if !lower.contains("samesite") {
+        if !has_attribute("samesite") {
             findings.push(Finding {
                 category: Category::Cookies,
                 severity: Severity::Low,
                 title: format!("Cookie '{}' missing SameSite attribute", cookie_name),
                 description: format!("Cookie '{}' does not specify SameSite (Lax/Strict), increasing CSRF vulnerability.", cookie_name),
             });
-        } else if lower.contains("samesite=none") && !lower.contains("secure") {
+        } else if same_site_none && !has_flag("secure") {
             findings.push(Finding {
                 category: Category::Cookies,
                 severity: Severity::High,

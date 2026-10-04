@@ -38,7 +38,8 @@ pub fn run(url: &str, opts: &ScanOptions) -> Result<(HeaderMap, InitialStats)> {
     let is_https = url.starts_with("https://");
     let tls = if is_https {
         Some(TlsInfo {
-            protocol: Some("TLSv1.3 / TLSv1.2".into()),
+            // reqwest does not expose the negotiated TLS session details here.
+            protocol: None,
             cipher: None,
             issuer: None,
             expiry: None,

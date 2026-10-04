@@ -30,7 +30,8 @@ impl Database {
         let conn = Connection::open(path)
             .with_context(|| format!("Failed to open SQLite database at {:?}", path))?;
         conn.execute_batch(
-            "PRAGMA journal_mode = WAL;
+            "PRAGMA foreign_keys = ON;
+             PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
              PRAGMA busy_timeout = 5000;",
         )?;
@@ -58,6 +59,7 @@ impl Database {
     /// Opens an in-memory SQLite database (ideal for unit testing).
     pub fn open_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
+        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         let db = Self { conn };
         db.migrate()?;
         Ok(db)

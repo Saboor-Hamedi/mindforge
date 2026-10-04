@@ -381,8 +381,8 @@ pub fn render_shortcuts_tab(
         };
         painter.rect_filled(track, 1.5, track_color);
 
-        let thumb_h = (visible_h * visible_h / content_h).clamp(24.0, visible_h);
-        let thumb_y = list_top + (scroll / max_scroll) * (visible_h - thumb_h - 8.0);
+        let thumb_h = (visible_h * visible_h / content_h).clamp(24.0_f32.min(visible_h), visible_h);
+        let thumb_y = list_top + (scroll / max_scroll) * (visible_h - thumb_h).max(0.0);
         let thumb = Rect::from_min_size(pos2(track_x, thumb_y), vec2(3.0, thumb_h));
         let thumb_color = if theme.is_light() {
             Color32::from_rgba_unmultiplied(0, 0, 0, 60)

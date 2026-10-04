@@ -198,13 +198,17 @@ pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
     if app.services.editor_controller.mode != EditorInputMode::Vim {
         return;
     }
-    let (update, cursor, tab_index, note_id) = {
+    let (update, cursor, tab_index, note_id, backend_error) = {
         let Some(backend) = app.services.vim_runtime.backend.as_mut() else { return };
         backend.tick();
         let update = backend.take_text_update();
         let cursor = update.as_ref().map(|_| backend.cursor_char_index());
-        (update, cursor, app.services.vim_runtime.tab_index, app.services.vim_runtime.note_id)
+        let backend_error = backend.take_error();
+        (update, cursor, app.services.vim_runtime.tab_index, app.services.vim_runtime.note_id, backend_error)
     };
+    if let Some(error) = backend_error {
+        app.set_status(format!("Neovim error: {error}"), now);
+    }
     let changed = update.is_some();
     if app.misc.mode == Mode::Doc {
         if let Some(text) = update {

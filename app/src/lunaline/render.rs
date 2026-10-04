@@ -537,6 +537,17 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
 
             if avail_status_w > 40.0 {
                 let status_clip = Rect::from_min_max(pos2(left_x, actual_bar_rect.min.y), pos2(left_x + avail_status_w, actual_bar_rect.max.y));
+                let status_response = params.ui.interact(
+                    status_clip,
+                    params.ui.make_persistent_id("lunaline_status_message_copy"),
+                    egui::Sense::click(),
+                );
+                if status_response.double_clicked() {
+                    params.ui.ctx().copy_text(params.status_msg.to_owned());
+                }
+                if status_response.hovered() {
+                    status_response.on_hover_text("Double-click to copy this message");
+                }
                 let status_painter = painter.with_clip_rect(status_clip);
                 status_painter.text(pos2(left_x, bar_center_y), Align2::LEFT_CENTER, params.status_msg, font_info.clone(), status_color);
             }

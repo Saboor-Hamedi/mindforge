@@ -11,7 +11,9 @@ pub struct GridCell {
 pub struct HighlightStyle {
     pub foreground: Option<u32>,
     pub background: Option<u32>,
+    pub special: Option<u32>,
     pub reverse: bool,
+    pub underline: bool,
     pub is_visual: bool,
 }
 

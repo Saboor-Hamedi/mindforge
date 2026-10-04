@@ -65,6 +65,7 @@ pub fn get_win32_clipboard() -> Option<String> {
         fn CloseClipboard() -> i32;
         fn GetClipboardData(uFormat: u32) -> *mut std::ffi::c_void;
         fn GlobalLock(hMem: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
+        fn GlobalSize(hMem: *mut std::ffi::c_void) -> usize;
         fn GlobalUnlock(hMem: *mut std::ffi::c_void) -> i32;
     }
     const CF_UNICODETEXT: u32 = 13;
@@ -83,12 +84,11 @@ pub fn get_win32_clipboard() -> Option<String> {
             if !handle.is_null() {
                 let ptr = GlobalLock(handle) as *const u16;
                 if !ptr.is_null() {
-                    let mut len = 0;
-                    while *ptr.add(len) != 0 {
-                        len += 1;
+                    let units = GlobalSize(handle) / std::mem::size_of::<u16>();
+                    let slice = std::slice::from_raw_parts(ptr, units);
+                    if let Some(len) = slice.iter().position(|&unit| unit == 0) {
+                        result = String::from_utf16(&slice[..len]).ok();
                     }
-                    let slice = std::slice::from_raw_parts(ptr, len);
-                    result = String::from_utf16(slice).ok();
                     GlobalUnlock(handle);
                 }
             }

@@ -232,6 +232,17 @@ pub fn render_bottom_dock(
                 pos2(text_x, dock_rect.min.y),
                 pos2(max_cmd_x, dock_rect.max.y),
             );
+            let status_response = ui.interact(
+                status_clip,
+                ui.make_persistent_id("status_message_copy"),
+                egui::Sense::click(),
+            );
+            if status_response.double_clicked() {
+                ui.ctx().copy_text(status_msg.to_owned());
+            }
+            if status_response.hovered() {
+                status_response.on_hover_text("Double-click to copy this message");
+            }
             let status_painter = painter.with_clip_rect(status_clip);
             status_painter.text(
                 pos2(text_x, cmd_y),

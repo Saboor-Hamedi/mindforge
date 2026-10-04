@@ -103,6 +103,42 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         return false;
     }
 
+    // An active Neovim completion owns plain Enter. Route and consume it
+    // before global navigation shortcuts (for example, sidebar Enter) can
+    // interpret the same key as opening a note.
+    let completion_enter_event = ctx.input(|input| input.events.iter().find(|event| matches!(event,
+        egui::Event::Key {
+            key: egui::Key::Enter,
+            pressed: true,
+            modifiers,
+            ..
+        } if !modifiers.ctrl && !modifiers.command && !modifiers.shift && !modifiers.alt
+    )).cloned());
+    let completion_owns_enter = completion_enter_event.is_some()
+        && app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
+        && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
+        && !app.command_bar.in_command
+        && !app.terminal.focused
+        && !app.modal.search_open
+        && !app.modal.settings_open
+        && !app.modal.rename_open
+        && !app.modal.delete_confirm_open
+        && !app.misc.accent_dropdown_open
+        && !app.services.wikilink_autocomplete.is_active
+        && app.services.vim_runtime.backend.as_ref().is_some_and(|backend| backend.popup_visible());
+    if completion_owns_enter {
+        if let Some(event) = completion_enter_event {
+            let has_text_event = ctx.input(|input| input.events.iter().any(|event|
+                matches!(event, egui::Event::Text(text) if !text.is_empty())
+            ));
+            let has_colon_text = ctx.input(|input| input.events.iter().any(|event|
+                matches!(event, egui::Event::Text(text) if text.contains(':'))
+            ));
+            let _ = crate::vim::input::handle_event(app, &event, now, has_text_event, has_colon_text);
+            return false;
+        }
+    }
+
     // 1. Check global shortcuts (window close, undo/redo, modal triggers, clipboard, tabs)
     if let Some(typed) = global::handle_global_shortcuts(app, ctx, now) {
         return typed;

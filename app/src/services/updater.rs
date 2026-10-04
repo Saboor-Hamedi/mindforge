@@ -112,7 +112,7 @@ impl UpdateManager {
         }
 
         std::thread::spawn(move || {
-            let repo = "Saboor-Hamedi/my_first_project";
+            let repo = "Saboor-Hamedi/mindforge";
             let url = format!("https://api.github.com/repos/{repo}/releases/latest");
 
             let agent = ureq::builder()
@@ -124,9 +124,7 @@ impl UpdateManager {
                 Ok(resp) => resp,
                 Err(ureq::Error::Status(404, _)) => {
                     if let Ok(mut s) = status.lock() {
-                        *s = UpdateStatus::UpToDate {
-                            version: cur_ver.clone(),
-                        };
+                        *s = UpdateStatus::Error("GitHub repository or release not found (404)".into());
                     }
                     return;
                 }

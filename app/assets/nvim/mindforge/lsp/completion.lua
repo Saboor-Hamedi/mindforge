@@ -7,6 +7,45 @@ local function has_completion_client(buf)
   return #vim.lsp.get_clients({ bufnr = buf, method = 'textDocument/completion' }) > 0
 end
 
+local function enable_buffer_completion(buf)
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return false
+  end
+  local completion = vim.lsp.completion
+  if not completion or type(completion.enable) ~= 'function' then
+    return false
+  end
+  local found = false
+  for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
+    local ok, supported = pcall(client.supports_method, client, 'textDocument/completion')
+    if ok and supported then
+      found = true
+      local enabled, err = pcall(completion.enable, true, client.id, buf, { autotrigger = true })
+      if not enabled then
+        vim.notify('MindForge could not enable completion: ' .. tostring(err), vim.log.levels.WARN)
+      end
+    end
+  end
+  return found
+end
+
+local function request_completion()
+  local buf = vim.api.nvim_get_current_buf()
+  enable_buffer_completion(buf)
+  if not has_completion_client(buf) then
+    return false
+  end
+  local completion = vim.lsp.completion
+  if not completion or type(completion.get) ~= 'function' then
+    return false
+  end
+  local ok, err = pcall(completion.get)
+  if not ok then
+    vim.notify('MindForge completion request failed: ' .. tostring(err), vim.log.levels.WARN)
+  end
+  return ok
+end
+
 local function feed(keys)
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), 'n', false)
 end
@@ -26,7 +65,10 @@ local function setup_options()
   vim.opt.pumheight = 12
   vim.opt.shortmess:append('c')
   vim.diagnostic.config({
-    virtual_text = { prefix = '●', spacing = 2 },
+    -- Diagnostic messages are metadata; rendering them as virtual text can
+    -- extend/wrap Neovim grid rows. MindForge renders extmark underlines as an
+    -- overlay and keeps the complete message available through diagnostic float.
+    virtual_text = false,
     signs = false,
     underline = true,
     update_in_insert = false,
@@ -38,10 +80,18 @@ local function setup_triggers(group)
   vim.api.nvim_create_autocmd('LspAttach', {
     group = group,
     callback = function(event)
-      local client = vim.lsp.get_client_by_id(event.data.client_id)
-      if client and client:supports_method('textDocument/completion') then
-        vim.lsp.completion.enable(true, client.id, event.buf, { autotrigger = true })
-      end
+      enable_buffer_completion(event.buf)
+    end,
+  })
+  vim.api.nvim_create_autocmd({ 'BufEnter', 'FileType' }, {
+    group = group,
+    callback = function(event)
+      vim.schedule(function()
+        local buf = event.buf
+        if buf == vim.api.nvim_get_current_buf() then
+          enable_buffer_completion(buf)
+        end
+      end)
     end,
   })
 
@@ -75,6 +125,8 @@ local function setup_keys()
       feed(pum_selected() >= 0 and '<C-y>' or '<C-n><C-y>')
     elseif vim.snippet.active({ direction = 1 }) then
       vim.snippet.jump(1)
+    elseif request_completion() then
+      -- With a completion-capable client, Tab explicitly requests matches.
     else
       feed('<Tab>')
     end
@@ -120,9 +172,7 @@ local function setup_keys()
   map('i', '<Esc>', function()
     return vim.fn.pumvisible() == 1 and '<C-e>' or '<Esc>'
   end, { expr = true })
-  map('i', '<C-Space>', function()
-    pcall(vim.lsp.completion.get)
-  end)
+  map('i', '<C-Space>', request_completion)
   map('n', 'gd', vim.lsp.buf.definition)
 end
 

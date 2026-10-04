@@ -8,6 +8,7 @@
 //! preview engine used for note live-preview, ensuring consistent styling.
 
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
+use std::sync::OnceLock;
 
 /// A single documentation page with embedded Markdown content.
 pub struct DocItem {
@@ -89,10 +90,10 @@ pub const BRAIN_DOCS: &[DocItem] = &[
 /// Returns all available documentation documents.
 /// If a local `brain/` folder exists on disk, reads the latest version from disk;
 /// otherwise, falls back to the embedded compile-time copy.
-pub fn get_docs() -> Vec<DocItem> {
-    BRAIN_DOCS
-        .iter()
-        .map(|doc| {
+pub fn get_docs() -> &'static [DocItem] {
+    static DOCS: OnceLock<Vec<DocItem>> = OnceLock::new();
+    DOCS.get_or_init(|| {
+        BRAIN_DOCS.iter().map(|doc| {
             let disk_paths = [
                 format!("brain/{}", doc.filename),
                 format!("../brain/{}", doc.filename),
@@ -102,12 +103,13 @@ pub fn get_docs() -> Vec<DocItem> {
                 .find_map(|p| std::fs::read_to_string(p).ok());
 
             if let Some(content) = disk_content {
-                let leaked = Box::leak(content.into_boxed_str());
+                // Disk overrides are loaded once and kept for the app lifetime.
+                let content = Box::leak(content.into_boxed_str());
                 DocItem {
                     id: doc.id,
                     title: doc.title,
                     filename: doc.filename,
-                    content: leaked,
+                    content,
                 }
             } else {
                 DocItem {
@@ -117,8 +119,8 @@ pub fn get_docs() -> Vec<DocItem> {
                     content: doc.content,
                 }
             }
-        })
-        .collect()
+        }).collect()
+    })
 }
 
 /// Formats a raw markdown string into a clean, beautifully formatted reader text.

@@ -203,12 +203,38 @@ local function start_server(dispatchers)
   local server = {}
 
   function server.request(method, params, callback)
+    -- This server runs inside Neovim's LSP client. Keep malformed/stale
+    -- completion requests from escaping as Lua callback errors: Neovim can
+    -- issue a request while a buffer is being renamed or detached.
+    if type(callback) ~= 'function' then
+      return false
+    end
     if method == 'initialize' then
       callback(nil, { capabilities = { completionProvider = { resolveProvider = false, triggerCharacters = {} } } })
     elseif method == 'textDocument/completion' then
-      local bufnr = vim.uri_to_bufnr(params.textDocument.uri)
-      local filetype = vim.bo[bufnr].filetype
-      callback(nil, { isIncomplete = false, items = items_for(filetype, params, bufnr) })
+      local result = { isIncomplete = false, items = {} }
+      local ok, err = pcall(function()
+        if type(params) ~= 'table'
+          or type(params.textDocument) ~= 'table'
+          or type(params.textDocument.uri) ~= 'string'
+          or type(params.position) ~= 'table'
+          or type(params.position.line) ~= 'number'
+          or type(params.position.character) ~= 'number' then
+          return
+        end
+        local bufnr = vim.uri_to_bufnr(params.textDocument.uri)
+        if type(bufnr) ~= 'number' or not vim.api.nvim_buf_is_valid(bufnr) then
+          return
+        end
+        local filetype = vim.bo[bufnr].filetype
+        result.items = items_for(filetype, params, bufnr)
+      end)
+      if not ok then
+        vim.schedule(function()
+          vim.notify('MindForge completion callback failed: ' .. tostring(err), vim.log.levels.WARN)
+        end)
+      end
+      callback(nil, result)
     elseif method == 'shutdown' then
       callback(nil, nil)
     else

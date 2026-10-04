@@ -244,5 +244,5 @@ fn main() {
     println!("════════════════════════════════════════{RESET}\n");
 
     println!("  View your release at:");
-    println!("  {CYAN}https://github.com/Saboor-Hamedi/my_first_project/releases/tag/{tag}{RESET}\n");
+    println!("  {CYAN}https://github.com/Saboor-Hamedi/mindforge/releases/tag/{tag}{RESET}\n");
 }

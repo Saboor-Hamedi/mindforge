@@ -123,6 +123,12 @@ function M.reset_buffer()
   local buf = vim.api.nvim_get_current_buf()
   for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
     if not vim.startswith(client.name, 'mindforge-') then
+      -- MindForge reuses one Neovim buffer for different documents. Stop the
+      -- old filetype client now; the host re-enables matching servers after it
+      -- has installed the next document's name, contents, and filetype.
+      -- Let the server finish/cancel in-flight work and reply to `shutdown`.
+      -- A forced stop here turns ordinary file switches into SIGTERM exits
+      -- and interrupts in-flight server work unnecessarily.
       pcall(client.stop, client)
     end
   end
