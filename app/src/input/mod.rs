@@ -126,6 +126,7 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         && !app.misc.accent_dropdown_open
         && !app.services.wikilink_autocomplete.is_active
         && app.services.vim_runtime.backend.as_ref().is_some_and(|backend| backend.popup_visible());
+    let mut enter_consumed_by_completion = false;
     if completion_owns_enter {
         if let Some(event) = completion_enter_event {
             let has_text_event = ctx.input(|input| input.events.iter().any(|event|
@@ -135,7 +136,8 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                 matches!(event, egui::Event::Text(text) if text.contains(':'))
             ));
             let _ = crate::vim::input::handle_event(app, &event, now, has_text_event, has_colon_text);
-            return false;
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+            enter_consumed_by_completion = true;
         }
     }
 
@@ -159,6 +161,9 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         });
         let has_text_event = i.events.iter().any(|event| matches!(event, egui::Event::Text(text) if !text.is_empty()));
         for ev in &i.events {
+            if enter_consumed_by_completion && matches!(ev, egui::Event::Key { key: egui::Key::Enter, .. }) {
+                continue;
+            }
             let command_surface_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc | Mode::ScanReport | Mode::ScanHistory | Mode::Stats)
                 && !app.terminal.focused
                 && !app.modal.search_open

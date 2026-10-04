@@ -616,3 +616,295 @@
 - **app/src/bin/publish.rs:39-42** — DEADCODE — `warn()` is marked `#[allow(dead_code)]` and never called.
 - **app/src/bin/publish.rs:62-76** — DEADCODE — `run_output()` is marked `#[allow(dead_code)]` and never called.
 - **app/src/services/updater.rs:352, 357, 384, 398** — BUG (verify) — four `std::process::exit(0)` calls inside the updater (in addition to `command/dispatch/tools.rs:116`); hard-exiting the process from a background update path can drop unsaved state — confirm each is intentional.
+
+
+---
+
+## 🚀 COMPREHENSIVE LSP INTEGRATION & CODEBASE HARDENING (ZERO-BUG ROADMAP)
+
+This section provides an exhaustive, production-grade audit of MindForge's Language Server Protocol (LSP) integration and surrounding editor systems. It details root causes, systemic risks, and concrete architectural suggestions to leave zero bugs in the LSP pipeline. Strictly suggestions and analysis — no implementation code.
+
+---
+
+### 1. Neovim & LSP Buffer Lifecycle Architecture (Server Kill-and-Respawn Flaw)
+- **Location**: `app/assets/nvim/mindforge/lsp/init.lua` (function `reset_buffer`) and `app/src/vim/backend.rs` (method `set_document_for_language`)
+- **Root Cause**: MindForge forces every file tab and note to share a single Neovim buffer instance (buffer 0). When the user switches documents, `reset_buffer()` iterates over every active LSP client attached to buffer 0 and calls `client.stop()`.
+- **Systemic Failure**:
+  - Whenever the user switches between tabs (for example, navigating back and forth between two files), the underlying language server processes (such as `rust-analyzer`, `pyright`, or `typescript-language-server`) are forcefully terminated.
+  - Upon loading the new tab, MindForge calls `refresh()`, which relaunches the entire language server process from scratch.
+  - This completely destroys the language server's in-memory symbol caches, syntax trees, module dependency graphs, and type caches. The language server re-indexes the entire project on every single tab switch, pegging CPU cores and disk I/O, delaying completion, and causing intermittent frozen states.
+- **Improvement Suggestions**:
+  - Cease destroying running language servers during document navigation.
+  - Allocate a distinct, persistent Neovim buffer handle for each open document tab using Neovim buffer allocation APIs rather than recycling a single buffer.
+  - When switching tabs, simply set the active Neovim window buffer to the target document's buffer handle. Keep background language servers alive and attached across all active project files.
+  - If sharing buffer handles is temporarily retained, use clean buffer detach mechanisms rather than terminating the server process, keeping server background indexing intact.
+
+---
+
+### 2. Neovim Buffer Renaming Failure and Silent Error Swallowing
+- **Location**: `app/src/vim/backend.rs` (method `set_document_for_language`)
+- **Root Cause**: When loading a document, MindForge issues an RPC request to rename buffer 0 to the target document's file path via `nvim_buf_set_name`. The response is discarded and the error is completely ignored.
+- **Systemic Failure**:
+  - In Neovim, assigning a buffer name that already exists in the global buffer table results in an immediate RPC error.
+  - Because the error is ignored, the buffer name does not change. Neovim continues to associate buffer 0 with the previous file path.
+  - Consequently, language servers receive mismatched document URIs, attach the wrong language server rules, query wrong root markers, and publish diagnostic notifications for the previous file rather than the active file.
+- **Improvement Suggestions**:
+  - Never discard errors from Neovim RPC requests that define editor state.
+  - Before setting a buffer name, check whether a buffer with that file path already exists. If it exists, switch focus to it; otherwise, rename or allocate a fresh buffer.
+  - Implement comprehensive error logging for all Neovim RPC communications so that failures are immediately visible during development and runtime.
+
+---
+
+### 3. Asynchronous Buffer Population vs Immediate Cursor Positioning Panic
+- **Location**: `app/src/vim/backend.rs` (method `set_document_for_language`)
+- **Root Cause**: Setting buffer text is dispatched asynchronously via `set_buffer_text_async`, immediately followed by an asynchronous cursor position call `set_cursor_async`.
+- **Systemic Failure**:
+  - Because text transfer is asynchronous, if the newly loaded document has 100 lines and the previous document had only 10 lines, requesting the cursor to jump to line 50 arrives before Neovim has processed the new lines.
+  - Neovim evaluates the cursor jump against the stale 10-line buffer, throws an invalid cursor position error, and desynchronizes the internal cursor state from MindForge's visual caret.
+- **Improvement Suggestions**:
+  - Sequence buffer loading and cursor positioning: only dispatch the cursor position update after Neovim confirms the buffer text lines have been applied and recalculated.
+  - Validate cursor row and column coordinates against the buffer line count prior to sending cursor jump commands to Neovim.
+
+---
+
+### 4. Stale Completion Popup State Surviving Tab Switches
+- **Location**: `app/src/vim/backend.rs` (methods `set_document_for_language` and `apply_redraw_event`)
+- **Root Cause**: When switching documents, MindForge resets row layouts and line metadata, but leaves popup menu tracking variables intact (including popup candidate items, metadata, documentation previews, selected indices, and screen anchor coordinates).
+- **Systemic Failure**:
+  - If a completion popup was open when the user switched tabs, Neovim does not emit a popup dismissal event simply because buffer lines were set.
+  - As a result, completion candidates from the previous file remain floating on screen over the new document.
+- **Improvement Suggestions**:
+  - Explicitly clear all completion popup state variables inside `set_document_for_language`.
+  - Issue an explicit menu cancellation command to Neovim whenever switching active documents or navigating away from an active editor pane.
+
+---
+
+### 5. Mutation of Vim `iskeyword` Corrupting Native Vim Motions
+- **Location**: `app/assets/nvim/mindforge/lsp/snippets.lua` (function `attach`)
+- **Root Cause**: `snippets.lua` mutates `vim.bo[bufnr].iskeyword` to append exclamation points, angle brackets, plus signs, asterisks, periods, and hashes for all markup buffers so that abbreviations can be expanded as single tokens.
+- **Systemic Failure**:
+  - In Vim, `iskeyword` governs how words are delineated across all motions and text objects.
+  - Mutating `iskeyword` breaks core Vim movements and operator commands across HTML, JSX, TSX, and Markdown files. Commands such as `w`, `b`, `e`, `dw`, `cw`, `*`, `#`, and `ciw` stop treating periods, asterisks, and punctuation as word boundaries. For example, moving over `user.profile.name` treats the entire chain as a single monolithic word.
+- **Improvement Suggestions**:
+  - Completely remove all modifications to `iskeyword`.
+  - Perform abbreviation matching and text replacements strictly within the LSP completion provider by providing precise replacement ranges (`textEdit.range`) rather than altering global buffer tokenization semantics.
+
+---
+
+### 6. Destructive Insert-Mode Enter (`<Esc>O`) Indentation Hack
+- **Location**: `app/assets/nvim/mindforge/lsp/completion.lua` (function `setup_keys`)
+- **Root Cause**: In Insert mode, pressing Enter is intercepted. When the cursor sits between opening and closing curly braces, it evaluates to `<CR><Esc>O`.
+- **Systemic Failure**:
+  - Injecting `<Esc>O` causes the editor to exit Insert mode to Normal mode and re-enter Insert mode with an open-line command.
+  - This fragments the editor's undo tree into separate undo records, triggers Normal mode event hooks, resets temporary mode states, and causes visible caret animation stutter.
+  - Because this rule is evaluated globally, it triggers inside string literals, multiline comments, and regular prose.
+- **Improvement Suggestions**:
+  - Remove the synthetic `<Esc>O` key macro.
+  - Allow Neovim's standard filetype indentation scripts and indent settings to govern block splitting, or rely on MindForge's structured pair-handling pipeline without breaking mode boundaries.
+
+---
+
+### 7. Input Event Pipeline Interruption and Dropped Frame Events
+- **Location**: `app/src/input/mod.rs` (around line 138)
+- **Root Cause**: When a completion popup is visible, MindForge intercepts the Enter key so that it accepts the completion rather than inserting a newline. However, upon handling Enter, the function executes an early return of `false`.
+- **Systemic Failure**:
+  - Returning early from the main input loop completely aborts event processing for the remaining events in that frame.
+  - Any simultaneous input events delivered in that frame — such as typed characters, modifier releases, arrow keys, or pointer clicks — are silently discarded without execution.
+- **Improvement Suggestions**:
+  - Consume only the specific Enter event from the event collection rather than aborting the entire frame's event loop.
+  - Allow remaining queued events in the frame to continue through standard input dispatch.
+
+---
+
+### 8. Spurious Redraw Commands Inside Debounced Typing Timers
+- **Location**: `app/assets/nvim/mindforge/lsp/completion.lua` (function `setup_triggers`)
+- **Root Cause**: Inside the 60-millisecond debounce timer for `InsertCharPre`, the timer callback invokes `vim.cmd('redraw')` before querying completion candidates.
+- **Systemic Failure**:
+  - Forcing a Neovim redraw from an asynchronous libuv timer thread triggers extra RPC redraw batches to the MindForge host.
+  - During fast typing, this causes rapid visual screen invalidations, caret position flickering, and potential race conditions between pending keystrokes and arriving redraw packets.
+- **Improvement Suggestions**:
+  - Remove manual `redraw` invocations from background timers.
+  - Allow Neovim's natural display engine to flush redraw updates automatically when buffer contents and completion menus are updated.
+
+---
+
+### 9. Complete Absence of Diagnostic Message Presentation & Metadata Engine
+- **Location**: `app/src/vim/backend.rs` (lines 1455-1468) and `app/assets/nvim/mindforge/lsp/completion.lua` (lines 67-77)
+- **Root Cause**: `completion.lua` disables virtual text, disables diagnostic signs, and enables only underlines. In MindForge's Rust backend, diagnostics are rendered purely by detecting underline styling on highlight attributes.
+- **Systemic Failure**:
+  - MindForge has zero diagnostic metadata. It does not know the diagnostic severity (Error, Warning, Info, Hint), the error message, the reporting source (such as ESLint or Pyright), or the error code.
+  - Users have no way to inspect why a line is underlined. Hovering over an error shows nothing.
+  - LunaLine status bar has no diagnostic counts (e.g. 0 Errors, 3 Warnings).
+  - There is no diagnostic panel or shortcut to jump between project errors.
+- **Improvement Suggestions**:
+  - Create a dedicated Neovim-to-MindForge diagnostic bridge via RPC notifications triggered on Neovim's `DiagnosticChanged` autocmd.
+  - Transmit structured diagnostic records to MindForge, including line, column, severity, message, source, and code.
+  - Display diagnostic counts (errors and warnings) in the LunaLine status bar.
+  - Render an interactive floating tooltip when the cursor or mouse rests over an underlined code range.
+  - Provide a modal or drawer panel to browse, filter, and jump to active diagnostics across all open buffers.
+
+---
+
+### 10. Pointer Scroll and Click Leakage in the Completion Popup
+- **Location**: `app/src/vim/backend.rs` (lines 1710-1750)
+- **Root Cause**: Mouse wheel scrolling over the popup menu emits `<C-p>` or `<C-n>`, but does not mark the wheel event as consumed. Clicking an item activates `accept_popup_item`, but does not consume the pointer click event.
+- **Systemic Failure**:
+  - When scrolling through completion items, the editor text beneath the popup scrolls simultaneously, shifting the cursor and popup anchor.
+  - Clicking on an item can bleed through to background editor elements, inadvertently repositioning the caret or triggering file navigation.
+- **Improvement Suggestions**:
+  - When the mouse pointer resides within the popup menu bounding rectangle, consume pointer wheel delta events so they do not propagate to the editor scroll layer.
+  - Consume pointer click events immediately when selecting a completion candidate so background text does not register a press.
+
+---
+
+### 11. Completion Item Selection Fallback and Keystroke Race Conditions
+- **Location**: `app/src/vim/backend.rs` (method `accept_popup_item`)
+- **Root Cause**: When a popup item is clicked, MindForge attempts `nvim_select_popupmenu_item`. If that fails, it falls back to feeding simulated navigation keys (`<C-n>` or `<C-p>`) followed by `<C-y>` via `nvim_feedkeys`.
+- **Systemic Failure**:
+  - In recent Neovim versions, `nvim_select_popupmenu_item` requires four parameters including an options dictionary table. Calling it with fewer parameters can trigger the fallback.
+  - Feeding raw keystrokes asynchronously races against keystrokes the user might be actively typing, interleaving typed characters into the accepted completion string and corrupting code.
+- **Improvement Suggestions**:
+  - Supply the complete four-parameter signature to `nvim_select_popupmenu_item` including an empty options table.
+  - Never simulate keystrokes over the input queue to accept completions; execute completion resolution atomically through Neovim Lua API calls.
+
+---
+
+### 12. Unreliable Language Server Process Lifecycle and Arbitrary Restarts
+- **Location**: `app/assets/nvim/mindforge/lsp/commands.lua` (function `:LspRestart`)
+- **Root Cause**: `:LspRestart` stops all clients using `client:stop()`, and then relies on a fixed 600ms timer (`vim.defer_fn`) before re-triggering filetype autocmds.
+- **Systemic Failure**:
+  - On heavily loaded systems or large codebases, heavy language servers like `rust-analyzer` or `pyright` can take more than a second to release file locks, flush caches, and exit.
+  - Spawning a new instance after a fixed 600ms delay causes port collisions, lock contention, or failed server startup. On fast systems, 600ms is an unnecessary lag.
+- **Improvement Suggestions**:
+  - Eliminate hardcoded delay timers for process lifecycles.
+  - Bind restart triggers directly to the client's process exit callback (`on_exit`). Once the old server has exited cleanly, immediately spawn the replacement instance.
+
+---
+
+### 13. Fragile Windows `.cmd` Shim Resolution for npm Language Servers
+- **Location**: `app/assets/nvim/mindforge/lsp/install.lua` (function `command`)
+- **Root Cause**: On Windows, `install.lua` reads the text of `.cmd` files generated by npm and uses a regular expression to extract the target `.js` entry point script.
+- **Systemic Failure**:
+  - If npm, pnpm, yarn, or Node changes the format of the batch shim, or if an executable launcher binary (`.exe`) is used instead, the regular expression fails.
+  - Libuv cannot spawn Windows `.cmd` files directly without the system command processor. When regex matching fails, the language server fails to launch entirely.
+- **Improvement Suggestions**:
+  - Resolve the server entry point by inspecting package manifests (`package.json` bin entries) within the managed directory.
+  - If invoking a batch wrapper on Windows, execute via `cmd.exe /d /s /c` with proper argument escaping rather than hand-parsing batch script internals.
+
+---
+
+### 14. Brittle TypeScript Language Server Library Path Resolution
+- **Location**: `app/assets/nvim/mindforge/lsp/install.lua` (function `typescript_lib`)
+- **Root Cause**: `typescript-language-server` requires an explicit path to `tsserver.js`. MindForge searches only three hardcoded relative directory paths under its managed npm directory.
+- **Systemic Failure**:
+  - If TypeScript is hoisted, installed globally, or bundled within a different folder hierarchy, `tsserver.js` is not located, causing TypeScript and TSX language support to fail on initialization.
+- **Improvement Suggestions**:
+  - Use Node's built-in module resolution (`node -e "console.log(require.resolve('typescript/lib/tsserver.js'))"`) or walk the directory hierarchy dynamically to reliably find `tsserver.js`.
+
+---
+
+### 15. Inverted Vertical Grid Scrolling Coordinates
+- **Location**: `app/src/vim/backend.rs` (method `apply_grid_scroll`, lines 511-524)
+- **Root Cause**: In `grid_scroll`, vertical row movement is calculated using `row as isize + row_delta - top`, whereas horizontal column movement subtracts the delta.
+- **Systemic Failure**:
+  - According to Neovim's UI grid protocol specification, row scrolling semantics dictate content movement in the opposite direction.
+  - When Neovim performs partial viewport scrolling optimizations, lines are shifted in the wrong direction, producing corrupted text blocks and duplicate lines on screen until a full redraw occurs.
+- **Improvement Suggestions**:
+  - Correct the row delta sign convention in `apply_grid_scroll` to strictly follow the Neovim UI specification for both dimensions.
+
+---
+
+### 16. Caret Drift on Multi-Byte and Tab-Indented Characters
+- **Location**: `app/src/vim/backend.rs` (lines 1510-1544)
+- **Root Cause**: MindForge paints its caret by multiplying `cursor_column` by a static monospace `cell_width`.
+- **Systemic Failure**:
+  - In Neovim, `cursor_column` represents the grid cell position. For lines containing tab stops, full-width CJK characters, emojis, or zero-width joiners, character byte counts, Unicode scalar counts, and display cell counts differ significantly.
+  - Mixing byte offsets, character indices, and screen cell coordinates causes the rendered caret to drift several characters away from the actual insertion point.
+- **Improvement Suggestions**:
+  - Maintain a strict boundary: use Neovim's `grid_cursor_goto` cell coordinates exclusively for visual caret placement, and use Neovim's `nvim_win_get_cursor` byte offsets exclusively for text manipulation.
+  - Account for multi-cell character widths by querying the cell width from Neovim's grid state rather than assuming all characters occupy exactly one unit width.
+
+---
+
+### 17. Duplicate Snippet Server Attachments and Memory Leaks
+- **Location**: `app/assets/nvim/mindforge/lsp/snippets.lua` (function `attach`)
+- **Root Cause**: `attach` is invoked whenever a buffer's filetype is set or changed. It calls `vim.lsp.start` without verifying whether a snippet server is already running on that buffer.
+- **Systemic Failure**:
+  - Switching between files or repeatedly resetting buffer filetypes spawns duplicate in-process language server instances.
+  - This leaks Lua memory and results in duplicate snippet suggestions appearing in the completion popup menu.
+- **Improvement Suggestions**:
+  - Prior to calling `vim.lsp.start`, inspect active buffer clients. If a `mindforge-snippets` client is already attached to the buffer, skip starting a new instance.
+  - Cleanly detach or shut down snippet servers when buffers are unloaded.
+
+---
+
+### 18. Unbounded RPC Event Queue in Neovim Client
+- **Location**: `app/src/vim/client.rs` (lines 292-305)
+- **Root Cause**: Background event reader threads push all Neovim RPC messages into an unbounded Rust `mpsc::channel`.
+- **Systemic Failure**:
+  - During rapid LSP diagnostic publishing, indexing progress updates, or extensive screen redrawing, thousands of events are queued in fractions of a second.
+  - If the UI thread is executing a complex layout pass, this queue expands indefinitely, causing memory pressure, delayed responsiveness, and visual lag.
+- **Improvement Suggestions**:
+  - Bound the event channel or introduce a coalescing mechanism for redraw batches.
+  - When multiple redraw packets arrive before the UI thread renders a frame, combine intermediate grid updates so that only the final frame state is rendered.
+
+---
+
+### 19. Duplicated LSP Panel Geometry and Inefficient Re-filtering
+- **Location**: `app/src/vim/lsp_panel.rs` (lines 127-134, 201-209)
+- **Root Cause**: The bounding rectangle formula for the language server browser panel is duplicated between `paint` and `contains`. In addition, `matches()` re-filters, re-allocates, and re-sorts all server rows on every render frame.
+- **Systemic Failure**:
+  - Changes to panel margins, row heights, or widths in one function can desynchronize hit-testing from drawing, making buttons unclickable.
+  - Re-filtering all rows on every frame causes unnecessary allocations and garbage collection in the rendering pipeline.
+- **Improvement Suggestions**:
+  - Extract panel geometry computation into a single authoritative helper method shared by both `paint` and `contains`.
+  - Cache filtered row lists, updating them only when the user's filter text changes or when server statuses update.
+
+---
+
+### 20. Workspace Root Detection and Monorepo Support
+- **Location**: `app/assets/nvim/mindforge/lsp/registry.lua`
+- **Root Cause**: Server definitions rely on rudimentary root marker arrays like `[ '.git' ]`.
+- **Systemic Failure**:
+  - When opening files in standalone folders, vaults without git repositories, or deeply nested monorepos (e.g. `packages/backend`), servers fail to determine the workspace root and fall back to `nil`.
+  - Servers like `pyright`, `ts_ls`, and `rust-analyzer` refuse to initialize or fail to resolve relative import paths without a valid workspace root.
+- **Improvement Suggestions**:
+  - Explicitly pass MindForge's active project or vault root folder to Neovim upon application startup.
+  - Configure root directory detection fallbacks to default to MindForge's workspace directory when no repository marker is discovered.
+
+---
+
+### 21. Language Intelligence Feature Gap (Definition, Hover, References, Rename, Actions)
+- **Location**: `app/assets/nvim/mindforge/lsp/completion.lua` and `app/src/vim/backend.rs`
+- **Root Cause**: The only mapped LSP command is `gd` (`vim.lsp.buf.definition`). All other standard language server capabilities are absent from both keyboard shortcuts and UI chrome.
+- **Systemic Failure**:
+  - Users have no access to hover documentation, finding references, symbol renaming, code actions, or document formatting, despite having language servers running in the background.
+- **Improvement Suggestions**:
+  - Map `K` to trigger interactive hover documentation (`vim.lsp.buf.hover`) rendered in a clean MindForge floating overlay.
+  - Map `gr` to find references with a searchable modal list.
+  - Map `<leader>rn` to symbol renaming with an egui input modal.
+  - Map `<leader>ca` to trigger code action quick-fixes.
+  - Provide a document format command (`:Format` or shortcut) connected to `vim.lsp.buf.format`.
+
+---
+
+### 22. Cross-Mode Integrity: Unifying Vim Mode, Hybrid Mode, and Markdown Viewers
+- **Location**: Workspace architecture boundary across `app/src/editor/`, `app/src/vim/`, and `app/src/view_editor/`
+- **Root Cause**: MindForge supports Vim mode, Hybrid mode, and inline/preview Markdown modes, but LSP language intelligence is currently isolated strictly within Neovim.
+- **Systemic Failure**:
+  - Switching between Hybrid mode and Vim mode on code files creates disjointed user experiences where diagnostics and completions vanish in Hybrid mode.
+  - When switching modes, text buffers are copied across different representations (`Vec<char>` vs Neovim string buffers) without synchronizing undo histories or cursor positions.
+- **Improvement Suggestions**:
+  - Ensure mode switching cleanly transfers document text, cursor row and column, and scroll offsets without data loss or desynchronization.
+  - Architect language intelligence services so that diagnostic overlays and completion can eventually serve both editing surfaces through a unified MindForge presentation layer.
+
+---
+
+### 23. Observability, Structured Diagnostics Logging, and Automated Verification Strategy
+- **Location**: System-wide integration across Rust and Lua boundaries
+- **Root Cause**: Debugging LSP and Neovim synchronization issues currently relies on inspecting ephemeral status strings or reading log files after crashes occur.
+- **Systemic Failure**:
+  - Race conditions, dropped events, and IPC communication errors fail silently in release builds.
+- **Improvement Suggestions**:
+  - Implement a configurable diagnostic trace mode that logs IPC message timestamps, event names, buffer revisions, and cursor coordinates without spamming production logs.
+  - Build automated integration test harnesses that simulate document switching, rapid typing with completions, backspace deletion at boundaries, and language server crashes to ensure no regressions occur.

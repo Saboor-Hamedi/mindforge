@@ -93,6 +93,13 @@ impl VimBackend {
             -- this editor instance so ordinary typing is immediate.
             pcall(vim.keymap.del, 'i', 'jk')
 
+            -- Users are not allowed to select text or code with mouse cursor in Neovim
+            local no_mouse_sel = { 'n', 'v', 'i', 'x', 's', 'o' }
+            vim.keymap.set(no_mouse_sel, '<LeftDrag>', '<Nop>', { silent = true })
+            vim.keymap.set(no_mouse_sel, '<2-LeftMouse>', '<Nop>', { silent = true })
+            vim.keymap.set(no_mouse_sel, '<3-LeftMouse>', '<Nop>', { silent = true })
+            vim.keymap.set(no_mouse_sel, '<4-LeftMouse>', '<Nop>', { silent = true })
+
             -- Auto-closing pairs so the Neovim surface matches Hybrid typing.
             if vim.g.mindforge_autopair ~= false then
                 local function next_char()
@@ -519,7 +526,7 @@ impl VimBackend {
         for row in top..bottom {
             for col in left..right {
                 let source_row = row as isize + row_delta - top as isize;
-                let source_col = col as isize - col_delta - left as isize;
+                let source_col = col as isize + col_delta - left as isize;
                 self.grid.cells[row][col] = if source_row >= 0
                     && source_row < previous.len() as isize
                     && source_col >= 0
@@ -630,7 +637,7 @@ impl VimBackend {
                 Value::from(concat!(
                     "local index, current = ...; ",
                     "local select_item = vim.api.nvim_select_popupmenu_item; ",
-                    "if select_item then local ok = pcall(select_item, index, true, true); if ok then return end end; ",
+                    "if select_item then local ok = pcall(select_item, index, true, true, {}); if ok then return end end; ",
                     "local steps = current >= 0 and (index - current) or (index + 1); ",
                     "local key = steps >= 0 and '<C-n>' or '<C-p>'; ",
                     "local keys = string.rep(key, math.abs(steps)) .. '<C-y>'; ",
@@ -706,6 +713,12 @@ impl VimBackend {
         file_name: &str,
         language: FileLanguage,
     ) -> EditorResult<()> {
+        self.grid.popup_items.clear();
+        self.grid.popup_meta.clear();
+        self.grid.popup_info.clear();
+        self.grid.popup_selected = None;
+        self.grid.popup_anchor = None;
+
         let _ = self.client.notify(
             "nvim_exec_lua",
             vec![
@@ -713,9 +726,19 @@ impl VimBackend {
                 Value::Array(vec![]),
             ],
         );
+        let set_name_lua = r#"
+            local name = ...
+            pcall(function()
+                local existing = vim.fn.bufnr(name)
+                if existing ~= -1 and existing ~= vim.api.nvim_get_current_buf() then
+                    pcall(vim.api.nvim_buf_delete, existing, { force = true })
+                end
+                vim.api.nvim_buf_set_name(0, name)
+            end)
+        "#;
         let _ = self.client.request(
-            "nvim_buf_set_name",
-            vec![Value::from(0), Value::from(file_name.to_owned())],
+            "nvim_exec_lua",
+            vec![Value::from(set_name_lua), Value::Array(vec![Value::from(file_name.to_owned())])],
         );
         self.client.set_buffer_text_async(text)?;
         let filetype = language.nvim_filetype();
@@ -1711,6 +1734,7 @@ impl EditorBackend for VimBackend {
                 let delta = ui.input(|i| i.raw_scroll_delta.y);
                 if delta != 0.0 {
                     let _ = self.client.input(if delta > 0.0 { "<C-p>" } else { "<C-n>" });
+                    ui.input_mut(|i| i.raw_scroll_delta = egui::Vec2::ZERO);
                 }
             }
         }
@@ -1741,7 +1765,7 @@ impl EditorBackend for VimBackend {
             let row = ((pos.y - origin.y) / nvim_row_height).floor().max(0.0) as usize;
             let column = ((pos.x - origin.x) / cell_width).floor().max(0.0) as usize;
             if response.dragged() {
-                mouse_actions.push(EditorMouseEvent::Drag { row, column });
+                // Users are not allowed to select text or code with mouse cursor in Neovim
             } else if let Some(index) = popup_hit.filter(|_| response.clicked()).and_then(|(popup_rect, start)| {
                 popup_rect.contains(pos).then(|| start + ((pos.y - popup_rect.min.y) / nvim_row_height) as usize)
             }) {

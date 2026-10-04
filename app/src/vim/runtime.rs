@@ -202,7 +202,7 @@ pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
         let Some(backend) = app.services.vim_runtime.backend.as_mut() else { return };
         backend.tick();
         let update = backend.take_text_update();
-        let cursor = update.as_ref().map(|_| backend.cursor_char_index());
+        let cursor = Some(backend.cursor_char_index());
         let backend_error = backend.take_error();
         (update, cursor, app.services.vim_runtime.tab_index, app.services.vim_runtime.note_id, backend_error)
     };

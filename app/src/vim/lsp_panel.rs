@@ -114,6 +114,18 @@ impl LspPanel {
     }
 
     /// Draws the panel centred in `rect`; returns the row clicked, if any.
+    pub fn panel_rect(&self, rect: Rect, row_height: f32) -> (Rect, usize) {
+        let matches = self.matches();
+        let visible = matches.len().clamp(1, MAX_ROWS);
+        let width = (rect.width() * 0.8).clamp(280.0, 720.0).min(rect.width());
+        let height = (visible + 2) as f32 * row_height;
+        let panel = Rect::from_min_size(
+            Pos2::new(rect.center().x - width / 2.0, rect.min.y + 12.0),
+            egui::vec2(width, height.min(rect.height())),
+        );
+        (panel, visible)
+    }
+
     pub fn paint(
         &self,
         painter: &Painter,
@@ -125,13 +137,8 @@ impl LspPanel {
         click: Option<Pos2>,
     ) -> Option<usize> {
         let matches = self.matches();
-        let visible = matches.len().clamp(1, MAX_ROWS);
-        let width = (rect.width() * 0.8).clamp(280.0, 720.0).min(rect.width());
-        let height = (visible + 2) as f32 * row_height;
-        let panel = Rect::from_min_size(
-            Pos2::new(rect.center().x - width / 2.0, rect.min.y + 12.0),
-            egui::vec2(width, height.min(rect.height())),
-        );
+        let (panel, visible) = self.panel_rect(rect, row_height);
+        let width = panel.width();
         painter.rect_filled(panel, 4.0, theme.surface());
         painter.rect_stroke(panel, 4.0, Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
 
@@ -199,13 +206,7 @@ impl LspPanel {
     }
 
     pub fn contains(&self, rect: Rect, row_height: f32, pos: Pos2) -> bool {
-        let visible = self.matches().len().clamp(1, MAX_ROWS);
-        let width = (rect.width() * 0.8).clamp(280.0, 720.0).min(rect.width());
-        Rect::from_min_size(
-            Pos2::new(rect.center().x - width / 2.0, rect.min.y + 12.0),
-            egui::vec2(width, (visible + 2) as f32 * row_height),
-        )
-        .contains(pos)
+        self.panel_rect(rect, row_height).0.contains(pos)
     }
 
     pub fn scroll(&mut self, delta: i32) {
