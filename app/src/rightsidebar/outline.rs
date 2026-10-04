@@ -203,11 +203,7 @@ pub fn render_outline_panel(
                     // Heading title
                     let title_x = item_rect.min.x + 28.0 + indent;
                     let max_chars = (((item_rect.max.x - title_x - 30.0).max(20.0)) / 7.2) as usize;
-                    let display_title = if h.title.len() > max_chars && max_chars > 3 {
-                        format!("{}...", &h.title[..max_chars.saturating_sub(3)])
-                    } else {
-                        h.title.clone()
-                    };
+                    let display_title = crate::ui::truncate_with_ellipsis(&h.title, max_chars);
 
                     painter.text(
                         pos2(title_x, item_rect.center().y),

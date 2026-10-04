@@ -557,9 +557,11 @@ impl App {
                 EditorInputMode::Vim => self.services.vim_runtime.backend.as_ref().is_some_and(|backend| backend.is_insert_mode()),
                 EditorInputMode::Hybrid => true,
             };
-            let _ = is_inserting;
+            // Wikilinks belong to Markdown. In code files their overlays can
+            // cover HTML/LSP completion and turn a click into opening a note.
+            let wikilinks_allowed = self.active_language() == crate::language::FileLanguage::Markdown;
 
-            if is_inserting {
+            if is_inserting && wikilinks_allowed {
                 self.services.wikilink_autocomplete.check_trigger(&self.editor.ed, &self.notes.notes_list);
 
                 if self.services.wikilink_autocomplete.is_active {
@@ -631,7 +633,11 @@ impl App {
                 self.services.wikilink_autocomplete.clear();
             }
 
-            if let Some(pos) = pointer_pos {
+            let vim_completion_visible = self.services.editor_controller.mode == EditorInputMode::Vim
+                && self.services.vim_runtime.backend.as_ref().is_some_and(|backend| backend.popup_visible());
+            if !wikilinks_allowed || vim_completion_visible {
+                self.services.hover_wikilink.clear();
+            } else if let Some(pos) = pointer_pos {
                 let pointer_changed = self.services.hover_wikilink.last_pointer_pos != Some(pos);
                 if actual_editor_rect.contains(pos) && (pointer_changed || ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary))) {
                     self.services.hover_wikilink.last_pointer_pos = Some(pos);

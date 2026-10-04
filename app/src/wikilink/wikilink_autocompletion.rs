@@ -51,11 +51,7 @@ pub fn clean_note_topic_for_autocomplete(topic: &str) -> (String, String, String
         let leaf = path.rsplit('/').next().unwrap_or(domain);
         let leaf_clean = if leaf.is_empty() { domain } else { leaf };
         let leaf_no_ext = leaf_clean.strip_suffix(".md").unwrap_or(leaf_clean);
-        let domain_short = if domain.len() > 16 {
-            format!("{}...", &domain[..13])
-        } else {
-            domain.to_string()
-        };
+        let domain_short = crate::ui::truncate_with_ellipsis(domain, 16);
         let display = format_friendly_title(leaf_no_ext, 26);
         return (display, clean.to_string(), domain_short);
     }
@@ -68,11 +64,7 @@ pub fn clean_note_topic_for_autocomplete(topic: &str) -> (String, String, String
     let normalized = clean.replace('\\', "/");
     let (folder_badge, leaf_raw) = if let Some((dir, leaf)) = normalized.rsplit_once('/') {
         let last_folder = dir.rsplit('/').next().unwrap_or(dir);
-        let f_badge = if last_folder.len() > 16 {
-            format!("{}...", &last_folder[..13])
-        } else {
-            last_folder.to_string()
-        };
+        let f_badge = crate::ui::truncate_with_ellipsis(last_folder, 16);
         (f_badge, leaf)
     } else if !domain_badge.is_empty() {
         (domain_badge, clean)
@@ -102,9 +94,9 @@ pub fn format_friendly_title(raw: &str, max_len: usize) -> String {
         if clean_word.is_empty() {
             continue;
         }
-        if clean_word.len() > 16 && !clean_word.contains('/') {
+        if clean_word.chars().count() > 16 && !clean_word.contains('/') {
             // Long hash / token / slug
-            words.push(format!("{}...", &clean_word[..10]));
+            words.push(crate::ui::truncate_with_ellipsis(clean_word, 13));
         } else {
             words.push(clean_word.to_string());
         }
@@ -135,11 +127,7 @@ pub fn extract_domain_badge(text: &str) -> String {
         let clean = word.trim_matches(|c| c == '(' || c == ')' || c == '[' || c == ']' || c == ',' || c == '"' || c == '\'');
         if clean.contains(".co") || clean.contains(".com") || clean.contains(".io") || clean.contains(".org") || clean.contains(".dev") || clean.contains(".net") {
             let domain = clean.rsplit('/').next().unwrap_or(clean);
-            return if domain.len() > 16 {
-                format!("{}...", &domain[..13])
-            } else {
-                domain.to_string()
-            };
+            return crate::ui::truncate_with_ellipsis(domain, 16);
         }
     }
     String::new()

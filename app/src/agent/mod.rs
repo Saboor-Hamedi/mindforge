@@ -3,6 +3,17 @@
 pub mod client;
 pub mod deepseek_ui;
 
+/// Truncates by Unicode scalar values while reserving room for an ellipsis.
+pub(super) fn truncate_with_ellipsis(value: &str, max_chars: usize) -> String {
+    let mut chars = value.chars();
+    let prefix: String = chars.by_ref().take(max_chars.saturating_sub(3)).collect();
+    if chars.next().is_some() {
+        format!("{prefix}...")
+    } else {
+        value.to_owned()
+    }
+}
+
 use client::{deobfuscate_key, ApiMessage, AgentRequest, AgentResponse, AgentWorker};
 use core::Note;
 use eframe::egui::Rect;
@@ -183,11 +194,7 @@ pub fn build_database_system_prompt(notes: &[Note], active_note: Option<(&str, &
         let created_str = n.created_at.format("%Y-%m-%d %H:%M").to_string();
         let word_count = n.body.split_whitespace().count();
         // Include summary / first snippet of body
-        let preview = if n.body.len() > 180 {
-            format!("{}...", &n.body[..180].replace('\n', " "))
-        } else {
-            n.body.replace('\n', " ")
-        };
+        let preview = truncate_with_ellipsis(&n.body.replace('\n', " "), 180);
         doc_index.push_str(&format!(
             "{}. ID {}: \"{}\" | Added: {} | {} words | Snippet: \"{}\"\n",
             i + 1,
@@ -200,11 +207,7 @@ pub fn build_database_system_prompt(notes: &[Note], active_note: Option<(&str, &
     }
 
     let active_doc_context = if let Some((title, body)) = active_note {
-        let snippet = if body.len() > 600 {
-            format!("{}...", &body[..600])
-        } else {
-            body.to_string()
-        };
+        let snippet = truncate_with_ellipsis(body, 600);
         format!(
             "\n\nCURRENTLY OPEN DOCUMENT:\nTitle: \"{}\"\nContent:\n```\n{}\n```",
             title, snippet

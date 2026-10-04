@@ -409,11 +409,7 @@ pub fn render_search_modal(
                     theme.text.lerp_to_gamma(theme.muted, 0.15)
                 };
 
-                let title_display = if item.title.len() > 42 {
-                    format!("{}...", &item.title[..42])
-                } else {
-                    item.title.clone()
-                };
+                let title_display = crate::ui::truncate_with_ellipsis(&item.title, 45);
 
                 if !item.snippet.is_empty() && is_selected {
                     painter.text(
@@ -423,11 +419,7 @@ pub fn render_search_modal(
                         FontId::monospace(12.5),
                         title_color,
                     );
-                    let short_snip = if item.snippet.len() > 50 {
-                        format!("{}...", &item.snippet[..50])
-                    } else {
-                        item.snippet.clone()
-                    };
+                    let short_snip = crate::ui::truncate_with_ellipsis(&item.snippet, 53);
                     painter.text(
                         pos2(title_x, item_rect.min.y + 19.0),
                         Align2::LEFT_TOP,

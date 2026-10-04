@@ -21,6 +21,7 @@ pub struct VimBackend {
     document_lines: usize,
     document_bytes: usize,
     cursor_char_cache: Option<(crate::editor::types::CursorPosition, u64, usize)>,
+    pending_insert_cursor: Option<crate::editor::types::CursorPosition>,
     dirty: bool,
     text_updated: bool,
     last_buffer_change: Option<Instant>,
@@ -87,6 +88,11 @@ impl VimBackend {
             vim.keymap.set("n", "k", "v:count == 0 ? 'gk' : 'k'", opts)
             vim.keymap.set("n", "<Down>", "v:count == 0 ? 'gj' : '<Down>'", opts)
             vim.keymap.set("n", "<Up>", "v:count == 0 ? 'gk' : '<Up>'", opts)
+
+            -- The user's embedded init maps `jk` to Escape in Insert mode.
+            -- That prefix mapping delays every literal `j`; remove it only in
+            -- this editor instance so ordinary typing is immediate.
+            pcall(vim.keymap.del, 'i', 'jk')
 
             -- Auto-closing pairs so the Neovim surface matches Hybrid typing.
             if vim.g.mindforge_autopair ~= false then
@@ -186,6 +192,7 @@ impl VimBackend {
             document_lines: text.lines().count(),
             document_bytes: text.len(),
             cursor_char_cache: None,
+            pending_insert_cursor: None,
             dirty: false,
             text_updated: false,
             last_buffer_change: None,
@@ -334,6 +341,13 @@ impl VimBackend {
         if !self.is_insert_mode() || end != start + 1 || replacement.len() != 1 || start != self.grid.cursor.row {
             return;
         }
+        // Grid columns are display cells, while `chars().count()` is Unicode
+        // scalar count. Predict only for ASCII edits; Unicode uses Neovim's
+        // authoritative cursor redraw instead of an invalid local estimate.
+        if !self.lines[start].is_ascii() || !replacement[0].is_ascii() {
+            self.pending_insert_cursor = None;
+            return;
+        }
         let old_len = self.lines[start].chars().count();
         let new_len = replacement[0].chars().count();
         let column = self.grid.cursor.column;
@@ -341,6 +355,9 @@ impl VimBackend {
             self.grid.cursor.column = (column + new_len - old_len).min(new_len);
         } else if new_len < old_len && column <= old_len {
             self.grid.cursor.column = column.saturating_sub(old_len - new_len).min(new_len);
+        }
+        if new_len != old_len {
+            self.pending_insert_cursor = Some(self.grid.cursor);
         }
     }
     fn apply_redraw_group(&mut self, group: &Value) {
@@ -381,6 +398,17 @@ impl VimBackend {
                 "grid_cursor_goto" if args.len() >= 3 && num(&args[0]) == 1 => {
                     let target_row = num(&args[1]);
                     let target_col = num(&args[2]);
+                    // A buffer update can arrive before a delayed cursor redraw.
+                    // Keep the predicted insertion caret when that redraw points
+                    // behind it; navigation keys clear the prediction explicitly.
+                    if self.is_insert_mode() {
+                        if let Some(predicted) = self.pending_insert_cursor {
+                            if cursor_goto_is_stale(self.grid.mode.as_str(), Some(predicted), target_row, target_col) {
+                                continue;
+                            }
+                        }
+                    }
+                    self.pending_insert_cursor = None;
                     let is_bottom_cmd_row = self.grid.height > 0 && target_row >= self.grid.height.saturating_sub(1);
                     let in_cmd_or_msg = self.grid.mode == "c"
                         || self.grid.mode.starts_with("cmdline")
@@ -398,7 +426,10 @@ impl VimBackend {
                     // Event payload is [mode_name, mode_index]. The previous
                     // code read mode_index as a string, leaving the UI stuck
                     // in NORMAL even after Neovim entered INSERT or VISUAL.
-                    self.grid.mode = args[0].as_str().unwrap_or("normal").to_owned()
+                    self.grid.mode = args[0].as_str().unwrap_or("normal").to_owned();
+                    if !self.is_insert_mode() {
+                        self.pending_insert_cursor = None;
+                    }
                 }
                 // hl_attr_define payload: [id, rgb_attrs, cterm_attrs, info]
                 "hl_attr_define" if args.len() >= 2 => self.apply_highlight(args),
@@ -416,6 +447,21 @@ impl VimBackend {
                         .and_then(Value::as_i64)
                         .filter(|selected| *selected >= 0)
                         .map(|selected| selected as usize);
+                    if self.grid.popup_selected.is_none() {
+                        // Keep Neovim's actual selection in sync with the first
+                        // (best-ranked) visible match. `insert=false` highlights
+                        // it without changing the buffer; the redraw event is
+                        // the sole source for the UI's selected-row state.
+                        let _ = self.client.notify(
+                            "nvim_exec_lua",
+                            vec![Value::from(concat!(
+                                "if vim.fn.mode():sub(1, 1) ~= 'i' or vim.fn.pumvisible() ~= 1 then return end; ",
+                                "if vim.fn.complete_info({ 'selected' }).selected == -1 then ",
+                                "local ok = pcall(vim.api.nvim_select_popupmenu_item, 0, false, false); ",
+                                "if not ok then vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<C-n>', true, false, true), 'n', false) end end"
+                            ))],
+                        );
+                    }
                     self.grid.popup_anchor = Some((
                         num(args.get(2).unwrap_or(&Value::Nil)),
                         num(args.get(3).unwrap_or(&Value::Nil)),
@@ -590,6 +636,7 @@ impl VimBackend {
     }
 
     pub fn send_input(&mut self, input: &str) -> EditorResult<()> {
+        self.pending_insert_cursor = None;
         self.client.input(input)
     }
 
@@ -610,14 +657,26 @@ impl VimBackend {
         if index as i64 >= total {
             return;
         }
-        let steps = match self.grid.popup_selected {
-            Some(current) => index as i64 - current as i64,
-            None => index as i64 + 1,
-        };
-        let key = if steps >= 0 { "<C-n>" } else { "<C-p>" };
-        let mut keys = key.repeat(steps.unsigned_abs() as usize);
-        keys.push_str("<C-y>");
-        let _ = self.client.input(&keys);
+        self.pending_insert_cursor = None;
+        // Select and finish by exact popup index without blocking the UI. If
+        // the bundled Neovim lacks this API, fall back inside Neovim to key
+        // navigation while the same popup state is still current.
+        let current = self.grid.popup_selected.map_or(-1, |selected| selected as i64);
+        let _ = self.client.notify(
+            "nvim_exec_lua",
+            vec![
+                Value::from(concat!(
+                    "local index, current = ...; ",
+                    "local select_item = vim.api.nvim_select_popupmenu_item; ",
+                    "if select_item then local ok = pcall(select_item, index, true, true); if ok then return end end; ",
+                    "local steps = current >= 0 and (index - current) or (index + 1); ",
+                    "local key = steps >= 0 and '<C-n>' or '<C-p>'; ",
+                    "local keys = string.rep(key, math.abs(steps)) .. '<C-y>'; ",
+                    "vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), 'n', false)"
+                )),
+                Value::Array(vec![Value::from(index as i64), Value::from(current)]),
+            ],
+        );
     }
 
     pub fn popup_visible(&self) -> bool {
@@ -1109,6 +1168,9 @@ fn mouse_button(button: u8) -> &'static str {
 
 impl EditorBackend for VimBackend {
     fn handle_key(&mut self, event: EditorKeyEvent) -> EditorResult<()> {
+        // Any explicit key command (navigation, deletion, completion accept,
+        // etc.) supersedes the optimistic cursor position from text input.
+        self.pending_insert_cursor = None;
         if self.lsp_panel.open {
             return match self.lsp_panel.handle_key(event.key, event.modifiers) {
                 super::lsp_panel::PanelAction::Run(keys) => self.client.input(&keys),
@@ -1772,4 +1834,42 @@ fn compact_message(text: &str) -> String {
     let mut out: String = line.chars().take(MAX).collect();
     out.push('…');
     out
+}
+
+fn cursor_goto_is_stale(
+    mode: &str,
+    predicted: Option<crate::editor::types::CursorPosition>,
+    target_row: usize,
+    target_column: usize,
+) -> bool {
+    mode.starts_with('i')
+        && predicted.is_some_and(|position| {
+            position.row == target_row && position.column != target_column
+        })
+}
+
+#[cfg(test)]
+mod cursor_sync_tests {
+    use super::cursor_goto_is_stale;
+    use crate::editor::types::CursorPosition;
+
+    #[test]
+    fn stale_cursor_after_backspace_is_rejected() {
+        let predicted = CursorPosition { row: 0, column: 1 };
+        assert!(cursor_goto_is_stale("insert", Some(predicted), 0, 2));
+    }
+
+    #[test]
+    fn stale_cursor_before_insert_position_is_rejected() {
+        let predicted = CursorPosition { row: 0, column: 1 };
+        assert!(cursor_goto_is_stale("insert", Some(predicted), 0, 0));
+    }
+
+    #[test]
+    fn matching_cursor_and_non_insert_navigation_are_accepted() {
+        let predicted = CursorPosition { row: 0, column: 1 };
+        assert!(!cursor_goto_is_stale("insert", Some(predicted), 0, 1));
+        assert!(!cursor_goto_is_stale("normal", Some(predicted), 0, 2));
+        assert!(!cursor_goto_is_stale("insert", Some(predicted), 1, 2));
+    }
 }

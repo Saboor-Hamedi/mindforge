@@ -135,11 +135,7 @@ pub fn render_backlinks_panel(
 
                     // Note title
                     let max_chars = (((item_rect.max.x - item_rect.min.x - 30.0).max(20.0)) / 7.2) as usize;
-                    let display_title = if bl.source_note_title.len() > max_chars && max_chars > 3 {
-                        format!("{}...", &bl.source_note_title[..max_chars.saturating_sub(3)])
-                    } else {
-                        bl.source_note_title.clone()
-                    };
+                    let display_title = crate::ui::truncate_with_ellipsis(&bl.source_note_title, max_chars);
 
                     painter.text(
                         pos2(item_rect.min.x + 24.0, item_rect.min.y + 12.0),
@@ -151,11 +147,7 @@ pub fn render_backlinks_panel(
 
                     // Line snippet below title
                     let snip_chars = (((item_rect.max.x - item_rect.min.x - 24.0).max(20.0)) / 6.5) as usize;
-                    let display_snip = if bl.snippet.len() > snip_chars && snip_chars > 3 {
-                        format!("{}...", &bl.snippet[..snip_chars.saturating_sub(3)])
-                    } else {
-                        bl.snippet.clone()
-                    };
+                    let display_snip = crate::ui::truncate_with_ellipsis(&bl.snippet, snip_chars);
 
                     painter.text(
                         pos2(item_rect.min.x + 24.0, item_rect.min.y + 28.0),

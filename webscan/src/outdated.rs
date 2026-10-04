@@ -43,7 +43,9 @@ pub fn check(headers: &HeaderMap, body: &str) -> Vec<Finding> {
     }
 
     // 3. HTML meta generator tag fingerprinting
-    let lower_body = body.to_lowercase();
+    // This marker is ASCII, so ASCII-only case folding preserves byte offsets
+    // into `body`; Unicode lowercase expansion would make those offsets diverge.
+    let lower_body = body.to_ascii_lowercase();
     if let Some(pos) = lower_body.find("<meta name=\"generator\" content=\"") {
         let after = &body[pos + 32..];
         if let Some(end) = after.find('"') {

@@ -72,11 +72,7 @@ pub fn render_full_titlebar(
     // 5. Active Document / Section Title — fully styled using theme.text
     let max_avail_w = (right_controls_start - gap_from_controls - title_start_x).max(40.0);
     let max_chars = (max_avail_w / 7.5) as usize;
-    let base_title = if active_title.len() > max_chars {
-        format!("{}...", &active_title[..max_chars.saturating_sub(3)])
-    } else {
-        active_title.to_string()
-    };
+    let base_title = crate::ui::truncate_with_ellipsis(active_title, max_chars);
     let display_title = if is_dirty {
         format!("{}  ●", base_title)
     } else {

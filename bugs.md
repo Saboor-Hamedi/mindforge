@@ -10,17 +10,12 @@
 
 ## 🔴 CRITICAL BUGS (panic / crash / data-loss / wrong behavior)
 
-### UTF-8 byte-slice panic risk (mix `str::len()` bytes with char-index slicing)
-- **app/src/agent/deepseek_ui.rs:43** — BUG — `&title[..25]` guarded by `title.len() > 28` (bytes); index 25 can land mid-character → panic. *Use `char_indices()` / `floor_char_boundary()`.*
-- **app/src/agent/mod.rs:187** — BUG — `&n.body[..180]` guarded by byte length; can panic on multi-byte text.
-- **app/src/agent/mod.rs:204** — BUG — `&body[..600]` same class of panic.
-- **app/src/modals/search.rs:412, 426-429** — BUG — `&item.title[..42]` / `&item.snippet[..50]` byte slices panic on non-ASCII.
-- **app/src/view_editor/titlebar.rs:75-76** — BUG — `active_title.len() > max_chars` (bytes) then `&active_title[..max_chars-3]` byte slice panics on multi-byte titles.
-- **app/src/rightsidebar/backlinks.rs:138-139, 154-155** — BUG — byte-length guard + char-index slice panics on UTF-8 titles/snippets.
-- **app/src/rightsidebar/outline.rs:206-207** — BUG — `&h.title[..max_chars-3]` byte-slice panic risk.
-- **app/src/wikilink/wikilink_autocompletion.rs:55, 72, 107, 139** — BUG — `&domain[..13]`, `&last_folder[..13]`, `&clean_word[..10]` panic on non-ASCII note titles.
-- **app/src/accent/accentcolor.rs:87-97** — BUG — `color_from_hex` slices `&s[0..2]`/`&s[2..4]`/`&s[4..6]`; a 6-byte multi-byte input (e.g. `"€abc"`) passes `s.len()==6` then panics on a non-char boundary. Reachable from user-typed hex.
-- **app/src/webscan/src/outdated.rs:46-48** — BUG — byte index from the *lowercased* copy (`lower_body.find(...)`) is used to slice the *original* `body`; `to_lowercase()` can change byte length (e.g. `'İ'`), so the slice can panic or read wrong content.
+### ✅ Completed: UTF-8 panic findings
+- `app/src/agent/deepseek_ui.rs` and `app/src/agent/mod.rs` — safe Unicode truncation for titles and generated prompt snippets.
+- `app/src/modals/search.rs`, `app/src/view_editor/titlebar.rs`, `app/src/rightsidebar/backlinks.rs`, and `app/src/rightsidebar/outline.rs` — safe Unicode truncation for displayed text.
+- `app/src/wikilink/wikilink_autocompletion.rs` — safe Unicode truncation for folder/domain badges and long tokens.
+- `app/src/accent/accentcolor.rs` — non-ASCII hex input is rejected before byte slicing.
+- `webscan/src/outdated.rs` — ASCII-only case folding keeps marker offsets aligned with the original HTML body.
 
 ### Updater is pointed at the wrong repo
 - **app/src/services/updater.rs:115** — BUG/HARDCODE — `let repo = "Saboor-Hamedi/my_first_project";` is a copy-paste leftover, not the MindForge repo. Combined with `updater.rs:125` (`Err(ureq::Error::Status(404, _)) => UpdateStatus::UpToDate`), the updater reports "up to date" forever and masks real failures. *Point at the real repo and treat 404 as an error.*

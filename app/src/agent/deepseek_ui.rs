@@ -39,11 +39,7 @@ pub fn render_ai_pane(
 
     // Context indicator on the left
     let (ctx_label, ctx_color) = if let Some((title, _)) = active_note {
-        let clean_title = if title.len() > 28 {
-            format!("{}...", &title[..25])
-        } else {
-            title.to_string()
-        };
+        let clean_title = super::truncate_with_ellipsis(title, 28);
         (format!("Context: {}", clean_title), theme.accent)
     } else {
         ("Context: All Notes".to_string(), theme.muted)

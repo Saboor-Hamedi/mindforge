@@ -20,6 +20,8 @@ local function map(modes, lhs, rhs, opts)
 end
 
 local function setup_options()
+  -- Keep matches unselected while typing. The custom popup accepts the exact
+  -- item on click, so users do not need a keyboard selection just to accept it.
   vim.opt.completeopt = { 'menu', 'menuone', 'noinsert', 'noselect', 'fuzzy' }
   vim.opt.pumheight = 12
   vim.opt.shortmess:append('c')
