@@ -32,6 +32,7 @@ pub struct VimBackend {
     layout_font_size: u32,
     cursor_render_initialized: bool,
     busy: Option<String>,
+    lsp_status: (String, String),
     lsp_panel: super::lsp_panel::LspPanel,
     line_numbers_enabled: Option<bool>,
     cached_theme: Option<(Color32, Color32, Color32, Color32)>,
@@ -49,6 +50,7 @@ const LSP_MODULES: &[(&str, &str)] = &[
     ("mindforge.lsp.emmet", include_str!("../../assets/nvim/mindforge/lsp/emmet.lua")),
     ("mindforge.lsp.snippets", include_str!("../../assets/nvim/mindforge/lsp/snippets.lua")),
     ("mindforge.lsp.completion", include_str!("../../assets/nvim/mindforge/lsp/completion.lua")),
+    ("mindforge.lsp.status", include_str!("../../assets/nvim/mindforge/lsp/status.lua")),
     ("mindforge.lsp.commands", include_str!("../../assets/nvim/mindforge/lsp/commands.lua")),
 ];
 impl VimBackend {
@@ -195,6 +197,7 @@ impl VimBackend {
             layout_font_size: 0,
             cursor_render_initialized: false,
             busy: None,
+            lsp_status: Default::default(),
             lsp_panel: Default::default(),
             line_numbers_enabled: None,
             cached_theme: None,
@@ -223,6 +226,11 @@ impl VimBackend {
                 .and_then(Value::as_str)
                 .unwrap_or("");
             self.busy = (!label.is_empty()).then(|| label.to_owned());
+        } else if items.get(1).and_then(Value::as_str) == Some("mindforge_lsp_status") {
+            let arg = |i: usize| {
+                items.get(2).and_then(Value::as_array).and_then(|args| args.get(i)).and_then(Value::as_str).unwrap_or("").to_owned()
+            };
+            self.lsp_status = (arg(0), arg(1));
         } else if items.get(1).and_then(Value::as_str) == Some("mindforge_lsp_list") {
             self.apply_lsp_list(items.get(2));
         } else if items.get(1).and_then(Value::as_str) == Some("nvim_buf_lines_event") {
@@ -583,6 +591,12 @@ impl VimBackend {
 
     pub fn send_input(&mut self, input: &str) -> EditorResult<()> {
         self.client.input(input)
+    }
+
+    /// (state, detail) of the language servers for the current buffer. State is one of
+    /// connected, starting, unavailable or none.
+    pub fn lsp_status(&self) -> (&str, &str) {
+        (&self.lsp_status.0, &self.lsp_status.1)
     }
 
     /// Label of long-running background work (installs, LSP indexing), if any.
@@ -1046,15 +1060,25 @@ fn popupmenu_meta(value: &Value) -> Vec<(String, String)> {
         .map(|item| {
             let text = |i: usize| item.get(i).and_then(Value::as_str).unwrap_or("");
             let kind = match text(1) {
-                "Snippet" => "▣",
-                "Function" | "Method" | "Constructor" => "ƒ",
-                "Variable" | "Field" | "Property" => "x",
-                "Class" | "Struct" | "Interface" | "Enum" | "Module" => "◇",
+                "Text" => "t",
+                "Method" | "Function" | "Constructor" => "ƒ",
+                "Field" | "Property" => "p",
+                "Variable" | "Value" | "Unit" => "x",
+                "Class" | "TypeParameter" => "C",
+                "Interface" => "I",
+                "Module" | "Folder" => "M",
+                "Struct" => "S",
+                "Enum" | "EnumMember" => "E",
+                "Constant" => "c",
                 "Keyword" => "k",
+                "Snippet" => "▣",
+                "Event" => "e",
+                "Operator" => "±",
+                "Reference" | "Color" => "&",
+                "File" => "f",
                 "" => "",
                 _ => "·",
-            };
-            (kind.to_owned(), text(2).to_owned())
+            };            (kind.to_owned(), text(2).to_owned())
         })
         .collect()
 }
@@ -1535,7 +1559,7 @@ impl EditorBackend for VimBackend {
                     painter.rect_filled(
                         Rect::from_min_size(Pos2::new(popup_x, y), egui::vec2(popup_width, nvim_row_height)),
                         0.0,
-                        theme.accent.linear_multiply(0.12),
+                        theme.text.linear_multiply(0.05),
                     );
                 }
                 if Some(index) == selected {
@@ -1544,8 +1568,13 @@ impl EditorBackend for VimBackend {
                             Pos2::new(popup_x, y),
                             egui::vec2(popup_width, nvim_row_height),
                         ),
-                        0.0,
-                        theme.accent.linear_multiply(0.25),
+                        3.0,
+                        theme.text.linear_multiply(0.09),
+                    );
+                    painter.rect_filled(
+                        Rect::from_min_size(Pos2::new(popup_x + 2.0, y + 3.0), egui::vec2(2.0, nvim_row_height - 6.0)),
+                        1.0,
+                        theme.accent,
                     );
                 }
                 let mut text_x = popup_x + 6.0;

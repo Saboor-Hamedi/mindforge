@@ -74,10 +74,20 @@ function M.setup(refresh)
   cmd('LspInfo', function()
     local names = {}
     for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
-      table.insert(names, client.name)
+      local root = client.config.root_dir
+      table.insert(names, client.name .. (root and (' @ ' .. vim.fn.fnamemodify(root, ':~')) or ''))
     end
-    say('attached: ' .. (#names > 0 and table.concat(names, ', ') or 'none') .. '  (filetype ' .. vim.bo.filetype .. ')')
+    say('attached: ' .. (#names > 0 and table.concat(names, '; ') or 'none') .. '  (filetype ' .. vim.bo.filetype .. ')')
   end, { desc = 'Show language servers attached to this buffer' })
+
+  cmd('LspLog', function()
+    local file = vim.lsp.log.get_filename()
+    if vim.fn.filereadable(file) == 1 then
+      vim.cmd('edit ' .. vim.fn.fnameescape(file))
+    else
+      say('no LSP log yet (' .. file .. ')')
+    end
+  end, { desc = 'Open the language server log' })
 
   cmd('LspRestart', function()
     for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do

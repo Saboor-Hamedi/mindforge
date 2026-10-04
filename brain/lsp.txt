@@ -131,3 +131,10 @@ Built-in HTML / JSX / TSX completion
   ts_ls needs TypeScript 5: run :LspInstall ts_ls once.
 
 eslint: starts only in a project with an ESLint config AND node_modules/eslint installed (npm i -D eslint); otherwise it stays off.
+
+STATUS BAR INDICATOR
+  Left of the language label in the status bar: filled dot = server connected, hollow dot = starting, x = server not installed (hover for names). No dot = no LSP for this language (e.g. markdown).
+
+INFO / LOG
+  :LspInfo  attached servers with their project root.
+  :LspLog   opens the language server log file.

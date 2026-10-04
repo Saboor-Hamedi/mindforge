@@ -20,6 +20,7 @@ local completion = require('mindforge.lsp.completion')
 local commands = require('mindforge.lsp.commands')
 local say = require('mindforge.lsp.notify').say
 local progress = require('mindforge.lsp.progress')
+local status = require('mindforge.lsp.status')
 
 local M = {}
 
@@ -143,6 +144,7 @@ function M.setup()
   end)
   progress.watch_lsp(group)
   commands.setup(M.refresh)
+  status.setup(group)
   M.refresh()
 end
 

@@ -43,6 +43,8 @@ local skeletons = {
 
 local js_snippets = {
   { 'clg', 'console.log($0)', 'console.log' },
+  { 'console', 'console.log($0)', 'console.log' },
+  { 'log', 'console.log($0)', 'console.log' },
   { 'fn', 'function ${1:name}(${2:args}) {\n  $0\n}', 'function declaration' },
   { 'afn', 'const ${1:name} = (${2:args}) => {\n  $0\n}', 'arrow function' },
   { 'imp', "import ${1:name} from '${2:module}'", 'import default' },
@@ -167,7 +169,8 @@ local function markup_items(filetype, line_before, params, bufnr)
     add(abbr, expanded, emmet.preview(expanded), '0' .. abbr)
   end
   -- Plain tag names, unless the HTML language server already offers them.
-  if abbr:match('^%a[%w]*$') and not has_client(bufnr, 'html') then
+  local after_lt = line_before:sub(1, #line_before - #abbr):match('<$') ~= nil
+  if abbr:match('^%a[%w]*$') and not (after_lt and has_client(bufnr, 'html')) then
     local shown = 0
     for _, tag in ipairs(emmet.tags) do
       if tag ~= abbr and vim.startswith(tag, abbr) and shown < 8 then
@@ -236,9 +239,11 @@ end
 --- Attaches the snippet server to `bufnr` when its filetype has snippets.
 function M.attach(bufnr)
   local filetype = vim.bo[bufnr].filetype
-  -- `!` must count as a word character so the Emmet "!" skeleton replaces it.
-  local keyword = vim.bo[bufnr].iskeyword:gsub(',!', '')
-  vim.bo[bufnr].iskeyword = MARKUP[filetype] ~= nil and (keyword .. ',!') or keyword
+  -- `!` and the Emmet operators must count as word characters so accepting
+  -- `!` or `ul>li*2` replaces the whole abbreviation.
+  local extra = ',!,>,+,*,.,#'
+  local keyword = vim.bo[bufnr].iskeyword:gsub(vim.pesc(extra), '')
+  vim.bo[bufnr].iskeyword = MARKUP[filetype] ~= nil and (keyword .. extra) or keyword
   if not M.snippets[filetype] and MARKUP[filetype] == nil then
     return
   end

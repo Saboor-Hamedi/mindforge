@@ -18,6 +18,8 @@ pub struct LunaLineRenderParams<'a> {
     pub status_time: f64,
     /// Label of background work in progress; shows a spinner and a progress bar.
     pub busy: Option<&'a str>,
+    /// Language server state of the buffer: connected / starting / unavailable / none, plus server names.
+    pub lsp: (&'a str, &'a str),
     pub now: f64,
     pub cursor_row: usize,
     pub cursor_col: usize,
@@ -248,7 +250,14 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
     }
 
     let language_label = params.language.label();
-    let language_width = language_label.chars().count() as f32 * 7.4 + 25.0;
+    let lsp_glyph = match params.lsp.0 {
+        "connected" => Some(("●", theme.accent)),
+        "starting" => Some(("○", theme.muted)),
+        "unavailable" => Some(("×", theme.muted)),
+        _ => None,
+    };
+    let lsp_pad = if lsp_glyph.is_some() { 16.0 } else { 0.0 };
+    let language_width = language_label.chars().count() as f32 * 7.4 + 25.0 + lsp_pad;
     right_x -= language_width;
     let language_rect = Rect::from_min_size(
         pos2(right_x, bar_center_y - 11.0),
@@ -272,8 +281,14 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
             params.language_selector.focus_search = params.language_selector.open;
         }
     }
+    if let Some((glyph, color)) = lsp_glyph {
+        painter.text(pos2(language_rect.min.x + 7.0, language_rect.center().y), Align2::LEFT_CENTER, glyph, font_info.clone(), color);
+        if language_hovered && !params.lsp.1.is_empty() {
+            egui::show_tooltip_text(ui.ctx(), ui.layer_id(), egui::Id::new("mindforge-lsp-tip"), format!("{}: {}", params.lsp.0, params.lsp.1));
+        }
+    }
     painter.text(
-        pos2(language_rect.min.x + 7.0, language_rect.center().y),
+        pos2(language_rect.min.x + 7.0 + lsp_pad, language_rect.center().y),
         Align2::LEFT_CENTER,
         language_label,
         font_info.clone(),
@@ -699,6 +714,7 @@ pub fn render_lunaline_preview(
         status_msg: "Ready",
         status_time: 0.0,
         busy: None,
+        lsp: ("none", ""),
         now: 10.0,
         cursor_row: 14,
         cursor_col: 23,

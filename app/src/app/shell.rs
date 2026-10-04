@@ -330,6 +330,7 @@ impl App {
             status_msg: &self.misc.status_msg,
             status_time: self.misc.status_time,
             busy: self.services.vim_runtime.backend.as_ref().and_then(|b| b.busy_label()),
+            lsp: self.services.vim_runtime.backend.as_ref().map_or(("none", ""), |b| b.lsp_status()),
             now,
             cursor_row: row + 1,
             cursor_col: col + 1,

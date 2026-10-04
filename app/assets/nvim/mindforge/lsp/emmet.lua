@@ -94,9 +94,15 @@ local function render(nodes, depth, jsx, state, lines)
         render(item.children, depth + 1, jsx, state, lines)
         lines[#lines + 1] = pad .. '</' .. item.tag .. '>'
       else
-        local stop = state.placed and '' or '$0'
-        state.placed = true
-        lines[#lines + 1] = pad .. open .. '>' .. stop .. '</' .. item.tag .. '>'
+        if state.placed then
+          lines[#lines + 1] = pad .. open .. '></' .. item.tag .. '>'
+        else
+          -- First empty element: caret on its own indented line between the tags.
+          state.placed = true
+          lines[#lines + 1] = pad .. open .. '>'
+          lines[#lines + 1] = pad .. '  $0'
+          lines[#lines + 1] = pad .. '</' .. item.tag .. '>'
+        end
       end
     end
   end
@@ -116,6 +122,18 @@ end
 --- The abbreviation immediately before the cursor in `line_before`, if any.
 function M.abbreviation(line_before)
   return line_before:match('[%w%.#>+*%-_]+$')
+end
+
+--- True when `abbr` is exactly a known tag name.
+function M.is_tag(abbr)
+  return KNOWN[abbr] == true
+end
+
+--- One-line summary of an expansion for the completion detail column.
+function M.preview(expanded)
+  local text = (expanded or ''):gsub('%$%d', ''):gsub('%${%d:([^}]*)}', '%1')
+  text = text:gsub('%s*\n%s*', ''):gsub('%s+', ' ')
+  return #text > 48 and (text:sub(1, 47) .. '…') or text
 end
 
 return M
