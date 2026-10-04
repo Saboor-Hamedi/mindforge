@@ -194,7 +194,7 @@ fn replay_pending_hybrid_input(app: &mut App, now: f64) {
     }
 }
 
-fn sync_neovim_changes(app: &mut App, now: f64) {
+pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
     if app.services.editor_controller.mode != EditorInputMode::Vim {
         return;
     }

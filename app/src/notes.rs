@@ -7,6 +7,7 @@ use core::Note;
 /// SQLite is the application's authoritative persistence layer in both editor
 /// modes; Vim snapshots are synchronized from Neovim before this function runs.
 pub fn quick_save_active_note(app: &mut App, now: f64) {
+    crate::vim::runtime::sync_neovim_changes(app, now);
     let content = app.editor.ed.text();
     if let Some(path) = app
         .open_notes

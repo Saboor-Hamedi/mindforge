@@ -1,6 +1,13 @@
 //! Application startup initialization, settings loading, and session persistence.
 
 use super::{App, EditorInputMode, OpenNote};
+
+/// One restorable tab, stored in order so notes and code files reopen together.
+#[derive(serde::Serialize, serde::Deserialize)]
+enum SavedTab {
+    Note(i64),
+    File(String),
+}
 use crate::caret::CaretKind;
 use crate::services::db_worker::{spawn_db_worker, DbMsg};
 use crate::editor::Editor;
@@ -106,7 +113,86 @@ impl App {
 
             let mut tabs_setting_present = false;
             let mut tabs_restored = false;
-            if let Ok(Some(json)) = db.get_setting("open_note_tab_ids") {
+            let saved_tabs = db
+                .get_setting("open_tabs_v2")
+                .ok()
+                .flatten()
+                .and_then(|json| serde_json::from_str::<Vec<SavedTab>>(&json).ok());
+            if let Some(entries) = saved_tabs {
+                tabs_setting_present = true;
+                for entry in entries {
+                    match entry {
+                        SavedTab::Note(id) => {
+                            let Ok(Some(note)) = db.get_note(id) else { continue };
+                            let mut note_ed = Editor::new();
+                            note_ed.insert_str(&note.body);
+                            note_ed.clear_history();
+                            let scroll_y = db
+                                .get_setting(&format!("note_scroll_{}", id))
+                                .ok()
+                                .flatten()
+                                .and_then(|s| s.parse::<f32>().ok())
+                                .unwrap_or(0.0);
+                            let caret = db
+                                .get_setting(&format!("note_caret_{}", id))
+                                .ok()
+                                .flatten()
+                                .and_then(|s| s.parse::<usize>().ok())
+                                .unwrap_or(0);
+                            note_ed.cur = caret.min(note_ed.buf.len());
+                            app.open_notes.push(OpenNote {
+                                id: note.id,
+                                title: note.topic.clone(),
+                                editor: note_ed,
+                                scroll_y,
+                                is_dirty: false,
+                                file_path: None,
+                                language_override: None,
+                            });
+                        }
+                        SavedTab::File(path) => {
+                            let path = std::path::PathBuf::from(path);
+                            let Ok(content) = std::fs::read_to_string(&path) else { continue };
+                            let mut file_ed = Editor::new();
+                            file_ed.insert_str(&content.replace("\r\n", "\n").replace('\r', "\n"));
+                            file_ed.clear_history();
+                            app.open_notes.push(OpenNote {
+                                id: 0,
+                                title: path
+                                    .file_name()
+                                    .and_then(|name| name.to_str())
+                                    .unwrap_or("Untitled")
+                                    .to_string(),
+                                editor: file_ed,
+                                scroll_y: 0.0,
+                                is_dirty: false,
+                                file_path: Some(path),
+                                language_override: None,
+                            });
+                        }
+                    }
+                }
+                if app.open_notes.is_empty() {
+                    app.misc.show_welcome = true;
+                } else {
+                    tabs_restored = true;
+                    app.misc.show_welcome = false;
+                    let saved_active = db
+                        .get_setting("open_tabs_v2_active")
+                        .ok()
+                        .flatten()
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap_or(0);
+                    app.tabs.active_tab = saved_active.min(app.open_notes.len() - 1);
+                    app.tabs.last_active_tab = app.tabs.active_tab;
+                    let target = &app.open_notes[app.tabs.active_tab];
+                    app.notes.active_note_id = (target.id > 0).then_some(target.id);
+                    app.notes.active_note_title = target.title.clone();
+                    app.editor.ed = target.editor.clone();
+                    app.editor.scroll_y = target.scroll_y;
+                }
+            }
+            if let (false, Ok(Some(json))) = (tabs_setting_present, db.get_setting("open_note_tab_ids")) {
                 tabs_setting_present = true;
                 if let Ok(ids) = serde_json::from_str::<Vec<i64>>(&json) {
                     for id in ids {
@@ -442,6 +528,25 @@ impl App {
                 let _ = db.set_setting("open_note_tab_ids", &json);
             }
             let _ = db.set_setting("open_note_active_tab", &self.tabs.active_tab.to_string());
+
+            // Ordered list of notes and code files; untitled scratch tabs are not restorable.
+            let mut saved = Vec::new();
+            let mut active = 0;
+            for (index, tab) in self.open_notes.iter().enumerate() {
+                let entry = match &tab.file_path {
+                    Some(path) => SavedTab::File(path.to_string_lossy().into_owned()),
+                    None if tab.id > 0 => SavedTab::Note(tab.id),
+                    None => continue,
+                };
+                if index == self.tabs.active_tab {
+                    active = saved.len();
+                }
+                saved.push(entry);
+            }
+            if let Ok(json) = serde_json::to_string(&saved) {
+                let _ = db.set_setting("open_tabs_v2", &json);
+            }
+            let _ = db.set_setting("open_tabs_v2_active", &active.to_string());
         }
     }
 
@@ -476,6 +581,13 @@ impl App {
             }
         }
         if let Some(ref db) = self.services.db {
+            for (index, tab) in self.open_notes.iter_mut().enumerate() {
+                if index != self.tabs.active_tab && tab.is_dirty && tab.file_path.is_none() && tab.id > 0 {
+                    if db.update_note(tab.id, &tab.editor.text()).is_ok() {
+                        tab.is_dirty = false;
+                    }
+                }
+            }
             let _ = db.set_setting("last_caret_pos", &self.editor.ed.cur.to_string());
             let _ = db.set_setting("last_scroll_y", &self.editor.scroll_y.to_string());
             let _ = db.set_setting("opacity", &format!("{:.2}", self.misc.opacity));

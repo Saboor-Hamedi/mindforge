@@ -27,6 +27,7 @@ impl App {
             return;
         }
 
+        crate::vim::runtime::sync_neovim_changes(self, now);
         // 1. Sync current state into the active tab before switching
         if let Some(cur) = self.open_notes.get_mut(self.tabs.active_tab) {
             cur.editor = self.editor.ed.clone();
@@ -156,7 +157,12 @@ impl App {
 
     pub fn load_note(&mut self, id: i64, topic: String, body: String, now: f64) {
         self.misc.show_welcome = false;
+        crate::vim::runtime::sync_neovim_changes(self, now);
         self.sync_active_tab();
+        // Keep the unsaved text of the tab being left; only title/scroll were synced above.
+        if let Some(current) = self.open_notes.get_mut(self.tabs.active_tab) {
+            current.editor = self.editor.ed.clone();
+        }
 
         // 1. Check if note is already open in an existing tab
         if let Some(existing_tab_idx) = self.open_notes.iter().position(|n| {

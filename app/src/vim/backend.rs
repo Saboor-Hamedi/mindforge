@@ -1029,6 +1029,22 @@ fn cmdline_text(value: &Value) -> String {
         .collect()
 }
 
+/// Plain-text form of LSP documentation: drops Markdown code fences and
+/// inline backticks, caps the length, and trims blank edges.
+fn clean_documentation(body: &str) -> String {
+    let text: Vec<&str> = body
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("```"))
+        .collect();
+    let joined = text.join("\n").replace('`', "").replace('\t', "  ");
+    let trimmed = joined.trim();
+    if trimmed.chars().count() > 1200 {
+        trimmed.chars().take(1199).chain(std::iter::once('…')).collect()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 fn popupmenu_items(value: &Value) -> Vec<String> {
     value
         .as_array()
@@ -1521,7 +1537,11 @@ impl EditorBackend for VimBackend {
             let visible = total.min(MAX_ROWS);
             let selected = self.grid.popup_selected;
             let start = selected.map_or(0, |s| (s + 1).saturating_sub(visible)).min(total - visible);
-            let popup_width = (rect.width() * 0.6).clamp(220.0, 480.0).min(rect.width());
+            const DETAIL_CHAR: f32 = 6.4;
+            let label_chars = self.grid.popup_items.iter().map(|s| s.chars().count()).max().unwrap_or(0);
+            let detail_chars = self.grid.popup_meta.iter().map(|(_, e)| e.chars().count()).max().unwrap_or(0).min(40);
+            let wanted = 30.0 + label_chars as f32 * cell_width + 28.0 + detail_chars as f32 * DETAIL_CHAR;
+            let popup_width = wanted.clamp(200.0, 520.0).min(rect.width());
             let popup_height = (visible as f32 * nvim_row_height).min(rect.height());
             let (popup_row, popup_col) = self
                 .grid
@@ -1577,17 +1597,28 @@ impl EditorBackend for VimBackend {
                         theme.accent,
                     );
                 }
-                let mut text_x = popup_x + 6.0;
+                let mid_y = y + nvim_row_height * 0.5;
+                let mut text_x = popup_x + 8.0;
                 if !kind.is_empty() {
-                    painter.text(Pos2::new(text_x, y), Align2::LEFT_TOP, kind, small.clone(), theme.accent);
-                    text_x += 16.0;
+                    painter.text(Pos2::new(text_x + 6.0, mid_y), Align2::CENTER_CENTER, kind, small.clone(), theme.accent);
+                    text_x += 18.0;
                 }
-                painter.text(Pos2::new(text_x, y), Align2::LEFT_TOP, item, font.clone(), theme.text);
-                if !extra.is_empty() {
+                let label_color = if Some(index) == selected { theme.accent } else { theme.text };
+                painter.text(Pos2::new(text_x, mid_y), Align2::LEFT_CENTER, item, font.clone(), label_color);
+                let room = popup_rect.max.x - 12.0 - (text_x + item.chars().count() as f32 * cell_width + 16.0);
+                let fit = (room / DETAIL_CHAR).floor().max(0.0) as usize;
+                let shown: String = if extra.chars().count() > fit && fit > 1 {
+                    extra.chars().take(fit - 1).chain(std::iter::once('…')).collect()
+                } else if fit == 0 {
+                    String::new()
+                } else {
+                    extra.to_string()
+                };
+                if !shown.is_empty() {
                     painter.text(
-                        Pos2::new(popup_rect.max.x - 6.0, y),
-                        Align2::RIGHT_TOP,
-                        extra,
+                        Pos2::new(popup_rect.max.x - 8.0, mid_y),
+                        Align2::RIGHT_CENTER,
+                        shown,
                         small.clone(),
                         theme.text.linear_multiply(0.5),
                     );
@@ -1598,41 +1629,44 @@ impl EditorBackend for VimBackend {
                 (popup_rect.contains(p)).then(|| start + ((p.y - popup_rect.min.y) / nvim_row_height) as usize)
             })).filter(|index| *index < total).unwrap_or(0);
             let body = self.grid.popup_info.get(focus).map(String::as_str).unwrap_or("");
-            if !body.trim().is_empty() {
-                let lines: Vec<String> = body
-                    .lines()
-                    .take(18)
-                    .map(|line| line.chars().take(64).collect::<String>().replace('\t', "  "))
-                    .collect();
-                let pane_width = (rect.width() * 0.45).clamp(200.0, 420.0);
-                let pane_height = ((lines.len() as f32 + 1.0) * nvim_row_height).min(rect.height());
-                let right_x = popup_rect.max.x + 6.0;
-                let pane_x = if right_x + pane_width <= rect.max.x {
-                    right_x
-                } else {
-                    (popup_rect.min.x - pane_width - 6.0).max(rect.min.x)
-                };
-                let pane_y = popup_y.min((rect.max.y - pane_height).max(rect.min.y));
-                let pane = Rect::from_min_size(Pos2::new(pane_x, pane_y), egui::vec2(pane_width, pane_height));
-                painter.rect_filled(pane.translate(egui::vec2(0.0, 4.0)), 8.0, Color32::from_black_alpha(65));
-                painter.rect(pane, 8.0, theme.surface(), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
-                for (line_index, line) in lines.iter().enumerate() {
-                    painter.text(
-                        Pos2::new(pane.min.x + 10.0, pane.min.y + nvim_row_height * 0.5 + line_index as f32 * nvim_row_height),
-                        Align2::LEFT_TOP,
-                        line,
-                        small.clone(),
-                        theme.text.linear_multiply(0.85),
-                    );
+            let doc = clean_documentation(body);
+            if !doc.is_empty() {
+                let space_right = rect.max.x - popup_rect.max.x - 6.0;
+                let space_left = popup_rect.min.x - rect.min.x - 6.0;
+                let on_right = space_right >= 200.0 || space_right >= space_left;
+                let pane_width = (if on_right { space_right } else { space_left }).clamp(120.0, 360.0);
+                if pane_width >= 120.0 {
+                    let galley = painter.layout(doc, small.clone(), theme.text.linear_multiply(0.85), pane_width - 20.0);
+                    let max_height = (nvim_row_height * 14.0).min(rect.height());
+                    let pane_height = (galley.size().y + 16.0).min(max_height);
+                    let pane_x = if on_right { popup_rect.max.x + 6.0 } else { popup_rect.min.x - pane_width - 6.0 };
+                    let pane_y = popup_y.min((rect.max.y - pane_height).max(rect.min.y));
+                    let pane = Rect::from_min_size(Pos2::new(pane_x, pane_y), egui::vec2(pane_width, pane_height));
+                    painter.rect_filled(pane.translate(egui::vec2(0.0, 4.0)), 8.0, Color32::from_black_alpha(65));
+                    painter.rect(pane, 8.0, theme.surface(), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+                    painter
+                        .with_clip_rect(pane.shrink(1.0))
+                        .galley(Pos2::new(pane.min.x + 10.0, pane.min.y + 8.0), galley, theme.text);
                 }
-            }            if total > visible {
-                painter.text(
-                    Pos2::new(popup_rect.max.x - 6.0, popup_rect.max.y - 1.0),
-                    Align2::RIGHT_BOTTOM,
-                    format!("{}/{}", selected.map_or(0, |s| s + 1), total),
-                    small,
-                    theme.text.linear_multiply(0.4),
+            }
+            if total > visible {
+                let track = Rect::from_min_max(
+                    Pos2::new(popup_rect.max.x - 4.0, popup_rect.min.y + 4.0),
+                    Pos2::new(popup_rect.max.x - 2.0, popup_rect.max.y - 4.0),
                 );
+                let thumb_h = (track.height() * visible as f32 / total as f32).max(12.0);
+                let top = track.min.y + (track.height() - thumb_h) * start as f32 / (total - visible).max(1) as f32;
+                painter.rect_filled(
+                    Rect::from_min_size(Pos2::new(track.min.x, top), egui::vec2(2.0, thumb_h)),
+                    1.0,
+                    theme.text.linear_multiply(0.25),
+                );
+            }
+            if popup_rect.contains(hover_pos.unwrap_or(Pos2::ZERO)) {
+                let delta = ui.input(|i| i.raw_scroll_delta.y);
+                if delta != 0.0 {
+                    let _ = self.client.input(if delta > 0.0 { "<C-p>" } else { "<C-n>" });
+                }
             }
         }
         let mut panel_clicked = false;
