@@ -51,6 +51,7 @@ pub struct EditorState {
     pub last_ed_origin: Option<Pos2>,
     /// Last known editor font size
     pub last_ed_font_size: Option<f32>,
+    pub language_selector: crate::language::LanguageSelectorState,
 }
 
 impl Default for EditorState {
@@ -75,6 +76,7 @@ impl Default for EditorState {
             last_editor_rect: None,
             last_ed_origin: None,
             last_ed_font_size: None,
+            language_selector: crate::language::LanguageSelectorState::default(),
         }
     }
 }

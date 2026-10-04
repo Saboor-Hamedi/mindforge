@@ -30,6 +30,8 @@ pub struct OpenNote {
     pub editor: Editor,
     pub scroll_y: f32,
     pub is_dirty: bool,
+    pub file_path: Option<std::path::PathBuf>,
+    pub language_override: Option<crate::language::FileLanguage>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,6 +116,100 @@ impl App {
             (cw, lh)
         })
     }
+
+    pub fn active_language(&self) -> crate::language::FileLanguage {
+        self.open_notes
+            .get(self.tabs.active_tab)
+            .map(|tab| {
+                tab.language_override.unwrap_or_else(|| match tab.file_path.as_deref() {
+                    Some(path) => crate::language::FileLanguage::from_path(path),
+                    None => crate::language::FileLanguage::from_title(&self.notes.active_note_title)
+                        .unwrap_or(crate::language::FileLanguage::Markdown),
+                })
+            })
+            .unwrap_or(crate::language::FileLanguage::Markdown)
+    }
+
+    /// Buffer name handed to Neovim so its filetype detection matches the document.
+    pub fn active_buffer_name(&self) -> String {
+        self.open_notes
+            .get(self.tabs.active_tab)
+            .and_then(|tab| tab.file_path.as_deref())
+            .map(|path| path.to_string_lossy().into_owned())
+            .unwrap_or_else(|| {
+                let title = self.notes.active_note_title.trim();
+                if crate::language::FileLanguage::from_title(title).is_some() {
+                    title.to_owned()
+                } else {
+                    "note.md".to_owned()
+                }
+            })
+    }
+
+    pub fn set_language_override(
+        &mut self,
+        override_language: Option<crate::language::FileLanguage>,
+        now: f64,
+    ) {
+        if let Some(tab) = self.open_notes.get_mut(self.tabs.active_tab) {
+            tab.language_override = override_language;
+            let language = self.active_language();
+            self.set_status(&format!("Language: {}", language.label()), now);
+        }
+    }
+
+    pub fn open_file_path(&mut self, path: std::path::PathBuf, now: f64) {
+        if let Some(index) = self
+            .open_notes
+            .iter()
+            .position(|tab| tab.file_path.as_ref() == Some(&path))
+        {
+            self.switch_tab(index, now);
+            return;
+        }
+        let content = match std::fs::read_to_string(&path) {
+            Ok(content) => content.replace("\r\n", "\n").replace('\r', "\n"),
+            Err(error) => {
+                self.set_status(format!("Could not open {}: {error}", path.display()), now);
+                return;
+            }
+        };
+        if let Some(current) = self.open_notes.get_mut(self.tabs.active_tab) {
+            current.editor = self.editor.ed.clone();
+            current.title = self.notes.active_note_title.clone();
+            current.scroll_y = self.editor.scroll_y;
+            current.is_dirty = self.editor.is_dirty;
+        }
+        let title = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("Untitled")
+            .to_string();
+        let mut editor = Editor::new();
+        editor.insert_str(&content);
+        editor.clear_history();
+        self.notes.active_note_id = None;
+        self.notes.active_note_title = title.clone();
+        self.editor.ed = editor.clone();
+        self.editor.scroll_y = 0.0;
+        self.editor.is_dirty = false;
+        self.misc.show_welcome = false;
+        self.misc.mode = Mode::Normal;
+        self.open_notes.push(OpenNote {
+            id: 0,
+            title: title.clone(),
+            editor,
+            scroll_y: 0.0,
+            is_dirty: false,
+            file_path: Some(path.clone()),
+            language_override: None,
+        });
+        self.tabs.active_tab = self.open_notes.len() - 1;
+        self.tabs.last_active_tab = self.tabs.active_tab;
+        self.save_active_note_id();
+        self.save_open_tabs();
+        self.set_status(format!("Opened {}", path.display()), now);
+    }
 }
 
 impl eframe::App for App {
@@ -157,9 +253,12 @@ impl eframe::App for App {
         let (ed_font_size, _, _) = self.misc.zoom.editor_metrics(self.misc.font_size, ctx);
         let active_ed = if self.misc.mode == Mode::Doc { &self.editor.doc_ed } else { &self.editor.ed };
         let in_vim = self.services.editor_controller.mode == EditorInputMode::Vim && matches!(self.misc.mode, Mode::Normal | Mode::Doc);
+        let use_inline_markdown = self.editor.inline_mode
+            && (self.misc.mode == Mode::Doc
+                || self.active_language() == crate::language::FileLanguage::Markdown);
         self.editor.visual_lines = if in_vim {
             vec![crate::types::VisualLine { char_start: 0, char_end: active_ed.buf.len() }]
-        } else if self.editor.inline_mode {
+        } else if use_inline_markdown {
             let gutter_w = if self.editor.show_line_numbers {
                 let total_lines = (active_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
                 let digits = total_lines.to_string().len().max(2);
@@ -298,11 +397,13 @@ impl eframe::App for App {
         if focused && caret_animating {
             ctx.request_repaint_after(Duration::from_millis(8));
         } else if focused && typed {
-            // Give queued Neovim input/redraws a quick follow-up frame without
-            // running the egui loop continuously while Vim mode is idle.
-            ctx.request_repaint_after(Duration::from_millis(8));
+            // Show typed input (e.g. the command line) on the very next frame.
+            // 	yped is only true on frames that received input, so this does
+            // not spin the event loop while idle.
+            ctx.request_repaint();
         } else if focused
             && (self.command_bar.in_command
+                || self.services.vim_runtime.backend.as_ref().is_some_and(|b| b.busy_label().is_some())
                 || !self.misc.showcmd.text.is_empty()
                 || self.modal.search_open
                 || self.modal.settings_open

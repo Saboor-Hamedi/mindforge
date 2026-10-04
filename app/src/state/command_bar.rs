@@ -17,6 +17,9 @@ pub struct CommandBarState {
     pub selected_idx: usize,
     /// Whether the user has navigated the autocomplete list
     pub navigated: bool,
+    /// Text typed by the user before list navigation started; the suggestion
+    /// list keeps filtering by it while the command line previews the selection.
+    pub query: Option<String>,
     /// Command history (most recent last, up to 200 entries)
     pub history: Vec<String>,
 }
@@ -28,6 +31,7 @@ impl Default for CommandBarState {
             prefix: ':',
             selected_idx: 0,
             navigated: false,
+            query: None,
             history: Vec::new(),
         }
     }

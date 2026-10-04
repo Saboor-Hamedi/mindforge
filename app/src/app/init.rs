@@ -137,6 +137,8 @@ impl App {
                                 editor: note_ed,
                                 scroll_y: s_y,
                                 is_dirty: false,
+                                file_path: None,
+                                language_override: None,
                             });
                         }
                     }
@@ -209,6 +211,8 @@ impl App {
                         editor: app.editor.ed.clone(),
                         scroll_y: app.editor.scroll_y,
                         is_dirty: false,
+                        file_path: None,
+                        language_override: None,
                     });
                     app.tabs.active_tab = 0;
                     app.tabs.last_active_tab = 0;
@@ -244,6 +248,8 @@ impl App {
                 editor: Editor::new(),
                 scroll_y: 0.0,
                 is_dirty: false,
+                file_path: None,
+                language_override: None,
             });
             app.tabs.active_tab = 0;
             app.tabs.last_active_tab = 0;
@@ -441,6 +447,34 @@ impl App {
 
     pub fn sync_save_session(&mut self) {
         let mut created_id = None;
+        let active_file_path = self
+            .open_notes
+            .get(self.tabs.active_tab)
+            .and_then(|tab| tab.file_path.clone());
+        for (index, tab) in self.open_notes.iter_mut().enumerate() {
+            if let Some(path) = &tab.file_path {
+                let is_active = index == self.tabs.active_tab;
+                if tab.is_dirty || (is_active && self.editor.is_dirty) {
+                    let content = if is_active {
+                        self.editor.ed.text()
+                    } else {
+                        tab.editor.text()
+                    };
+                    match std::fs::write(path, content) {
+                        Ok(()) => {
+                            tab.is_dirty = false;
+                            if is_active {
+                                self.editor.is_dirty = false;
+                            }
+                        }
+                        Err(error) => eprintln!(
+                            "Failed to save {} during shutdown: {error}",
+                            path.display()
+                        ),
+                    }
+                }
+            }
+        }
         if let Some(ref db) = self.services.db {
             let _ = db.set_setting("last_caret_pos", &self.editor.ed.cur.to_string());
             let _ = db.set_setting("last_scroll_y", &self.editor.scroll_y.to_string());
@@ -462,7 +496,9 @@ impl App {
                     let _ = db.update_note(id, &self.editor.ed.text());
                     self.editor.is_dirty = false;
                 }
-            } else if self.editor.is_dirty || !self.editor.ed.text().trim().is_empty() {
+            } else if active_file_path.is_none()
+                && (self.editor.is_dirty || !self.editor.ed.text().trim().is_empty())
+            {
                 let topic = if self.notes.active_note_title.trim().is_empty() {
                     "Untitled Note".to_string()
                 } else {
@@ -474,7 +510,7 @@ impl App {
                     created_id = Some(new_id);
                     let _ = db.set_setting("last_active_note_id", &new_id.to_string());
                 }
-            } else {
+            } else if active_file_path.is_none() {
                 let _ = db.set_setting("last_active_note_id", "");
             }
         }

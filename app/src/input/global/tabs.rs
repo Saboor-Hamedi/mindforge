@@ -5,6 +5,19 @@ use crate::mode::Mode;
 use eframe::egui;
 
 pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Option<bool> {
+    let ctrl_o = ctx.input(|i| {
+        (i.modifiers.ctrl || i.modifiers.command)
+            && !i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(egui::Key::O)
+    });
+    if ctrl_o && !app.command_bar.in_command {
+        if let Some(path) = rfd::FileDialog::new().pick_file() {
+            app.open_file_path(path, now);
+        }
+        return Some(false);
+    }
+
     // New Note (Ctrl+N)
     let ctrl_n = ctx.input(|i| {
         (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::N)
@@ -34,6 +47,14 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
             app.set_status("Documentation notes cannot be renamed", now);
             return Some(false);
         }
+        if app
+            .open_notes
+            .get(app.tabs.active_tab)
+            .is_some_and(|tab| tab.file_path.is_some())
+        {
+            app.set_status("Code file names are managed by the filesystem", now);
+            return Some(false);
+        }
         if !app.misc.show_welcome && (!app.open_notes.is_empty() || app.notes.active_note_id.is_some()) {
             let title = if !app.notes.active_note_title.is_empty() {
                 app.notes.active_note_title.clone()
@@ -56,6 +77,14 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
     if ctrl_d && !app.command_bar.in_command {
         if app.misc.mode == Mode::Doc {
             app.set_status("Documentation notes cannot be deleted", now);
+            return Some(false);
+        }
+        if app
+            .open_notes
+            .get(app.tabs.active_tab)
+            .is_some_and(|tab| tab.file_path.is_some())
+        {
+            app.set_status("Code files cannot be deleted from MindForge", now);
             return Some(false);
         }
         if !app.misc.show_welcome && (!app.open_notes.is_empty() || app.notes.active_note_id.is_some()) {

@@ -8,6 +8,25 @@ use core::Note;
 /// modes; Vim snapshots are synchronized from Neovim before this function runs.
 pub fn quick_save_active_note(app: &mut App, now: f64) {
     let content = app.editor.ed.text();
+    if let Some(path) = app
+        .open_notes
+        .get(app.tabs.active_tab)
+        .and_then(|tab| tab.file_path.clone())
+    {
+        match std::fs::write(&path, content) {
+            Ok(()) => {
+                app.editor.is_dirty = false;
+                app.editor.last_saved_time = now;
+                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                    backend.mark_saved();
+                }
+                app.sync_active_tab();
+                app.set_status(format!("Saved {}", path.display()), now);
+            }
+            Err(error) => app.set_status(format!("Save failed: {error}"), now),
+        }
+        return;
+    }
     if let Some(ref db) = app.services.db {
         if let Some(id) = app.notes.active_note_id {
             let _ = db.update_note(id, &content);
@@ -57,6 +76,14 @@ pub fn quick_save_active_note(app: &mut App, now: f64) {
 
 /// Deletes the active note from SQLite and in-memory notes_list.
 pub fn delete_active_note(app: &mut App, now: f64) {
+    if app
+        .open_notes
+        .get(app.tabs.active_tab)
+        .is_some_and(|tab| tab.file_path.is_some())
+    {
+        app.set_status("Code files cannot be deleted from MindForge", now);
+        return;
+    }
     if let Some(id) = app.notes.active_note_id {
         if let Some(ref db) = app.services.db {
             let _ = db.delete_note(id);
@@ -112,6 +139,14 @@ pub fn delete_active_note(app: &mut App, now: f64) {
 
 /// Renames the active note directly in SQLite and updates in-memory notes_list.
 pub fn rename_active_note(app: &mut App, new_title: &str, now: f64) {
+    if app
+        .open_notes
+        .get(app.tabs.active_tab)
+        .is_some_and(|tab| tab.file_path.is_some())
+    {
+        app.set_status("Code file names are managed by the filesystem", now);
+        return;
+    }
     let trimmed = new_title.trim().to_string();
     if trimmed.is_empty() {
         return;

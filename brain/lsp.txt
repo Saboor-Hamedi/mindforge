@@ -1,0 +1,124 @@
+LANGUAGE SERVERS (LSP) & COMPLETION
+===================================
+
+MindForge's Vim mode embeds Neovim, so it uses Neovim's built-in LSP client.
+You get a VS Code style completion dropdown, snippets (the HTML skeleton,
+React hooks, ...), diagnostics and go-to-definition. Servers are installed and
+configured from Lua, the same way you would in Neovim.
+
+Note: LSP currently works in Vim mode only. Hybrid mode and the Markdown
+editor do not run language servers yet.
+
+
+1. QUICK START
+--------------
+Open a file (Ctrl+O or :open) or name a note with an extension (app.jsx,
+index.html, main.py), switch to Vim mode, then run:
+
+    :LspInstall          install the servers for the current file type
+    :LspInstall html css ts_ls     install specific servers
+
+Installs run in the background; progress is shown in the message line.
+Snippet completion works immediately, with no server installed. Type "html"
+in an .html file and press Tab for the full HTML5 skeleton.
+
+
+2. KEYS IN THE COMPLETION DROPDOWN
+----------------------------------
+    Ctrl+J         next item   (does NOT toggle the terminal while open)
+    Ctrl+K         previous item
+    Tab / Enter    accept the selected item (Tab selects the first if none)
+    Shift+Tab      previous item / previous snippet placeholder
+    Esc            close the dropdown
+    Ctrl+Space     open completion manually
+    Ctrl+H / Ctrl+L  sidebar / right pane (unchanged)
+    gd             go to definition (Normal mode)
+
+Ctrl+J toggles the terminal again as soon as the dropdown is closed.
+Inside a snippet, Tab / Shift+Tab jump between placeholders.
+
+
+3. COMMANDS
+-----------
+    :LspInstall [names]    install (default: servers for this file type)
+    :LspUninstall names    remove a managed server
+    :LspList               installed / not installed
+    :LspInfo               servers attached to the current buffer
+    :LspRestart            restart servers for the current buffer
+    :LspConfig             open your lsp.lua
+
+
+4. BUILT-IN SERVERS
+-------------------
+    html, cssls, jsonls    vscode-langservers-extracted (npm)
+    ts_ls                  JavaScript / TypeScript / JSX / TSX (npm)
+    emmet_ls               Emmet abbreviations (npm)
+    pyright                Python (npm)
+    yamlls                 YAML (npm)
+    intelephense           PHP (npm)
+    rust_analyzer          Rust (rustup component add rust-analyzer)
+
+npm servers are installed into:   <home>\nvim\servers\npm
+A server already on your PATH is used as-is. npm (Node.js) and rustup must be
+installed for the respective servers.
+<home> = %APPDATA%\mindforge\mindforge
+
+
+5. CUSTOMISING WITH LUA
+-----------------------
+First launch creates   <home>\nvim\lsp.lua   (never overwritten). Edit it:
+
+    return {
+      disable = { 'emmet_ls' },        -- do not run these
+      hints = false,                   -- silence "run :LspInstall" hints
+      servers = {
+        -- override settings of a built-in server
+        pyright = { settings = { python = { analysis = { typeCheckingMode = 'basic' } } } },
+
+        -- add any language you like
+        lua_ls = {
+          cmd = { 'lua-language-server' },
+          filetypes = { 'lua' },
+          root_markers = { '.luarc.json', '.git' },
+        },
+      },
+    }
+
+Entries are merged over the built-in ones, so you only list what changes.
+A custom server only needs cmd, filetypes and root_markers.
+
+
+6. BRING YOUR OWN CONFIG (NATIVE NEOVIM STYLE)
+----------------------------------------------
+Any file   <home>\nvim\lsp\<name>.lua   returning a config table is loaded as
+a native Neovim 0.11 server definition and enabled automatically:
+
+    -- <home>\nvim\lsp\gopls.lua
+    return {
+      cmd = { 'gopls' },
+      filetypes = { 'go', 'gomod' },
+      root_markers = { 'go.mod', '.git' },
+    }
+
+Your own <home>\nvim\init.lua still loads as before and can call
+vim.lsp.config() / vim.lsp.enable() directly.
+
+
+7. ADDING A SERVER TO THE CATALOGUE
+-----------------------------------
+Built-in definitions live in app/assets/nvim/mindforge/lsp/registry.lua. Each
+entry has desc, npm (package list) or rustup (component), bin and config.
+
+
+8. TROUBLESHOOTING
+------------------
+- No dropdown: run :LspInfo. Snippets always show; semantic items need a
+  server from :LspList.
+- "npm not found": install Node.js and restart MindForge.
+- Server fails to start: run it by hand (<home>\nvim\servers\npm\node_modules\.bin).
+- Hover popups are not rendered yet; use diagnostics (inline) and gd.
+
+Built-in HTML / JSX / TSX completion
+  No server needed: type a tag (h1) or an Emmet abbreviation (ul.menu>li*3, div#app.card)
+  and accept with Tab/Enter to expand it. In .html files type ! for the HTML5 skeleton.
+  In JSX/TSX class becomes className and void tags are self-closed.

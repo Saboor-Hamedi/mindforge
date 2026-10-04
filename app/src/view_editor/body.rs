@@ -26,6 +26,7 @@ pub fn render_editor_body(
     block_scroll: bool,
     search_matches: Option<(&[usize], usize)>,
     show_line_numbers: bool,
+    language: Option<crate::language::FileLanguage>,
     vim_mode: Option<&str>,
 ) {
     let font = crate::services::font_manager::editor_font_id(font_size);
@@ -274,20 +275,32 @@ pub fn render_editor_body(
             None
         };
         let line_chars = &ed.buf[line.char_start..line.char_end];
-        render_line_with_ligatures(
-            &editor_painter,
-            ed_origin.x,
-            text_y,
-            line_y,
-            y_mid,
-            line_chars,
-            &font,
-            theme.text,
-            cw,
-            lh,
-            stroke_w,
-            block_col,
-        );
+        if let Some(language) = language {
+            let source_line: String = line_chars.iter().collect();
+            let job = super::preview::syntax::highlight_editor_code_line(
+                &source_line,
+                language.label(),
+                font_size,
+                theme,
+            );
+            let galley = editor_painter.layout_job(job);
+            editor_painter.galley(pos2(ed_origin.x, text_y), galley, theme.text);
+        } else {
+            render_line_with_ligatures(
+                &editor_painter,
+                ed_origin.x,
+                text_y,
+                line_y,
+                y_mid,
+                line_chars,
+                &font,
+                theme.text,
+                cw,
+                lh,
+                stroke_w,
+                block_col,
+            );
+        }
     }
 
     // Render line number gutter on the left side if enabled

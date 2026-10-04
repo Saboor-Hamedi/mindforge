@@ -1,6 +1,7 @@
 //! LunaLine rendering engine — renders sleek, modular statusline under the editor.
 
 use super::types::{LunaColorMode, LunaLineConfig, LunaStyle};
+use crate::language::{FileLanguage, LanguageSelection, LanguageSelectorState};
 use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Shape, Stroke};
 
@@ -15,6 +16,8 @@ pub struct LunaLineRenderParams<'a> {
     pub cmd_selection: Option<(usize, usize)>,
     pub status_msg: &'a str,
     pub status_time: f64,
+    /// Label of background work in progress; shows a spinner and a progress bar.
+    pub busy: Option<&'a str>,
     pub now: f64,
     pub cursor_row: usize,
     pub cursor_col: usize,
@@ -30,6 +33,16 @@ pub struct LunaLineRenderParams<'a> {
     pub opacity: f32,
     pub is_ai_open: bool,
     pub config: &'a LunaLineConfig,
+    pub language: FileLanguage,
+    pub detected_language: FileLanguage,
+    pub language_override: Option<FileLanguage>,
+    pub language_selector: &'a mut LanguageSelectorState,
+}
+
+#[derive(Debug, Default)]
+pub struct LunaLineAction {
+    pub toggle_ai: bool,
+    pub language_selection: Option<LanguageSelection>,
 }
 
 /// Resolves mode colors `(bg, fg)` based on the active mode string and color configuration.
@@ -71,18 +84,17 @@ pub fn get_mode_colors(mode: &str, color_mode: LunaColorMode, theme: &Theme) -> 
 }
 
 /// Renders the complete LunaLine dock.
-/// Returns `true` if the AI Agent button was clicked.
-pub fn render_lunaline(params: LunaLineRenderParams) -> bool {
+pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
     let ui = params.ui;
     let painter = params.painter;
     let dock_rect = params.dock_rect;
     let theme = params.theme;
     let config = params.config;
     let now = params.now;
-    let mut toggle_ai = false;
+    let mut action = LunaLineAction::default();
 
     if !config.enabled || dock_rect.height() < 10.0 {
-        return false;
+        return action;
     }
 
     let dock_alpha = (params.opacity * 255.0) as u8;
@@ -190,7 +202,7 @@ pub fn render_lunaline(params: LunaLineRenderParams) -> bool {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
         if is_ai_hovered && ui.input(|i| i.pointer.primary_clicked()) {
-            toggle_ai = true;
+            action.toggle_ai = true;
         }
 
         let (ai_bg, ai_fg) = if params.is_ai_open {
@@ -234,6 +246,47 @@ pub fn render_lunaline(params: LunaLineRenderParams) -> bool {
         painter.text(enc_rect.center(), Align2::CENTER_CENTER, enc_str, font_info.clone(), theme.muted);
         right_x -= 8.0;
     }
+
+    let language_label = params.language.label();
+    let language_width = language_label.chars().count() as f32 * 7.4 + 25.0;
+    right_x -= language_width;
+    let language_rect = Rect::from_min_size(
+        pos2(right_x, bar_center_y - 11.0),
+        vec2(language_width, 22.0),
+    );
+    let language_hovered = ui.rect_contains_pointer(language_rect);
+    if language_hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        if ui.input(|input| input.pointer.primary_clicked()) {
+            params.language_selector.open = !params.language_selector.open;
+            params.language_selector.query.clear();
+            params.language_selector.selected_index = params
+                .language_override
+                .and_then(|language| {
+                    FileLanguage::ALL
+                        .iter()
+                        .position(|candidate| *candidate == language)
+                        .map(|index| index + 1)
+                })
+                .unwrap_or(0);
+            params.language_selector.focus_search = params.language_selector.open;
+        }
+    }
+    painter.text(
+        pos2(language_rect.min.x + 7.0, language_rect.center().y),
+        Align2::LEFT_CENTER,
+        language_label,
+        font_info.clone(),
+        theme.accent,
+    );
+    painter.text(
+        pos2(language_rect.max.x - 7.0, language_rect.center().y),
+        Align2::RIGHT_CENTER,
+        "▾",
+        font_info.clone(),
+        if language_hovered { theme.accent } else { theme.muted },
+    );
+    right_x -= 8.0;
 
     // Progress Badge (e.g. "Top", "45%", "Bot")
     if config.show_progress {
@@ -451,8 +504,17 @@ pub fn render_lunaline(params: LunaLineRenderParams) -> bool {
             }
         }
 
-        // Status Message with Smooth Fade-out
-        if !params.status_msg.is_empty() && (now - params.status_time) < 3.5 {
+        // Background work (installs, LSP indexing) takes the status slot.
+        if let Some(label) = params.busy {
+            let spinner_center = pos2(left_x + 8.0, bar_center_y);
+            paint_spinner(painter, spinner_center, 6.0, now, theme.accent);
+            let text_x = left_x + 22.0;
+            let avail = (right_boundary_x - text_x - 12.0).max(0.0);
+            if avail > 40.0 {
+                let clip = Rect::from_min_max(pos2(text_x, actual_bar_rect.min.y), pos2(text_x + avail, actual_bar_rect.max.y));
+                painter.with_clip_rect(clip).text(pos2(text_x, bar_center_y), Align2::LEFT_CENTER, label, font_info.clone(), theme.text);
+            }
+        } else if !params.status_msg.is_empty() && (now - params.status_time) < 3.5 {
             let fade_t = ((3.5 - (now - params.status_time)) / 0.5).clamp(0.0, 1.0) as f32;
             let status_alpha = (fade_t * 255.0) as u8;
             let status_color = Color32::from_rgba_unmultiplied(theme.text.r(), theme.text.g(), theme.text.b(), status_alpha);
@@ -466,15 +528,156 @@ pub fn render_lunaline(params: LunaLineRenderParams) -> bool {
         }
     }
 
+    // Indeterminate progress bar along the top edge of the dock.
+    if params.busy.is_some() {
+        let track = Rect::from_min_max(
+            pos2(actual_bar_rect.min.x, actual_bar_rect.min.y),
+            pos2(actual_bar_rect.max.x, actual_bar_rect.min.y + 2.0),
+        );
+        let clip = painter.with_clip_rect(track);
+        clip.rect_filled(track, 0.0, theme.accent.gamma_multiply(0.18));
+        let width = track.width();
+        let seg = (width * 0.28).max(40.0);
+        let phase = ((now * 0.9) % 1.0) as f32;
+        let x = track.min.x - seg + phase * (width + seg);
+        clip.rect_filled(
+            Rect::from_min_size(pos2(x, track.min.y), vec2(seg, 2.0)),
+            1.0,
+            theme.accent,
+        );
+    }
+
     // ── 5. Empty-Space Window Dragging ────────────────────────────────────────
-    let is_empty_dock_hovered = ui.rect_contains_pointer(actual_bar_rect) && !is_ai_hovered && !is_knob_hovered && !params.in_command;
+    if params.language_selector.open {
+        let selector = &mut params.language_selector;
+        let mut choices = vec![(None, "Auto Detect")];
+        choices.extend(
+            FileLanguage::ALL
+                .into_iter()
+                .map(|language| (Some(language), language.label())),
+        );
+        let query = selector.query.trim().to_ascii_lowercase();
+        let filtered: Vec<_> = choices
+            .into_iter()
+            .filter(|(_, label)| query.is_empty() || label.to_ascii_lowercase().contains(&query))
+            .collect();
+        selector.selected_index = selector.selected_index.min(filtered.len().saturating_sub(1));
+
+        if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
+            selector.open = false;
+        } else if !filtered.is_empty() {
+            if ui.input(|input| input.key_pressed(egui::Key::ArrowDown)) {
+                selector.selected_index = (selector.selected_index + 1).min(filtered.len() - 1);
+            }
+            if ui.input(|input| input.key_pressed(egui::Key::ArrowUp)) {
+                selector.selected_index = selector.selected_index.saturating_sub(1);
+            }
+            if ui.input(|input| input.key_pressed(egui::Key::Enter)) {
+                let (language, _) = filtered[selector.selected_index];
+                action.language_selection = Some(match language {
+                    Some(language) => LanguageSelection::Language(language),
+                    None => LanguageSelection::AutoDetect,
+                });
+                selector.open = false;
+            }
+        }
+
+        if selector.open {
+            let popup_width = 230.0;
+            let popup_height = 300.0;
+            let screen = ui.ctx().screen_rect();
+            let max_x = (screen.max.x - popup_width - 8.0).max(screen.min.x + 8.0);
+            let popup_pos = pos2(
+                language_rect.min.x.clamp(screen.min.x + 8.0, max_x),
+                (language_rect.min.y - popup_height - 8.0).max(screen.min.y + 8.0),
+            );
+            egui::Area::new(egui::Id::new("mindforge-language-selector"))
+                .order(egui::Order::Foreground)
+                .fixed_pos(popup_pos)
+                .show(ui.ctx(), |ui| {
+                    egui::Frame::popup(ui.style())
+                        .fill(theme.surface())
+                        .stroke(Stroke::new(1.0, theme.border()))
+                        .show(ui, |ui| {
+                            ui.set_min_width(popup_width);
+                            let search = ui.add(
+                                egui::TextEdit::singleline(&mut selector.query)
+                                    .id_salt("mindforge-language-search")
+                                    .hint_text("Search language...")
+                                    .desired_width(popup_width - 16.0),
+                            );
+                            if selector.focus_search {
+                                search.request_focus();
+                                selector.focus_search = false;
+                            }
+                            ui.separator();
+                            egui::ScrollArea::vertical()
+                                .max_height(popup_height - 62.0)
+                                .show(ui, |ui| {
+                                    for (index, (language, label)) in filtered.iter().enumerate() {
+                                        let is_selected = match language {
+                                            Some(language) => params.language_override == Some(*language),
+                                            None => params.language_override.is_none(),
+                                        };
+                                        let prefix = if is_selected { "✓ " } else { "  " };
+                                        let color = if is_selected { theme.accent } else { theme.text };
+                                        let row_label = if language.is_none() {
+                                            format!("{label} ({})", params.detected_language.label())
+                                        } else {
+                                            (*label).to_string()
+                                        };
+                                        let response = ui.add_sized(
+                                            [popup_width - 16.0, 23.0],
+                                            egui::Button::new(
+                                                egui::RichText::new(format!("{prefix}{row_label}")).color(color),
+                                            )
+                                            .fill(if index == selector.selected_index {
+                                                theme.bg
+                                            } else {
+                                                Color32::TRANSPARENT
+                                            })
+                                            .stroke(Stroke::NONE),
+                                        );
+                                        if index == selector.selected_index {
+                                            response.scroll_to_me(Some(egui::Align::Center));
+                                        }
+                                        if response.clicked() {
+                                            action.language_selection = Some(match language {
+                                                Some(language) => LanguageSelection::Language(*language),
+                                                None => LanguageSelection::AutoDetect,
+                                            });
+                                            selector.open = false;
+                                        }
+                                    }
+                                });
+                        });
+                });
+        }
+    }
+
+    let is_empty_dock_hovered = ui.rect_contains_pointer(actual_bar_rect)
+        && !is_ai_hovered
+        && !language_hovered
+        && !is_knob_hovered
+        && !params.in_command;
     if is_empty_dock_hovered && ui.input(|i| i.pointer.primary_down()) {
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
     }
 
-    toggle_ai
+    action
 }
 
+/// Small rotating arc used as an activity indicator.
+fn paint_spinner(painter: &egui::Painter, center: egui::Pos2, radius: f32, now: f64, color: Color32) {
+    let start = (now * 6.0) as f32;
+    let points: Vec<egui::Pos2> = (0..=10)
+        .map(|i| {
+            let angle = start + i as f32 * 0.28;
+            pos2(center.x + radius * angle.cos(), center.y + radius * angle.sin())
+        })
+        .collect();
+    painter.add(Shape::line(points, Stroke::new(1.8, color)));
+}
 /// Renders a standalone mock preview of LunaLine in the Settings modal.
 pub fn render_lunaline_preview(
     ui: &egui::Ui,
@@ -495,6 +698,7 @@ pub fn render_lunaline_preview(
         cmd_selection: None,
         status_msg: "Ready",
         status_time: 0.0,
+        busy: None,
         now: 10.0,
         cursor_row: 14,
         cursor_col: 23,
@@ -510,6 +714,10 @@ pub fn render_lunaline_preview(
         opacity,
         is_ai_open: false,
         config,
+        language: FileLanguage::Markdown,
+        detected_language: FileLanguage::Markdown,
+        language_override: None,
+        language_selector: &mut LanguageSelectorState::default(),
     };
     render_lunaline(mock_params);
 }

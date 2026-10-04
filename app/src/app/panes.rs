@@ -141,18 +141,29 @@ impl App {
 
         let are_tabs_visible = self.misc.show_tabs;
         if are_tabs_visible {
-            if self.misc.mode == Mode::Normal {
-                self.sync_active_tab();
-                let tab_items: Vec<crate::view_editor::TabItem> = self
+            if matches!(self.misc.mode, Mode::Normal | Mode::Stats) {
+                let in_stats = self.misc.mode == Mode::Stats;
+                if !in_stats {
+                    self.sync_active_tab();
+                }
+                let note_count = self.open_notes.len();
+                let mut tab_items: Vec<crate::view_editor::TabItem> = self
                     .open_notes
                     .iter()
                     .enumerate()
                     .map(|(idx, note)| crate::view_editor::TabItem {
                         title: &note.title,
                         is_dirty: note.is_dirty,
-                        is_active: idx == self.tabs.active_tab,
+                        is_active: !in_stats && idx == self.tabs.active_tab,
                     })
                     .collect();
+                if in_stats {
+                    tab_items.push(crate::view_editor::TabItem {
+                        title: "📊 Start",
+                        is_dirty: false,
+                        is_active: true,
+                    });
+                }
 
                 let active_changed = self.tabs.active_tab != self.tabs.last_active_tab;
                 if active_changed {
@@ -170,7 +181,13 @@ impl App {
                     tab_occluded_rect,
                 ) {
                     match action {
+                        crate::view_editor::TabAction::Select(idx) if idx >= note_count => {}
+                        crate::view_editor::TabAction::Close(idx) if idx >= note_count => {
+                            self.misc.mode = Mode::Normal;
+                            self.set_status("Closed Start", now);
+                        }
                         crate::view_editor::TabAction::Select(idx) => {
+                            self.misc.mode = Mode::Normal;
                             self.switch_tab(idx, now);
                         }
                         crate::view_editor::TabAction::Close(idx) => {
@@ -250,7 +267,7 @@ impl App {
         let has_active_tabs = match self.misc.mode {
             Mode::Normal => !self.open_notes.is_empty(),
             Mode::Doc => !self.tabs.open_doc_tabs.is_empty(),
-            Mode::Help => true,
+            Mode::Help | Mode::Stats => true,
             _ => false,
         };
 
@@ -317,6 +334,13 @@ impl App {
 
         // Keep visual lines updated to exact editor width
         let target_ed = if self.misc.mode == Mode::Doc { &self.editor.doc_ed } else { &self.editor.ed };
+        let active_language = if self.misc.mode == Mode::Doc {
+            crate::language::FileLanguage::Markdown
+        } else {
+            self.active_language()
+        };
+        let use_inline_markdown = self.editor.inline_mode
+            && active_language == crate::language::FileLanguage::Markdown;
         let effective_editor_w = actual_editor_rect.width();
 
         // In Vim mode Neovim owns the editor surface — skip the inline layout
@@ -326,7 +350,7 @@ impl App {
 
         self.editor.visual_lines = if in_vim_mode {
             vec![crate::types::VisualLine { char_start: 0, char_end: target_ed.buf.len() }]
-        } else if self.editor.inline_mode {
+        } else if use_inline_markdown {
             let gutter_w = if self.editor.show_line_numbers {
                 let total_lines = (target_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
                 let digits = total_lines.to_string().len().max(2);
@@ -548,7 +572,7 @@ impl App {
                             self.editor.show_line_numbers,
                         );
                     }
-                } else if self.editor.inline_mode {
+                } else if use_inline_markdown {
                     let mut dummy_dirty = false;
                     let target_dirty = if self.misc.mode == Mode::Doc {
                         &mut dummy_dirty
@@ -600,6 +624,13 @@ impl App {
                             || self.services.hover_wikilink.is_mouse_inside_popup,
                         search_matches,
                         self.editor.show_line_numbers,
+                        if active_language == crate::language::FileLanguage::PlainText
+                            || active_language == crate::language::FileLanguage::Markdown
+                        {
+                            None
+                        } else {
+                            Some(active_language)
+                        },
                         active_vim_mode,
                     );
                 }
@@ -649,7 +680,7 @@ impl App {
                 }
             }
             Mode::Stats => {
-                self.render_stats_pane(ui, editor_panel_rect);
+                self.render_stats_pane(ui, body_rect);
             }
             Mode::ScanReport | Mode::ScanHistory => {
                 self.render_scan_panes(ui, painter, editor_panel_rect);

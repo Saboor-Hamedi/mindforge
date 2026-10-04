@@ -18,8 +18,10 @@ pub struct VimRuntime {
     pub start_rx: Option<std::sync::mpsc::Receiver<Result<super::VimBackend, String>>>,
     pub start_note_id: Option<i64>,
     pub start_tab_index: Option<usize>,
+    pub start_language: Option<crate::language::FileLanguage>,
     pub note_id: Option<i64>,
     pub tab_index: Option<usize>,
+    pub language: Option<crate::language::FileLanguage>,
     pub pending_input: VecDeque<PendingVimInput>,
     pub start_error: Option<String>,
 }
@@ -31,8 +33,10 @@ impl Default for VimRuntime {
             start_rx: None,
             start_note_id: None,
             start_tab_index: None,
+            start_language: None,
             note_id: None,
             tab_index: None,
+            language: None,
             pending_input: VecDeque::new(),
             start_error: None,
         }
@@ -77,6 +81,7 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
                 app.services.vim_runtime.backend = Some(backend);
                 app.services.vim_runtime.note_id = app.services.vim_runtime.start_note_id;
                 app.services.vim_runtime.tab_index = app.services.vim_runtime.start_tab_index;
+                app.services.vim_runtime.language = app.services.vim_runtime.start_language;
             } else {
                 backend.shutdown();
             }
@@ -100,14 +105,15 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         sync_neovim_changes(app, now);
     }
 
-    let (active_text, active_row, active_col, active_doc_id, active_tab_idx) = if app.misc.mode == Mode::Doc {
+    let (active_text, active_row, active_col, active_doc_id, active_tab_idx, file_name, language) = if app.misc.mode == Mode::Doc {
         let text = app.editor.doc_ed.text();
         let (r, c) = app.editor.doc_ed.row_col();
-        (text, r, c, Some(-(app.tabs.active_doc_idx as i64 + 1)), Some(app.tabs.active_doc_tab))
+        (text, r, c, Some(-(app.tabs.active_doc_idx as i64 + 1)), Some(app.tabs.active_doc_tab), "note.md".to_string(), crate::language::FileLanguage::Markdown)
     } else {
         let text = app.editor.ed.text();
         let (r, c) = app.editor.ed.row_col();
-        (text, r, c, app.notes.active_note_id, Some(app.tabs.active_tab))
+        let file_name = app.active_buffer_name();
+        (text, r, c, app.notes.active_note_id, Some(app.tabs.active_tab), file_name, app.active_language())
     };
 
     let vim_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc)
@@ -123,9 +129,11 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         app.services.vim_runtime.start_rx = Some(rx);
         app.services.vim_runtime.start_note_id = active_doc_id;
         app.services.vim_runtime.start_tab_index = active_tab_idx;
+        app.services.vim_runtime.start_language = Some(language);
         let start_context = ctx.clone();
         let repaint_context = ctx.clone();
         let text_clone = active_text.clone();
+        let file_name_clone = file_name.clone();
         let (init_cols, init_rows) = if let (Some(rect), Some(font_size)) = (app.editor.last_editor_rect, app.editor.last_ed_font_size) {
             let (_, cw, lh) = app.misc.zoom.editor_metrics(font_size, ctx);
             let cols = (rect.width() / cw.max(1.0)).floor().max(20.0) as usize;
@@ -137,7 +145,10 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         let spawn = std::thread::Builder::new()
             .name("neovim-startup".into())
             .spawn(move || {
-                let result = super::VimBackend::start(&text_clone, init_cols, init_rows, active_row, active_col, Some(start_context));
+                let result = super::VimBackend::start(
+                    &text_clone, init_cols, init_rows, active_row, active_col,
+                    Some(start_context), &file_name_clone, language,
+                );
                 let _ = tx.send(result);
                 repaint_context.request_repaint();
             });
@@ -148,23 +159,25 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         }
     } else if vim_active && app.services.vim_runtime.backend.is_some() {
         let switched_document = app.services.vim_runtime.note_id != active_doc_id
-            || app.services.vim_runtime.tab_index != active_tab_idx;
+            || app.services.vim_runtime.tab_index != active_tab_idx
+            || app.services.vim_runtime.language != Some(language);
         if switched_document || (entering_vim && !vim_started_this_frame) {
             if entering_vim {
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     backend.tick();
                     let _ = backend.take_text_update();
-                    let _ = backend.set_document(&active_text, active_row, active_col);
+                    let _ = backend.set_document_for_language(&active_text, active_row, active_col, &file_name, language);
                     backend.sync_theme(&app.misc.theme);
                 }
             } else {
                 sync_neovim_changes(app, now);
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-                    let _ = backend.set_document(&active_text, active_row, active_col);
+                    let _ = backend.set_document_for_language(&active_text, active_row, active_col, &file_name, language);
                 }
             }
             app.services.vim_runtime.note_id = active_doc_id;
             app.services.vim_runtime.tab_index = active_tab_idx;
+            app.services.vim_runtime.language = Some(language);
         }
     }
     sync_neovim_changes(app, now);

@@ -57,6 +57,11 @@ impl NeovimClient {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            let home = std::path::PathBuf::from(appdata).join("mindforge").join("mindforge");
+            let home = home.to_string_lossy().replace('\\', "/").replace('\'', "''");
+            cmd.args(["--cmd", &format!("let g:mindforge_home='{home}'")]);
+        }
 
         #[cfg(windows)]
         {
@@ -177,7 +182,9 @@ impl NeovimClient {
 
                     // Neovim can emit a large startup redraw burst. Gate wakeups
                     // to 60fps so the UI is not continuously rescheduled for
-                    // every packet in that burst.
+                    // every packet in that burst. A gated packet still schedules
+                    // a trailing repaint, otherwise the final redraw of a burst
+                    // (e.g. the caret move) stays unseen until the next input.
                     let should_repaint = repaint_gate_reader
                         .lock()
                         .map(|mut last| {
@@ -193,10 +200,12 @@ impl NeovimClient {
                             }
                         })
                         .unwrap_or(false);
-                    if should_repaint {
-                        if let Ok(guard) = repaint_ctx_reader.lock() {
-                            if let Some(ctx) = guard.as_ref() {
+                    if let Ok(guard) = repaint_ctx_reader.lock() {
+                        if let Some(ctx) = guard.as_ref() {
+                            if should_repaint {
                                 ctx.request_repaint();
+                            } else {
+                                ctx.request_repaint_after(std::time::Duration::from_millis(16));
                             }
                         }
                     }

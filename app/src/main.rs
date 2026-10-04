@@ -8,6 +8,7 @@ pub mod command;
 mod editor;
 mod input;
 pub mod layout;
+mod language;
 mod lunaline;
 mod modals;
 mod mode;

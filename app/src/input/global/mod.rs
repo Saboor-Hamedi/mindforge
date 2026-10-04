@@ -16,6 +16,14 @@ use eframe::egui;
 /// Processes global shortcuts (saving, note creation, modals, clipboard, undo/redo).
 /// Returns `Some(typed)` if a global shortcut fully handled the frame, or `None` to continue to typing.
 pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Option<bool> {
+    if app.editor.language_selector.open {
+        if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+            app.editor.language_selector.open = false;
+            app.editor.language_selector.query.clear();
+        }
+        return Some(false);
+    }
+
     let palette_shortcut = ctx.input(|i| {
         let command = i.modifiers.ctrl || i.modifiers.command;
         command && !i.modifiers.alt && i.modifiers.shift && i.key_pressed(egui::Key::P)

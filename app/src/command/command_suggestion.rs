@@ -143,13 +143,50 @@ fn lookup_catalog_desc(cmd: &str) -> Option<&'static str> {
         .map(|c| c.desc)
 }
 
+/// Suggestions for the active command line. While the user navigates the list the
+/// command line shows the selected item, so the list stays filtered by the
+/// text typed before navigation began.
+fn current_suggestions(app: &mut App) -> Vec<SuggestionItem> {
+    if !app.command_bar.navigated {
+        app.command_bar.query = None;
+    }
+    let query = app
+        .command_bar
+        .query
+        .clone()
+        .unwrap_or_else(|| app.editor.cmd_ed.text());
+    get_filtered_suggestions(&query, &app.command_bar.history)
+}
+
+/// Moves the selection by `delta` (wrapping) and mirrors it into the command line.
+fn move_selection(app: &mut App, delta: isize, now: f64) {
+    let suggestions = current_suggestions(app);
+    if suggestions.is_empty() {
+        return;
+    }
+    let next = (app.command_bar.selected_idx as isize + delta).rem_euclid(suggestions.len() as isize);
+    select_suggestion(app, &suggestions, next as usize, now);
+}
+
+fn select_suggestion(app: &mut App, suggestions: &[SuggestionItem], idx: usize, now: f64) {
+    if app.command_bar.query.is_none() {
+        app.command_bar.query = Some(app.editor.cmd_ed.text());
+    }
+    app.command_bar.selected_idx = idx;
+    app.command_bar.navigated = true;
+    if let Some(item) = suggestions.get(idx) {
+        app.editor.cmd_ed.set_text(&item.text);
+        app.editor.cmd_ed.cur = app.editor.cmd_ed.buf.len();
+        app.misc.showcmd.set_command(&item.text, now);
+    }
+}
 /// Intercepts suggestion-specific keyboard shortcuts (navigation, completion, execution).
 /// Returns `true` if the key was handled, allowing `input.rs` to remain clean and DRY.
 pub fn handle_suggestion_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64) -> bool {
     if app.command_bar.prefix != ':' {
         return false;
     }
-    let suggestions = get_filtered_suggestions(&app.editor.cmd_ed.text(), &app.command_bar.history);
+    let suggestions = current_suggestions(app);
 
     match key {
         Key::Enter => {
@@ -183,45 +220,22 @@ pub fn handle_suggestion_key(app: &mut App, key: Key, modifiers: Modifiers, now:
             }
             true
         }
-        // Down navigation: Ctrl+J or ArrowDown
         Key::J if modifiers.ctrl => {
-            if !suggestions.is_empty() {
-                app.command_bar.selected_idx = (app.command_bar.selected_idx + 1) % suggestions.len();
-                app.command_bar.navigated = true;
-            }
+            move_selection(app, 1, now);
             true
         }
         Key::ArrowDown => {
-            if !suggestions.is_empty() {
-                app.command_bar.selected_idx = (app.command_bar.selected_idx + 1) % suggestions.len();
-                app.command_bar.navigated = true;
-            }
+            move_selection(app, 1, now);
             true
         }
-        // Up navigation: Ctrl+K or ArrowUp
         Key::K if modifiers.ctrl => {
-            if !suggestions.is_empty() {
-                if app.command_bar.selected_idx == 0 {
-                    app.command_bar.selected_idx = suggestions.len().saturating_sub(1);
-                } else {
-                    app.command_bar.selected_idx -= 1;
-                }
-                app.command_bar.navigated = true;
-            }
+            move_selection(app, -1, now);
             true
         }
         Key::ArrowUp => {
-            if !suggestions.is_empty() {
-                if app.command_bar.selected_idx == 0 {
-                    app.command_bar.selected_idx = suggestions.len().saturating_sub(1);
-                } else {
-                    app.command_bar.selected_idx -= 1;
-                }
-                app.command_bar.navigated = true;
-            }
+            move_selection(app, -1, now);
             true
-        }
-        _ => false,
+        }        _ => false,
     }
 }
 
@@ -244,7 +258,7 @@ pub fn render_command_suggestions_overlay(
         return;
     }
 
-    let suggestions = get_filtered_suggestions(&app.editor.cmd_ed.text(), &app.command_bar.history);
+    let suggestions = current_suggestions(app);
     if let Some(action) = render_command_suggestions(
         ui,
         painter,

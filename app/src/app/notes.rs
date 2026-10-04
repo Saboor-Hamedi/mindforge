@@ -64,6 +64,26 @@ impl App {
             self.misc.show_welcome = true;
             return;
         }
+        if let Some(tab) = self.open_notes.get_mut(idx) {
+            if let Some(path) = tab.file_path.clone() {
+                let is_active = idx == self.tabs.active_tab;
+                if tab.is_dirty || (is_active && self.editor.is_dirty) {
+                    let content = if is_active {
+                        self.editor.ed.text()
+                    } else {
+                        tab.editor.text()
+                    };
+                    if let Err(error) = std::fs::write(&path, content) {
+                        self.set_status(format!("Could not save {}: {error}", path.display()), now);
+                        return;
+                    }
+                    tab.is_dirty = false;
+                    if is_active {
+                        self.editor.is_dirty = false;
+                    }
+                }
+            }
+        }
 
         if self.open_notes.len() <= 1 {
             // Last tab closed: clear all open tabs and reveal the Welcome Dashboard
@@ -139,7 +159,10 @@ impl App {
         self.sync_active_tab();
 
         // 1. Check if note is already open in an existing tab
-        if let Some(existing_tab_idx) = self.open_notes.iter().position(|n| (id > 0 && n.id == id) || (id == 0 && n.title == topic)) {
+        if let Some(existing_tab_idx) = self.open_notes.iter().position(|n| {
+            n.file_path.is_none()
+                && ((id > 0 && n.id == id) || (id == 0 && n.title == topic))
+        }) {
             self.switch_tab(existing_tab_idx, now);
             return;
         }
@@ -180,6 +203,8 @@ impl App {
             editor: self.editor.ed.clone(),
             scroll_y: self.editor.scroll_y,
             is_dirty: false,
+            file_path: None,
+            language_override: None,
         };
 
         if reuse_current {
@@ -346,6 +371,8 @@ impl App {
             editor: self.editor.ed.clone(),
             scroll_y: 0.0,
             is_dirty: false,
+            file_path: None,
+            language_override: None,
         });
         self.tabs.active_tab = self.open_notes.len() - 1;
         self.tabs.last_active_tab = self.tabs.active_tab;

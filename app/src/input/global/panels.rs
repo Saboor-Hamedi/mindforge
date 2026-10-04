@@ -11,6 +11,28 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
             || app.right_pane.tab == crate::app::RightPaneTab::Backlinks
             || app.right_pane.tab == crate::app::RightPaneTab::Outline);
 
+    // While the Neovim completion popup is open, Ctrl+J/K move the selection
+    // instead of toggling the terminal.
+    if !app.command_bar.in_command
+        && app.services.vim_runtime.backend.as_ref().is_some_and(|b| b.popup_visible())
+    {
+        let step = ctx.input_mut(|i| {
+            if i.consume_key(egui::Modifiers::CTRL, egui::Key::J) {
+                Some("<C-n>")
+            } else if i.consume_key(egui::Modifiers::CTRL, egui::Key::K) {
+                Some("<C-p>")
+            } else {
+                None
+            }
+        });
+        if let Some(keys) = step {
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                let _ = backend.send_input(keys);
+            }
+            return Some(false);
+        }
+    }
+
     // Terminal Toggle: Ctrl+J or Ctrl+Backtick
     let toggle_term = !app.command_bar.in_command
         && !is_panel_nav_active

@@ -7,6 +7,7 @@ use crate::editor::{
     events::{EditorKeyEvent, EditorMouseEvent},
     types::EditorMode,
 };
+use crate::language::FileLanguage;
 use eframe::egui::{self, Align2, Color32, Id, Pos2, Rect, Sense, Stroke, Ui};
 use rmpv::Value;
 use std::{sync::Arc, time::{Duration, Instant}};
@@ -30,10 +31,25 @@ pub struct VimBackend {
     row_layouts: Vec<Option<(u64, Arc<egui::Galley>)>>,
     layout_font_size: u32,
     cursor_render_initialized: bool,
+    busy: Option<String>,
     line_numbers_enabled: Option<bool>,
     cached_theme: Option<(Color32, Color32, Color32, Color32)>,
 }
 
+/// Lua sources of the embedded LSP integration, preloaded into Neovim.
+const LSP_MODULES: &[(&str, &str)] = &[
+    ("mindforge.lsp", include_str!("../../assets/nvim/mindforge/lsp/init.lua")),
+    ("mindforge.lsp.paths", include_str!("../../assets/nvim/mindforge/lsp/paths.lua")),
+    ("mindforge.lsp.notify", include_str!("../../assets/nvim/mindforge/lsp/notify.lua")),
+    ("mindforge.lsp.progress", include_str!("../../assets/nvim/mindforge/lsp/progress.lua")),
+    ("mindforge.lsp.config", include_str!("../../assets/nvim/mindforge/lsp/config.lua")),
+    ("mindforge.lsp.registry", include_str!("../../assets/nvim/mindforge/lsp/registry.lua")),
+    ("mindforge.lsp.install", include_str!("../../assets/nvim/mindforge/lsp/install.lua")),
+    ("mindforge.lsp.emmet", include_str!("../../assets/nvim/mindforge/lsp/emmet.lua")),
+    ("mindforge.lsp.snippets", include_str!("../../assets/nvim/mindforge/lsp/snippets.lua")),
+    ("mindforge.lsp.completion", include_str!("../../assets/nvim/mindforge/lsp/completion.lua")),
+    ("mindforge.lsp.commands", include_str!("../../assets/nvim/mindforge/lsp/commands.lua")),
+];
 impl VimBackend {
     pub fn start(
         text: &str,
@@ -42,6 +58,8 @@ impl VimBackend {
         row: usize,
         column: usize,
         ctx: Option<egui::Context>,
+        file_name: &str,
+        language: FileLanguage,
     ) -> Result<Self, String> {
         let mut client = NeovimClient::start(ctx)?;
 
@@ -50,7 +68,7 @@ impl VimBackend {
         client.attach_ui(width, height)?;
         // Keep shared editor navigation options consistent even when the
         // user's init.lua has absolute numbers or cursorline disabled.
-        // Enable true colors, markdown syntax highlighting engine, and smooth visual line navigation.
+        // Enable true colors, syntax highlighting, and smooth visual line navigation.
         let init_lua = r#"
             vim.cmd([[
                 set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\ 
@@ -66,19 +84,78 @@ impl VimBackend {
             vim.keymap.set("n", "k", "v:count == 0 ? 'gk' : 'k'", opts)
             vim.keymap.set("n", "<Down>", "v:count == 0 ? 'gj' : '<Down>'", opts)
             vim.keymap.set("n", "<Up>", "v:count == 0 ? 'gk' : '<Up>'", opts)
+
+            -- Auto-closing pairs so the Neovim surface matches Hybrid typing.
+            if vim.g.mindforge_autopair ~= false then
+                local function next_char()
+                    local col = vim.fn.col('.')
+                    return vim.fn.getline('.'):sub(col, col)
+                end
+                local function prev_char()
+                    local col = vim.fn.col('.') - 1
+                    if col < 1 then return '' end
+                    return vim.fn.getline('.'):sub(col, col)
+                end
+                local imap = function(lhs, fn)
+                    vim.keymap.set('i', lhs, fn, { expr = true, noremap = true, silent = true })
+                end
+                for open, close in pairs({ ['('] = ')', ['['] = ']', ['{'] = '}' }) do
+                    imap(open, function() return open .. close .. '<Left>' end)
+                    imap(close, function()
+                        if next_char() == close then return '<Right>' end
+                        return close
+                    end)
+                end
+                for _, quote in ipairs({ '"', "'", '`' }) do
+                    imap(quote, function()
+                        if next_char() == quote then return '<Right>' end
+                        if prev_char():match('[%w_]') or next_char():match('[%w_]') then return quote end
+                        return quote .. quote .. '<Left>'
+                    end)
+                end
+                local pairs_map = { ['('] = ')', ['['] = ']', ['{'] = '}', ['"'] = '"', ["'"] = "'", ['`'] = '`' }
+                imap('<BS>', function()
+                    local p, n = prev_char(), next_char()
+                    if p ~= '' and pairs_map[p] == n then return '<Right><BS><BS>' end
+                    return '<BS>'
+                end)
+            end
         "#;
         let _ = client.request(
             "nvim_exec_lua",
             vec![Value::from(init_lua), Value::Array(vec![])],
         );
+        let lsp_boot = r#"
+            local mods = ...
+            for name, src in pairs(mods) do
+                package.preload[name] = assert(load(src, '=' .. name))
+            end
+            local ok, err = pcall(function() require('mindforge.lsp').setup() end)
+            if not ok then vim.g.mindforge_lsp_error = tostring(err) end
+        "#;
+        let modules = Value::Map(
+            LSP_MODULES
+                .iter()
+                .map(|(name, source)| (Value::from(*name), Value::from(*source)))
+                .collect(),
+        );        let _ = client.request(
+            "nvim_exec_lua",
+            vec![Value::from(lsp_boot), Value::Array(vec![modules])],
+        );
 
-        // Give the buffer a markdown filename so Neovim filetype and syntax rules attach
-        let _ = client.request("nvim_buf_set_name", vec![Value::from(0), Value::from("note.md")]);
+        let _ = client.request(
+            "nvim_buf_set_name",
+            vec![Value::from(0), Value::from(file_name.to_owned())],
+        );
 
         // Load text async — no blocking round-trip needed here.
         // nvim_buf_set_lines is a notification (fire and forget).
         client.set_buffer_text_async(text)?;
-        let _ = client.notify("nvim_command", vec![Value::from("setlocal filetype=markdown syntax=markdown")]);
+        let filetype = language.nvim_filetype();
+        let _ = client.notify(
+            "nvim_command",
+            vec![Value::from(format!("setlocal filetype={filetype} syntax={filetype}"))],
+        );
 
         // Attach only for future changes. The local mirror already came from
         // `text`, and the preceding set-lines notification is ordered on the
@@ -116,6 +193,7 @@ impl VimBackend {
             row_layouts: Vec::new(),
             layout_font_size: 0,
             cursor_render_initialized: false,
+            busy: None,
             line_numbers_enabled: None,
             cached_theme: None,
         })
@@ -135,6 +213,14 @@ impl VimBackend {
                     self.apply_redraw_group(group);
                 }
             }
+        } else if items.get(1).and_then(Value::as_str) == Some("mindforge_progress") {
+            let label = items
+                .get(2)
+                .and_then(Value::as_array)
+                .and_then(|args| args.first())
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            self.busy = (!label.is_empty()).then(|| label.to_owned());
         } else if items.get(1).and_then(Value::as_str) == Some("nvim_buf_lines_event") {
             self.apply_lines_event(items.get(2).unwrap_or(&Value::Nil));
         }
@@ -186,6 +272,7 @@ impl VimBackend {
             } else {
                 self.document_bytes = self.document_bytes.saturating_sub(removed - added);
             }
+            self.predict_insert_caret(start, end, &replacement);
             self.lines.splice(start..end, replacement);
             if self.lines.is_empty() {
                 self.lines.push(String::new());
@@ -205,6 +292,23 @@ impl VimBackend {
         }
     }
 
+    /// Neovim sends buffer edits immediately but the matching cursor position
+    /// only with the next redraw, which can be delayed by completion work. Move
+    /// the caret along with single-line insert-mode edits so it never trails
+    /// the typed text; the authoritative `grid_cursor_goto` corrects it later.
+    fn predict_insert_caret(&mut self, start: usize, end: usize, replacement: &[String]) {
+        if !self.is_insert_mode() || end != start + 1 || replacement.len() != 1 || start != self.grid.cursor.row {
+            return;
+        }
+        let old_len = self.lines[start].chars().count();
+        let new_len = replacement[0].chars().count();
+        let column = self.grid.cursor.column;
+        if new_len > old_len && column <= old_len {
+            self.grid.cursor.column = (column + new_len - old_len).min(new_len);
+        } else if new_len < old_len && column <= old_len {
+            self.grid.cursor.column = column.saturating_sub(old_len - new_len).min(new_len);
+        }
+    }
     fn apply_redraw_group(&mut self, group: &Value) {
         let Some(entries) = group.as_array() else {
             return;
@@ -271,6 +375,7 @@ impl VimBackend {
                 "cmdline_hide" => self.grid.command_line.clear(),
                 "popupmenu_show" if !args.is_empty() => {
                     self.grid.popup_items = popupmenu_items(&args[0]);
+                    self.grid.popup_meta = popupmenu_meta(&args[0]);
                     self.grid.popup_selected = args
                         .get(1)
                         .and_then(Value::as_i64)
@@ -283,11 +388,21 @@ impl VimBackend {
                 }
                 "popupmenu_hide" => {
                     self.grid.popup_items.clear();
+                    self.grid.popup_meta.clear();
                     self.grid.popup_selected = None;
                     self.grid.popup_anchor = None;
                 }
-                "msg_show" if args.len() >= 2 => self.grid.message = cmdline_text(&args[1]),
-                "msg_clear" => self.grid.message.clear(),
+                "msg_show" if args.len() >= 2 => {
+                    if matches!(args[0].as_str(), Some("return_prompt" | "confirm")) {
+                        let _ = self.client.input("<CR>");
+                    }
+                    self.grid.message = compact_message(&cmdline_text(&args[1]));
+                    self.grid.message_at = Some(std::time::Instant::now());
+                }
+                "msg_clear" => {
+                    self.grid.message.clear();
+                    self.grid.message_at = None;
+                }
                 _ => {}
             }
         }
@@ -428,6 +543,31 @@ impl VimBackend {
         self.client.input(input)
     }
 
+    /// Label of long-running background work (installs, LSP indexing), if any.
+    pub fn busy_label(&self) -> Option<&str> {
+        self.busy.as_deref()
+    }
+
+    /// Selects completion item index and accepts it (mouse click on the popup).
+    fn accept_popup_item(&mut self, index: usize) {
+        let total = self.grid.popup_items.len() as i64;
+        if index as i64 >= total {
+            return;
+        }
+        let steps = match self.grid.popup_selected {
+            Some(current) => index as i64 - current as i64,
+            None => index as i64 + 1,
+        };
+        let key = if steps >= 0 { "<C-n>" } else { "<C-p>" };
+        let mut keys = key.repeat(steps.unsigned_abs() as usize);
+        keys.push_str("<C-y>");
+        let _ = self.client.input(&keys);
+    }
+
+    pub fn popup_visible(&self) -> bool {
+        !self.grid.popup_items.is_empty()
+    }
+
     pub fn search(&mut self, query: &str, backwards: bool) -> EditorResult<()> {
         if query.is_empty() {
             return Ok(());
@@ -475,9 +615,34 @@ impl VimBackend {
     }
 
     pub fn set_document(&mut self, text: &str, row: usize, column: usize) -> EditorResult<()> {
-        let _ = self.client.request("nvim_buf_set_name", vec![Value::from(0), Value::from("note.md")]);
+        self.set_document_for_language(text, row, column, "note.md", FileLanguage::Markdown)
+    }
+
+    pub fn set_document_for_language(
+        &mut self,
+        text: &str,
+        row: usize,
+        column: usize,
+        file_name: &str,
+        language: FileLanguage,
+    ) -> EditorResult<()> {
+        let _ = self.client.notify(
+            "nvim_exec_lua",
+            vec![
+                Value::from("local ok, m = pcall(require, 'mindforge.lsp'); if ok then m.reset_buffer() end"),
+                Value::Array(vec![]),
+            ],
+        );
+        let _ = self.client.request(
+            "nvim_buf_set_name",
+            vec![Value::from(0), Value::from(file_name.to_owned())],
+        );
         self.client.set_buffer_text_async(text)?;
-        let _ = self.client.notify("nvim_command", vec![Value::from("setlocal filetype=markdown syntax=markdown")]);
+        let filetype = language.nvim_filetype();
+        let _ = self.client.notify(
+            "nvim_command",
+            vec![Value::from(format!("setlocal filetype={filetype} syntax={filetype}"))],
+        );
         let _ = self.client.notify("nvim_command", vec![Value::from("redraw!")]);
         self.lines = text.split('\n').map(str::to_owned).collect();
         self.document_words = text.split_whitespace().count();
@@ -816,6 +981,29 @@ fn popupmenu_items(value: &Value) -> Vec<String> {
         .filter_map(Value::as_array)
         .filter_map(|item| item.first().and_then(Value::as_str))
         .map(str::to_owned)
+        .collect()
+}
+
+/// Maps the LSP completion kind label to a short glyph column.
+fn popupmenu_meta(value: &Value) -> Vec<(String, String)> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_array)
+        .map(|item| {
+            let text = |i: usize| item.get(i).and_then(Value::as_str).unwrap_or("");
+            let kind = match text(1) {
+                "Snippet" => "▣",
+                "Function" | "Method" | "Constructor" => "ƒ",
+                "Variable" | "Field" | "Property" => "x",
+                "Class" | "Struct" | "Interface" | "Enum" | "Module" => "◇",
+                "Keyword" => "k",
+                "" => "",
+                _ => "·",
+            };
+            (kind.to_owned(), text(2).to_owned())
+        })
         .collect()
 }
 
@@ -1239,26 +1427,56 @@ impl EditorBackend for VimBackend {
         }
 
         // Popup completion menu
+        let mut popup_hit: Option<(Rect, usize)> = None;
+        let hover_pos = response.hover_pos();
         if !self.grid.popup_items.is_empty() {
-            let popup_width = (rect.width() * 0.45).clamp(180.0, 360.0).min(rect.width());
-            let popup_height = (self.grid.popup_items.len() as f32 * nvim_row_height).min(rect.height());
+            const MAX_ROWS: usize = 12;
+            let total = self.grid.popup_items.len();
+            let visible = total.min(MAX_ROWS);
+            let selected = self.grid.popup_selected;
+            let start = selected.map_or(0, |s| (s + 1).saturating_sub(visible)).min(total - visible);
+            let popup_width = (rect.width() * 0.6).clamp(220.0, 480.0).min(rect.width());
+            let popup_height = (visible as f32 * nvim_row_height).min(rect.height());
             let (popup_row, popup_col) = self
                 .grid
                 .popup_anchor
                 .unwrap_or((self.grid.cursor.row, self.grid.cursor.column));
             let popup_x = (origin.x + popup_col as f32 * cell_width)
                 .clamp(origin.x, (rect.max.x - popup_width).max(origin.x));
-            let popup_y = (origin.y + (popup_row + 1) as f32 * nvim_row_height)
-                .min((rect.max.y - popup_height).max(origin.y));
+            let below_y = origin.y + (popup_row + 1) as f32 * nvim_row_height;
+            let popup_y = if below_y + popup_height <= rect.max.y {
+                below_y
+            } else {
+                (origin.y + popup_row as f32 * nvim_row_height - popup_height).max(origin.y)
+            };
             let popup_rect = Rect::from_min_size(
                 Pos2::new(popup_x, popup_y),
                 egui::vec2(popup_width, popup_height),
             );
+            popup_hit = Some((popup_rect, start));
             painter.rect_filled(popup_rect, 2.0, theme.surface());
             painter.rect_stroke(popup_rect, 2.0, Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
-            for (index, item) in self.grid.popup_items.iter().enumerate() {
-                let y = popup_y + index as f32 * nvim_row_height;
-                if Some(index) == self.grid.popup_selected {
+            let small = crate::services::font_manager::editor_font_id(11.0);
+            for (row, index) in (start..start + visible).enumerate() {
+                let item = &self.grid.popup_items[index];
+                let (kind, extra) = self
+                    .grid
+                    .popup_meta
+                    .get(index)
+                    .map(|(k, e)| (k.as_str(), e.as_str()))
+                    .unwrap_or(("", ""));
+                let y = popup_y + row as f32 * nvim_row_height;
+                let hovered = hover_pos.is_some_and(|p| {
+                    p.x >= popup_x && p.x <= popup_x + popup_width && p.y >= y && p.y < y + nvim_row_height
+                });
+                if hovered && Some(index) != selected {
+                    painter.rect_filled(
+                        Rect::from_min_size(Pos2::new(popup_x, y), egui::vec2(popup_width, nvim_row_height)),
+                        0.0,
+                        theme.accent.linear_multiply(0.12),
+                    );
+                }
+                if Some(index) == selected {
                     painter.rect_filled(
                         Rect::from_min_size(
                             Pos2::new(popup_x, y),
@@ -1268,16 +1486,32 @@ impl EditorBackend for VimBackend {
                         theme.accent.linear_multiply(0.25),
                     );
                 }
+                let mut text_x = popup_x + 6.0;
+                if !kind.is_empty() {
+                    painter.text(Pos2::new(text_x, y), Align2::LEFT_TOP, kind, small.clone(), theme.accent);
+                    text_x += 16.0;
+                }
+                painter.text(Pos2::new(text_x, y), Align2::LEFT_TOP, item, font.clone(), theme.text);
+                if !extra.is_empty() {
+                    painter.text(
+                        Pos2::new(popup_rect.max.x - 6.0, y),
+                        Align2::RIGHT_TOP,
+                        extra,
+                        small.clone(),
+                        theme.text.linear_multiply(0.5),
+                    );
+                }
+            }
+            if total > visible {
                 painter.text(
-                    Pos2::new(popup_x + 4.0, y),
-                    Align2::LEFT_TOP,
-                    item,
-                    font.clone(),
-                    theme.text,
+                    Pos2::new(popup_rect.max.x - 6.0, popup_rect.max.y - 1.0),
+                    Align2::RIGHT_BOTTOM,
+                    format!("{}/{}", selected.map_or(0, |s| s + 1), total),
+                    small,
+                    theme.text.linear_multiply(0.4),
                 );
             }
         }
-
         if let Some(error) = &self.error {
             painter.text(origin, Align2::LEFT_TOP, error, font, theme.highlight);
         }
@@ -1289,6 +1523,10 @@ impl EditorBackend for VimBackend {
             let column = ((pos.x - origin.x) / cell_width).floor().max(0.0) as usize;
             if response.dragged() {
                 mouse_actions.push(EditorMouseEvent::Drag { row, column });
+            } else if let Some(index) = popup_hit.filter(|_| response.clicked()).and_then(|(popup_rect, start)| {
+                popup_rect.contains(pos).then(|| start + ((pos.y - popup_rect.min.y) / nvim_row_height) as usize)
+            }) {
+                self.accept_popup_item(index);
             } else if response.clicked() {
                 mouse_actions.push(EditorMouseEvent::Press {
                     row,
@@ -1348,4 +1586,16 @@ impl EditorBackend for VimBackend {
     fn shutdown(&mut self) {
         self.client.shutdown();
     }
+}
+
+/// Collapses a possibly multi-line message into one short status line.
+fn compact_message(text: &str) -> String {
+    const MAX: usize = 120;
+    let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if line.chars().count() <= MAX {
+        return line;
+    }
+    let mut out: String = line.chars().take(MAX).collect();
+    out.push('…');
+    out
 }

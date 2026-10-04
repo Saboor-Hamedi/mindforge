@@ -300,8 +300,25 @@ impl App {
             self.notes.active_note_title.as_str()
         };
 
+        let active_tab = self.open_notes.get(self.tabs.active_tab);
+        let detected_language = if self.misc.mode == Mode::Doc {
+            crate::language::FileLanguage::Markdown
+        } else {
+            match active_tab.and_then(|tab| tab.file_path.as_deref()) {
+                Some(path) => crate::language::FileLanguage::from_path(path),
+                None => crate::language::FileLanguage::from_title(&self.notes.active_note_title)
+                    .unwrap_or(crate::language::FileLanguage::Markdown),
+            }
+        };
+        let language_override = if self.misc.mode == Mode::Doc {
+            None
+        } else {
+            active_tab.and_then(|tab| tab.language_override)
+        };
+        let language = language_override.unwrap_or(detected_language);
+
         let is_ai_active = self.editor.preview_open && self.right_pane.tab == RightPaneTab::AiAgent;
-        let toggle_ai = crate::lunaline::render_lunaline(crate::lunaline::LunaLineRenderParams {
+        let status_action = crate::lunaline::render_lunaline(crate::lunaline::LunaLineRenderParams {
             ui,
             painter: &painter,
             dock_rect: cmd_bar_rect,
@@ -312,6 +329,7 @@ impl App {
             cmd_selection: self.editor.cmd_ed.selected_range(),
             status_msg: &self.misc.status_msg,
             status_time: self.misc.status_time,
+            busy: self.services.vim_runtime.backend.as_ref().and_then(|b| b.busy_label()),
             now,
             cursor_row: row + 1,
             cursor_col: col + 1,
@@ -327,8 +345,21 @@ impl App {
             opacity: self.misc.opacity,
             is_ai_open: is_ai_active,
             config: &self.services.lunaline_config,
+            language,
+            detected_language,
+            language_override,
+            language_selector: &mut self.editor.language_selector,
         });
-        if toggle_ai {
+        if let Some(selection) = status_action.language_selection {
+            self.set_language_override(
+                match selection {
+                    crate::language::LanguageSelection::AutoDetect => None,
+                    crate::language::LanguageSelection::Language(language) => Some(language),
+                },
+                now,
+            );
+        }
+        if status_action.toggle_ai {
             if self.editor.preview_open && self.right_pane.tab == RightPaneTab::AiAgent {
                 self.editor.preview_open = false;
                 self.services.agent_state.is_open = false;
@@ -420,6 +451,8 @@ impl App {
                                 editor: self.editor.ed.clone(),
                                 scroll_y: 0.0,
                                 is_dirty: false,
+                                file_path: None,
+                                language_override: None,
                             });
                             self.tabs.active_tab = self.open_notes.len() - 1;
                             self.save_open_tabs();

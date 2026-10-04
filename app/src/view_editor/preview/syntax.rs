@@ -11,19 +11,51 @@ pub fn highlight_code_line(
     font_size: f32,
     theme: &Theme,
 ) -> LayoutJob {
+    highlight_code_line_impl(line, lang, font_size, theme, true)
+}
+
+pub fn highlight_editor_code_line(
+    line: &str,
+    lang: &str,
+    font_size: f32,
+    theme: &Theme,
+) -> LayoutJob {
+    highlight_code_line_impl(line, lang, font_size, theme, false)
+}
+
+fn highlight_code_line_impl(
+    line: &str,
+    lang: &str,
+    font_size: f32,
+    theme: &Theme,
+    use_ligatures: bool,
+) -> LayoutJob {
     let mut job = LayoutJob::default();
     let mono_font = crate::services::font_manager::editor_font_id(font_size);
     let chars: Vec<char> = line.chars().collect();
     let n = chars.len();
     let mut i = 0;
 
-    let is_python = lang.eq_ignore_ascii_case("python") || lang.eq_ignore_ascii_case("py");
+    let language = lang.to_ascii_lowercase();
+    let is_python = matches!(language.as_str(), "python" | "py");
     let is_bash = lang.eq_ignore_ascii_case("bash") || lang.eq_ignore_ascii_case("sh") || lang.eq_ignore_ascii_case("shell");
+    let is_yaml = matches!(language.as_str(), "yaml" | "yml");
+    let is_sql = language == "sql";
+    let is_html = matches!(language.as_str(), "html" | "htm");
+    let is_php = language == "php";
+    let is_c_style = matches!(
+        language.as_str(),
+        "javascript" | "js" | "jsx" | "typescript" | "ts" | "tsx" | "rust" | "rs" | "php" | "css"
+    );
 
     while i < n {
         // 1. Comments
-        if (chars[i] == '/' && i + 1 < n && chars[i + 1] == '/')
-            || ((is_python || is_bash) && chars[i] == '#')
+        let is_html_comment = is_html && i + 3 < n && chars[i..i + 4] == ['<', '!', '-', '-'];
+        let is_sql_comment = is_sql && i + 1 < n && chars[i] == '-' && chars[i + 1] == '-';
+        if is_html_comment
+            || is_sql_comment
+            || (is_c_style && chars[i] == '/' && i + 1 < n && chars[i + 1] == '/')
+            || ((is_python || is_bash || is_yaml || is_php) && chars[i] == '#')
         {
             let comment_text: String = chars[i..].iter().collect();
             let mut fmt = TextFormat::simple(
@@ -36,7 +68,7 @@ pub fn highlight_code_line(
         }
 
         // 2. Strings ("..." or '...')
-        if chars[i] == '"' || chars[i] == '\'' {
+        if chars[i] == '"' || chars[i] == '\'' || (chars[i] == '`' && !is_yaml && !is_sql) {
             let quote = chars[i];
             let start = i;
             i += 1;
@@ -82,7 +114,16 @@ pub fn highlight_code_line(
             }
             let word: String = chars[start..i].iter().collect();
 
-            let is_keyword = match word.as_str() {
+            let is_sql_keyword = is_sql && matches!(
+                word.to_ascii_lowercase().as_str(),
+                "select" | "from" | "where" | "join" | "left" | "right" | "inner" | "outer"
+                    | "on" | "as" | "insert" | "into" | "values" | "update" | "set"
+                    | "delete" | "create" | "table" | "index" | "drop" | "alter" | "group"
+                    | "by" | "order" | "having" | "limit" | "offset" | "and" | "or" | "not"
+                    | "null" | "primary" | "key" | "foreign" | "references" | "distinct"
+                    | "union" | "all" | "case" | "when" | "then" | "else" | "end"
+            );
+            let is_keyword = is_sql_keyword || match word.as_str() {
                 // Rust
                 "fn" | "let" | "mut" | "pub" | "struct" | "enum" | "impl" | "match" | "if" | "else"
                 | "return" | "use" | "mod" | "trait" | "type" | "where" | "async" | "await" | "for"
@@ -90,12 +131,16 @@ pub fn highlight_code_line(
                 // Python / JS / General
                 | "def" | "class" | "import" | "from" | "as" | "with" | "yield" | "pass" | "lambda"
                 | "function" | "var" | "export" | "try" | "catch" | "finally" | "new" | "this"
-                | "typeof" | "instanceof" | "echo" | "sudo" => true,
+                | "typeof" | "instanceof" | "echo" | "sudo" | "public" | "private"
+                | "protected" | "extends" | "implements" | "interface" | "default"
+                | "switch" | "case" | "break" | "continue" | "throw" | "void" | "final"
+                | "abstract" | "namespace" => true,
                 _ => false,
             };
 
             let is_bool_or_none = match word.as_str() {
-                "true" | "false" | "None" | "Some" | "Ok" | "Err" | "null" | "undefined" => true,
+                "true" | "false" | "True" | "False" | "None" | "Some" | "Ok" | "Err"
+                | "null" | "undefined" | "NULL" | "Null" => true,
                 _ => false,
             };
 
@@ -123,7 +168,12 @@ pub fn highlight_code_line(
         }
 
         // 5. Coding Ligatures and Operators
-        if let Some(lig) = crate::view_editor::ligatures::detect_ligature(&chars, i) {
+        let ligature = if use_ligatures {
+            crate::view_editor::ligatures::detect_ligature(&chars, i)
+        } else {
+            None
+        };
+        if let Some(lig) = ligature {
             let lig_len = lig.char_len();
             let raw: String = chars[i..i + lig_len].iter().collect();
             let sub = crate::view_editor::preview::parser::substitute_ligatures(&raw);

@@ -28,6 +28,8 @@ pub struct GridState {
     pub highlights: HashMap<u64, HighlightStyle>,
     pub command_line: String,
     pub popup_items: Vec<String>,
+    pub popup_meta: Vec<(String, String)>,
+    pub message_at: Option<std::time::Instant>,
     pub popup_selected: Option<usize>,
     pub popup_anchor: Option<(usize, usize)>,
     pub message: String,

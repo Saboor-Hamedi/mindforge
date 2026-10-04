@@ -237,10 +237,13 @@ impl Caret {
         }
 
         // 1. Adaptive smooth glide
+        // The cursor position often arrives a frame or more after the keystroke,
+        // so keep snapping for a short window after the last typed character.
+        let typing = typed || now - self.last_type < 0.4;
         if self.glide.is_finite() && self.glide > 0.0 {
             let diff = target - self.pos;
             if diff.length() > 0.0 {
-                if typed {
+                if typing {
                     // While typing, snap caret to target instantly so it
                     // always sits exactly on the last typed character.
                     // Glide lag would make it look like the caret is stuck

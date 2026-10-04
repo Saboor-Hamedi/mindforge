@@ -68,6 +68,19 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             app.set_status("Switched to Notes Editor", now);
             true
         }
+        "open" | "o" => {
+            let path = if args.trim().is_empty() {
+                rfd::FileDialog::new().pick_file()
+            } else {
+                Some(std::path::PathBuf::from(
+                    args.trim_matches(|c| c == '"' || c == '\''),
+                ))
+            };
+            if let Some(path) = path {
+                app.open_file_path(path, now);
+            }
+            true
+        }
         "new" | "n" => {
             app.create_new_note(now);
             true
