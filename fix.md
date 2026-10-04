@@ -1,1035 +1,1437 @@
-# MindForge — Code Editor Foundation, Language Detection & LSP-Ready Architecture
+# MindForge — Production-Grade LSP, Completion & Language Intelligence System
 
 ## Mission
 
-Extend the existing MindForge editor so it can become a **beautiful, robust multi-language code editor**, while preserving the existing Markdown experience exactly as it works today.
+MindForge has now evolved beyond a Markdown-only editor.
 
-This is **Phase 1**.
-
-The goal is NOT to build the entire IDE yet.
-
-The goal is to establish an excellent foundation for:
-
-- Markdown documents
-- Code files
-- Automatic language detection
-- Manual language selection
-- High-quality syntax highlighting
-- Hybrid editing
-- Embedded Neovim editing
-- Future LSP integration
-
-### CRITICAL:
-
-**Prepare the architecture for LSP, but DO NOT install, download, launch, connect to, or implement LSP functionality in this phase.**
-
-LSP comes later.
-
----
-
-# 1. NON-NEGOTIABLE: PROTECT EXISTING FUNCTIONALITY
-
-MindForge already has a working Markdown editor.
-
-Do not break it.
-
-Do not redesign it.
-
-Do not replace it with a generic code editor.
-
-Do not remove or weaken:
+The existing system already has:
 
 - Markdown editing
-- Markdown syntax highlighting
 - Wikilinks
 - Backlinks
-- Graph
-- Notes
+- Knowledge graph
+- SQLite-backed data
 - Tabs
-- Explorer
-- Search
-- SQLite/database functionality
-- Existing Hybrid editor
+- Hybrid editor
 - Embedded Neovim
-- Existing command system
-- Existing application UI
+- Vim motions
+- Neovim commands
+- Syntax highlighting
+- File extension detection
+- Status bar language detection
+- Code-file editing
+- LSP integration
+- Working LSP completion
 
-The current Markdown experience is a core MindForge feature.
+The next objective is to turn the current LSP functionality into a **production-grade Language Intelligence System** while preserving everything that already works.
 
-Treat it as the baseline that the new code functionality must integrate around.
+This must NOT become a VS Code clone.
+
+MindForge remains a knowledge-centric environment where Markdown, notes, code, Wikilinks, graph relationships, and programming all coexist.
 
 ---
 
-# 2. THE NEW MINDSET
+# 1. CURRENT STATE
 
-MindForge should become a **knowledge-centric editor that can also work with code**.
+LSP is already installed and functioning.
 
-It is NOT a VS Code clone.
+Do NOT treat LSP as a future-only feature anymore.
 
-The architecture should conceptually become:
+We now want to build a proper system around it.
+
+For example, commands such as:
 
 ```text
-                         MINDFORGE
-                            │
-             ┌──────────────┴──────────────┐
-             │                             │
-        KNOWLEDGE                        CODE
-             │                             │
-        Markdown                    File Detection
-        Wikilinks                   Syntax Highlighting
-        Backlinks                   Hybrid Editor
-        Graph                       Neovim
-        Notes                       Future LSP
-             │                             │
-             └──────────────┬──────────────┘
-                            │
-                     Shared MindForge
-                         UI / Workspace
+:LspInstall html
+:LspList
 ```
 
-Markdown remains first-class.
+should eventually become first-class MindForge commands.
 
-Code becomes another first-class document type.
+The existing LSP functionality must be inspected first.
+
+Do not replace working code blindly.
 
 ---
 
-# 3. FILE TYPE / LANGUAGE DETECTION
+# 2. MOST IMPORTANT UI PROBLEM
 
-When a file is opened, MindForge should determine its language from the file extension.
+The current completion popup works functionally, but the UI is not polished enough.
 
-Examples:
+The current behavior resembles:
 
 ```text
-.md       → Markdown
-.js       → JavaScript
-.jsx      → JavaScript React
-.ts       → TypeScript
-.tsx      → TypeScript React
-.py       → Python
-.rs       → Rust
-.php      → PHP
-.html     → HTML
-.htm      → HTML
-.css      → CSS
-.json     → JSON
-.yaml     → YAML
-.yml      → YAML
-.sql      → SQL
+┌──────────────────────────────────────────┐
+│ html5                                     │
+├──────────────────────────────────────────┤
+│ html       HTML5 document skeleton       │
+│ html5      HTML5 document skeleton       │
+└──────────────────────────────────────────┘
+                       ┌────────────────────┐
+                       │ documentation     │
+                       │                    │
+                       │ <!DOCTYPE html>   │
+                       │                    │
+                       └────────────────────┘
 ```
 
-The implementation must have **one centralized source of truth**.
+It feels like raw Neovim completion UI rather than a native MindForge component.
 
-Do not scatter extension checks throughout the codebase.
-
-Conceptually:
-
-```rust
-FileLanguage::from_extension(path)
-```
-
-or whatever equivalent fits the existing architecture.
-
-Do not blindly create a new abstraction if MindForge already has an appropriate file/language model.
+The completion system must be redesigned visually while preserving the underlying LSP behavior.
 
 ---
 
-# 4. UNKNOWN FILES
+# 3. MIND FORGE MUST OWN THE COMPLETION UI
 
-Unknown extensions must remain usable.
+Do NOT simply expose Neovim's default completion popup.
 
-If MindForge doesn't recognize a file:
+Neovim/LSP should provide the data.
 
-```text
-Unknown extension
-       ↓
-Plain Text
-```
-
-Do not crash.
-
-Do not refuse to open the file.
-
-Do not apply an incorrect language.
-
-The editor should gracefully fall back to plain text.
-
----
-
-# 5. SYNTAX HIGHLIGHTING
-
-This is the primary feature of Phase 1.
-
-Code files should have **beautiful, robust, performant syntax highlighting**.
-
-Initial language support should include at least:
-
-- JavaScript
-- JSX
-- TypeScript
-- TSX
-- Python
-- Rust
-- PHP
-- HTML
-- CSS
-- JSON
-- YAML
-- SQL
-
-Use the existing MindForge highlighting/editor infrastructure wherever possible.
-
-Do not create an entirely separate editor renderer for every language.
+MindForge should render the completion UI.
 
 Conceptually:
 
 ```text
-                    Editor
-                      │
-                  Language
-                      │
-          ┌───────────┼───────────┐
-          │           │           │
-      Markdown       Code      Plain Text
-          │           │
-      Existing       ├── JS
-      system         ├── TS
-                     ├── Python
-                     ├── Rust
-                     ├── PHP
-                     └── ...
+LSP
+ │
+ │ completion items
+ ▼
+Neovim
+ │
+ │ popupmenu events
+ ▼
+MindForge Vim backend
+ │
+ ▼
+MindForge Completion UI
 ```
 
----
+The UI must be rendered using the existing MindForge/egui visual system.
 
-# 6. MARKDOWN HIGHLIGHTING MUST REMAIN INTACT
-
-The existing Markdown highlighting is already good.
-
-Do not replace it unnecessarily.
-
-Do not force Markdown through a new generic syntax system if that risks regressions.
-
-Opening:
-
-```text
-my_book.md
-```
-
-must continue to provide the existing MindForge Markdown experience.
+Do not create a second unrelated UI framework.
 
 ---
 
-# 7. CODE EDITING MUST BE REAL EDITING
+# 4. COMPLETION POPUP DESIGN
 
-This is not merely a syntax-coloring feature.
+The completion popup should be:
 
-Code files must be genuinely editable.
+- compact
+- fast
+- elegant
+- keyboard-friendly
+- visually integrated
+- context-aware
+- non-intrusive
 
-The user should be able to:
+It should feel like part of the editor.
 
-- type
-- delete
-- select
-- copy
-- paste
-- undo
-- redo
-- use arrows
-- Home
-- End
-- Page Up
-- Page Down
-- search
-- scroll
-- switch tabs
-- switch between Hybrid and Neovim
+### Requirements
 
-Do not implement advanced IDE functionality yet.
+The popup should have:
 
-The immediate objective is:
+- rounded corners consistent with MindForge
+- subtle border
+- subtle shadow
+- existing editor surface color
+- compact row height
+- proper text alignment
+- syntax/language icons where useful
+- completion kind indicator
+- selected-row indication
+- documentation preview
+- scrollbar only when necessary
 
-> **A robust, responsive code editor with excellent syntax highlighting.**
+Do NOT use a huge accent-colored background.
 
----
-
-# 8. HYBRID EDITOR
-
-The existing Hybrid editor should open code files.
+The MindForge accent should be used sparingly.
 
 For example:
 
 ```text
-main.py
+┌─────────────────────────────────────────────┐
+│  ▸ html      HTML5 document skeleton        │
+│    html5     HTML5 document skeleton        │
+│    head      HTML head element              │
+│    header    HTML header element            │
+└─────────────────────────────────────────────┘
 ```
 
-should open as Python.
+The selected item should be visually clear without becoming a giant colored rectangle.
+
+---
+
+# 5. COMPLETION LAYOUT
+
+Use a two-column completion design when documentation exists:
 
 ```text
-App.tsx
+┌────────────────────────────┬────────────────────────────┐
+│ completion                 │ documentation              │
+│                            │                            │
+│ ▸ html       HTML element  │ HTML5 document skeleton    │
+│   html5      HTML5         │                            │
+│   head       HTML head     │ <!DOCTYPE html>            │
+│   body       HTML body     │                            │
+│                            │                            │
+└────────────────────────────┴────────────────────────────┘
 ```
 
-should open as TypeScript React.
+But:
 
-Do not create an unnecessary second editor architecture.
+**Do not always show the documentation pane.**
 
-Prefer:
+Only show it when:
+
+- the selected completion item has documentation
+- there is enough available space
+- the user has not disabled it
+
+If documentation is unavailable:
 
 ```text
-MindForge Editor
-      │
-      ├── Markdown document
-      │
-      └── Code document
+completion popup only
+```
+
+Do not create a large empty panel.
+
+---
+
+# 6. POPUP POSITIONING
+
+Completion must appear relative to the actual editor cursor.
+
+It must never appear:
+
+- outside the editor
+- over the titlebar
+- over tabs
+- outside the application window
+- detached from the cursor
+
+Calculate:
+
+```text
+Neovim grid position
+        ↓
+MindForge editor coordinates
+        ↓
+egui screen coordinates
+```
+
+Respect:
+
+```text
+actual_editor_rect
+```
+
+and all editor padding/gutter geometry.
+
+If there is not enough room below the cursor, intelligently place the popup above it.
+
+If there is not enough horizontal room, shift it left.
+
+The popup must remain completely visible.
+
+---
+
+# 7. COMPLETION KEYBOARD BEHAVIOR
+
+Completion must support standard behavior.
+
+When completion is visible:
+
+```text
+↑ / k       previous item
+↓ / j       next item
+Enter       accept
+Tab         next/accept where appropriate
+Shift+Tab   previous item
+Esc         dismiss
+Ctrl+Space  trigger completion
+```
+
+Do not interfere with normal Vim behavior when completion is not active.
+
+Neovim remains responsible for the actual completion semantics.
+
+MindForge is responsible for presentation and routing.
+
+---
+
+# 8. COMPLETION TEXT
+
+Support:
+
+- label
+- detail
+- kind
+- documentation
+- insert text
+- filter text
+- additional text edits where provided
+
+Use LSP completion item information correctly.
+
+Do not simply display the raw completion label.
+
+For example:
+
+```text
+html       HTML element
 ```
 
 rather than:
 
 ```text
-Markdown Editor
-      +
-Completely separate Code Editor
+html
 ```
 
-Reuse the existing editor infrastructure wherever technically appropriate.
+when useful metadata exists.
 
 ---
 
-# 9. NEOVIM
+# 9. COMPLETION KIND ICONS
 
-The existing embedded Neovim integration is working.
+Provide subtle visual indicators for:
 
-**Do not break it.**
+- Text
+- Method
+- Function
+- Constructor
+- Field
+- Variable
+- Class
+- Interface
+- Module
+- Property
+- Keyword
+- Snippet
+- Constant
+- Enum
+- Struct
+- Event
+- Operator
+- Reference
+- File
 
-When the user opens a code file and switches using the existing:
+Do not use visually noisy icons.
 
-```text
-Ctrl+E
-```
-
-Neovim should continue editing that same document.
-
-Neovim remains responsible for Vim semantics:
-
-- Normal mode
-- Insert mode
-- Visual mode
-- Motions
-- Operators
-- Registers
-- Macros
-- Undo/redo
-- Search
-- Vim commands
-- Mappings
-
-Do NOT create another homemade Vim implementation.
-
-Do NOT move Vim motions back into Rust.
+Use the existing MindForge icon language if available.
 
 ---
 
-# 10. HYBRID + NEOVIM MUST FEEL LIKE ONE EDITOR
+# 10. DOCUMENTATION PREVIEW
 
-Hybrid and Neovim are two editing engines inside the same MindForge editor.
+When an LSP completion item contains documentation, display it in a compact documentation panel.
 
-Maintain the existing visual contract between them.
+Support:
 
-They should share:
+- plain text
+- Markdown documentation
+- code blocks
+- basic formatting
 
-- font
-- font size
-- line height
-- gutter
-- line numbers
-- padding
-- editor origin
-- colors
-- selection
-- cursor geometry
-- scrolling
-- scrollbar
-- viewport
+Do not allow documentation to make the popup enormous.
 
-Switching:
+Use:
 
 ```text
-Hybrid
-   ↓
-Ctrl+E
+maximum width
+maximum height
+scrolling
+```
+
+and truncate intelligently.
+
+---
+
+# 11. COMPLETION PERFORMANCE
+
+This is critical.
+
+Completion must never freeze the application.
+
+Never block the egui/UI thread waiting for:
+
+- LSP
+- Neovim
+- language server
+- documentation
+- completion requests
+
+The architecture must remain asynchronous.
+
+```text
+Keyboard
    ↓
 Neovim
+   ↓
+LSP
+   ↓
+async response
+   ↓
+MindForge state
+   ↓
+completion popup
 ```
 
-must not feel like switching to another application.
+Never:
 
-Do not regress the existing work on editor consistency.
+```text
+UI thread
+   ↓
+WAIT FOR LSP
+   ↓
+freeze
+```
 
 ---
 
-# 11. STATUS BAR LANGUAGE SELECTOR
+# 12. LANGUAGE SERVER MANAGER
 
-This is an important part of the new code-editor experience.
+Create a centralized language-server management layer.
 
-MindForge already has a status bar.
+Conceptually:
 
-The status bar should display the current document language.
+```text
+src/
+├── language/
+│   ├── language.rs
+│   ├── registry.rs
+│   ├── server.rs
+│   ├── manager.rs
+│   ├── installer.rs
+│   ├── configuration.rs
+│   └── capabilities.rs
+│
+├── lsp/
+│   ├── client.rs
+│   ├── protocol.rs
+│   ├── completion.rs
+│   ├── diagnostics.rs
+│   ├── hover.rs
+│   ├── definition.rs
+│   ├── references.rs
+│   ├── rename.rs
+│   ├── formatting.rs
+│   └── code_actions.rs
+│
+├── vim/
+│   └── existing Neovim integration
+│
+└── hybrid/
+    └── existing Hybrid editor
+```
+
+Adapt this to the existing MindForge structure.
+
+Do not create duplicate systems.
+
+---
+
+# 13. LANGUAGE SERVER REGISTRY
+
+Create a centralized registry.
+
+Conceptually:
+
+```rust
+LanguageServerDefinition {
+    id,
+    display_name,
+    languages,
+    executable,
+    arguments,
+    installation_method,
+    configuration,
+}
+```
+
+Examples:
+
+```text
+HTML
+CSS
+JavaScript
+TypeScript
+Python
+Rust
+JSON
+YAML
+PHP
+```
+
+The registry should define:
+
+```text
+language
+      ↓
+server
+      ↓
+installation
+      ↓
+configuration
+```
+
+---
+
+# 14. `:LspInstall`
+
+Implement a MindForge command:
+
+```text
+:LspInstall <language>
+```
+
+Examples:
+
+```text
+:LspInstall html
+:LspInstall css
+:LspInstall typescript
+:LspInstall python
+:LspInstall rust
+```
+
+The command should:
+
+1. Resolve the language.
+2. Determine the configured language server.
+3. Check whether it is already installed.
+4. If installed, report that.
+5. If not installed, install it using the configured installation mechanism.
+6. Show progress.
+7. Capture errors.
+8. Verify installation.
+9. Update the language-server registry/state.
+
+Do NOT hard-code a single installation method for every language.
+
+Different servers may use:
+
+- npm
+- pip
+- cargo
+- system package
+- standalone binary
+- other supported mechanism
+
+The installation layer should abstract this.
+
+---
+
+# 15. `:LspList`
+
+Implement:
+
+```text
+:LspList
+```
+
+It should show something like:
+
+```text
+Language Servers
+
+✓ HTML          vscode-html-language-server
+✓ CSS           vscode-css-language-server
+✓ TypeScript    typescript-language-server
+✗ Python        not installed
+✓ Rust          rust-analyzer
+```
+
+Include:
+
+- language
+- server
+- installed/not installed
+- version when available
+- executable status
+
+Make the output readable in the existing MindForge command UI.
+
+---
+
+# 16. FUTURE COMMANDS
+
+Prepare the command architecture for:
+
+```text
+:LspInstall
+:LspList
+:LspRemove
+:LspUpdate
+:LspInfo
+:LspRestart
+:LspLog
+```
+
+Implement only the commands that are currently required.
+
+Do not build unnecessary features merely for completeness.
+
+---
+
+# 17. LANGUAGE STATUS BAR
+
+The existing status bar language selector should now become part of the language intelligence system.
 
 For example:
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ Ln 24   Col 8   Spaces: 4   UTF-8          Python ▼        │
-└─────────────────────────────────────────────────────────────┘
+Ln 24   Col 8   UTF-8   Spaces: 4   Python   ● LSP
 ```
 
-The language indicator should be interactive.
+The language remains clickable.
 
-Clicking it opens a polished language-selection dropdown.
+The LSP indicator should communicate:
+
+```text
+● connected
+○ starting
+× unavailable
+```
+
+Use subtle styling.
+
+Do not use giant colored badges.
 
 ---
 
-# 12. LANGUAGE DROPDOWN
+# 18. LSP STATUS
 
-The dropdown should feel like a native part of MindForge.
+The user should be able to immediately understand whether language intelligence is available.
 
-It should NOT look like a copy of VS Code.
-
-Example:
+Examples:
 
 ```text
-┌──────────────────────────────┐
-│ Search language...           │
-├──────────────────────────────┤
-│ ✓ Auto Detect                │
-│                              │
-│ Markdown                     │
-│ JavaScript                   │
-│ TypeScript                   │
-│ JSX                          │
-│ TSX                          │
-│ Python                       │
-│ Rust                         │
-│ PHP                          │
-│ HTML                         │
-│ CSS                          │
-│ JSON                         │
-│ YAML                         │
-│ SQL                          │
-│ Plain Text                   │
-└──────────────────────────────┘
+Python     ●
 ```
 
-The dropdown should support:
+means:
 
-- mouse selection
-- keyboard navigation
-- search/filtering
-- Enter to select
-- Escape to close
-- clear selected state
-- sensible scrolling for a long language list
+```text
+Python LSP connected
+```
 
-Make the interaction smooth and responsive.
+while:
+
+```text
+Python     ○
+```
+
+means:
+
+```text
+LSP starting
+```
+
+and:
+
+```text
+Python     ×
+```
+
+means:
+
+```text
+LSP unavailable/not installed
+```
+
+Clicking the status indicator may eventually open LSP information.
 
 ---
 
-# 13. ACCENT COLOR RULE
+# 19. LSP CAPABILITIES
 
-This is a specific visual requirement.
+The architecture should support the standard language-intelligence features.
 
-The selected language should use the MindForge **accent color for text/icons/indicators only**.
+Implement incrementally.
 
-Do NOT use a large accent-colored background.
+### Phase A — Current
 
-Do NOT create a large accent rectangle behind the selected item.
-
-Do NOT turn the language dropdown into a visually noisy component.
-
-Conceptually:
-
-```text
-Normal item:
-Python
-
-Selected item:
-Python   ← accent-colored text/icon
-```
-
-NOT:
-
-```text
-████████████████
-█ Python       █   ← NO large accent background
-████████████████
-```
-
-The dropdown should use the existing MindForge surface/background styling.
-
-The accent color should be subtle and intentional.
-
----
-
-# 14. AUTO DETECTION
-
-By default:
-
-```text
-main.py
-   ↓
-Auto Detect
-   ↓
-Python
-```
-
-The status bar should show:
-
-```text
-Python
-```
-
-The language detection should be automatic whenever the file extension is recognized.
-
----
-
-# 15. MANUAL LANGUAGE OVERRIDE
-
-The user must also be able to manually choose a language.
-
-Example:
-
-```text
-main.py
-```
-
-normally detects:
-
-```text
-Python
-```
-
-But the user can open:
-
-```text
-Language dropdown
-      ↓
-JavaScript
-```
-
-and MindForge should immediately use JavaScript syntax highlighting for the current editor.
-
-This is useful for:
-
-- unusual files
-- extensionless files
-- generated files
-- embedded languages
-- files where automatic detection is insufficient
-
----
-
-# 16. AUTO DETECT MUST BE RESTORABLE
-
-The dropdown must contain:
-
-```text
-Auto Detect
-```
-
-If the user manually overrides a file:
-
-```text
-Python → JavaScript
-```
-
-they can return to:
-
-```text
-Auto Detect
-```
-
-and MindForge returns to the language determined by the file extension.
-
----
-
-# 17. MANUAL OVERRIDE STATE
-
-Keep the implementation clean.
-
-Conceptually:
-
-```text
-Document
-   │
-   ├── path
-   ├── detected_language
-   └── language_override
-```
-
-Then:
-
-```text
-effective_language =
-    language_override
-    ?? detected_language
-```
-
-Adapt this to the existing document model rather than blindly implementing this exact structure.
-
-The important principle is that **detected language and manually selected language are separate concepts**.
-
----
-
-# 18. PERSISTENCE
-
-If technically appropriate within the existing architecture, a manual language override should persist for the document/session rather than disappearing immediately because the editor re-renders.
-
-However:
-
-Do not introduce a large persistence system just for this feature.
-
-Use the existing document/tab/session state architecture.
-
-Do not add unnecessary database complexity.
-
----
-
-# 19. MARKDOWN NOTE NAMING
-
-For newly created Markdown notes, maintain clean naming.
-
-Preferred:
-
-```text
-my_book.md
-python_basics.md
-database_design.md
-api_reference.md
-my_project_notes.md
-```
-
-Avoid unnecessarily messy note names such as:
-
-```text
-my book.md
-My Book!!.md
-hello@@world.md
-my---book.md
-```
-
-Use the existing filesystem/Wikilink constraints.
-
-Do not silently rename files.
-
-If the user enters an invalid Markdown note name, provide clear validation or a clean suggestion.
-
----
-
-# 20. DO NOT RESTRICT CODE FILENAMES
-
-Do NOT apply the Markdown naming rules to code.
-
-These are valid and common:
-
-```text
-package.json
-vite.config.ts
-index.test.ts
-main.spec.ts
-.env
-.gitignore
-```
-
-Code files should follow normal ecosystem conventions.
-
----
-
-# 21. LSP — PREPARE NOW, IMPLEMENT LATER
-
-This is one of the most important requirements.
-
-The architecture must be **LSP-ready**.
-
-But LSP is NOT part of this implementation phase.
-
-Think:
-
-```text
-                 MindForge
-                     │
-               File Language
-                     │
-          ┌──────────┴──────────┐
-          │                     │
-    Syntax Highlighting     Future LSP
-          │                     │
-        NOW                  LATER
-```
-
-Create clean extension points that will allow future integration of:
-
+- server lifecycle
 - completion
-- hover
+- syntax integration
+
+### Phase B
+
 - diagnostics
+- hover
+- signature help
+
+### Phase C
+
 - go-to-definition
 - references
+- document symbols
+- workspace symbols
+
+### Phase D
+
 - rename
-- code actions
 - formatting
+- code actions
 
-But do not implement those features now.
+Do not implement everything in one enormous change if the existing architecture isn't ready.
+
+The architecture must support the progression.
 
 ---
 
-# 22. ABSOLUTELY NO LSP INSTALLATION
+# 20. DIAGNOSTICS
 
-During this task:
+Prepare a beautiful diagnostic system.
 
-**DO NOT:**
-
-- install language servers
-- download language servers
-- launch language servers
-- spawn language-server processes
-- connect to LSP
-- automatically install Node/Python/Rust/PHP tooling
-- modify system package managers
-- add LSP installation workflows
-- add autocomplete
-- add diagnostics
-- add hover
-- add go-to-definition
-- add references
-- add LSP formatting
-- add LSP code actions
-
-The final state must be:
+Future UI:
 
 ```text
-LSP architecture:
-        ✓ Prepared
-
-LSP server:
-        ✗ Not installed
-
-LSP process:
-        ✗ Not running
-
-LSP communication:
-        ✗ Not active
-
-LSP features:
-        ✗ Not implemented
+┌────────────────────────────────────┐
+│ 10  const x =                      │
+│              ^                     │
+│              Expected expression   │
+└────────────────────────────────────┘
 ```
 
-The agent must understand that **“prepare for LSP” does not mean “start implementing LSP.”**
+Support:
+
+- errors
+- warnings
+- information
+- hints
+
+Use the gutter for subtle indicators.
+
+Do not cover the editor with large red/green UI.
 
 ---
 
-# 23. FUTURE LSP BOUNDARY
+# 21. HOVER
 
-Design the architecture so that a future Phase 2 can cleanly become:
+Prepare an integrated hover popup.
+
+Conceptually:
 
 ```text
-                  MindForge
+             ┌──────────────────────────┐
+             │ function foo(x: number)  │
+             │                          │
+             │ Returns the value...     │
+             └──────────────────────────┘
                       │
-               Language Manager
-                      │
-          ┌───────────┼───────────┐
-          │           │           │
-       Python     TypeScript     Rust
-          │           │           │
-         LSP         LSP         LSP
-          │           │           │
-       Server      Server      Server
+                      ▼
+                  identifier
 ```
 
-But stop before implementing this.
+It should use MindForge's existing popup styling.
 
 ---
 
-# 24. PERFORMANCE
+# 22. GO TO DEFINITION
 
-MindForge is already responsive and handles substantial SQLite data.
+Future:
 
-Do not introduce performance regressions.
+```text
+gd
+```
 
-Avoid:
+should eventually use LSP go-to-definition.
 
-- reparsing the entire document on every keystroke
-- rebuilding the entire editor every frame
-- cloning entire buffers unnecessarily
-- blocking the UI thread
-- unnecessary allocations
-- unnecessary Neovim synchronization
-- unnecessary database queries
-- recreating the editor when changing language
-- expensive syntax processing unrelated to the changed text
+Do not hard-code language-specific parsing.
 
-Syntax highlighting should be incremental or efficiently cached where the existing technology supports it.
+LSP provides the location.
 
----
+MindForge navigates to the corresponding document.
 
-# 25. INSPECT BEFORE MODIFYING
+This should integrate naturally with:
 
-Before writing code, inspect the repository.
-
-Identify:
-
-- existing editor abstraction
-- Hybrid editor
-- Neovim integration
-- Markdown highlighting
-- syntax-highlighting implementation
-- document model
-- tab model
-- file loading
-- file-extension handling
-- status bar
-- theme system
-- accent-color system
-- editor visual configuration
-- existing state management
-- existing persistence mechanisms
-
-Do not create duplicate abstractions if the project already has suitable ones.
-
-Reuse existing architecture wherever possible.
+- tabs
+- notes
+- workspace
+- file explorer
 
 ---
 
-# 26. IMPLEMENTATION ORDER
+# 23. LSP + MINDFORGE KNOWLEDGE GRAPH
 
-Follow this order.
+This is where MindForge can become something different from VS Code.
 
-### Step 1 — Repository inspection
+Do not merely reproduce IDE functionality.
 
-Understand the current architecture.
+Eventually, code entities can participate in the MindForge knowledge system.
 
-### Step 2 — Language model
+For example:
 
-Establish or extend the centralized file-language mapping.
+```text
+Python function
+       │
+       ├── definition
+       ├── references
+       └── related Markdown note
+```
 
-### Step 3 — File detection
+But do NOT implement this entire knowledge/LSP graph integration in the current completion task.
 
-Automatically identify the language from the extension.
+Prepare the interfaces.
 
-### Step 4 — Syntax highlighting
+Do not overreach.
 
-Add robust code syntax highlighting while preserving Markdown.
+---
 
-### Step 5 — Hybrid editor
+# 24. MARKDOWN REMAINS SPECIAL
 
-Verify code files can be edited normally.
+Markdown must continue to support:
 
-### Step 6 — Neovim
+- Wikilinks
+- backlinks
+- graph
+- preview
+- knowledge features
 
-Verify code files continue working through the existing Neovim integration.
+Do not force Markdown into the code-LSP system unnecessarily.
 
-### Step 7 — Status bar
+Markdown may eventually use Markdown LSP features, but the existing MindForge Markdown intelligence remains authoritative for MindForge-specific behavior.
 
-Add the language indicator.
+---
 
-### Step 8 — Language dropdown
+# 25. NEOVIM REMAINS THE VIM ENGINE
 
+Do not create:
+
+```text
+MindForge Vim engine
++
+Neovim Vim engine
+```
+
+There is only:
+
+```text
+Neovim
+```
+
+for Vim semantics.
+
+MindForge provides:
+
+```text
+UI
+language management
+LSP integration
+workspace
+knowledge system
+file system
+tabs
+status bar
+completion presentation
+```
+
+---
+
+# 26. HYBRID EDITOR
+
+Hybrid must also benefit from language detection and syntax highlighting.
+
+Where possible:
+
+```text
+Language
+   ↓
+Syntax/highlighting layer
+   ↓
+Hybrid
+```
+
+Neovim:
+
+```text
+Language
+   ↓
+Neovim
+   ↓
+LSP
+```
+
+Both should produce a visually consistent MindForge experience.
+
+---
+
+# 27. SHARED EDITOR VISUAL SYSTEM
+
+Do not allow:
+
+```text
+Hybrid = one style
+Neovim = completely different style
+LSP popup = third style
+```
+
+Instead:
+
+```text
+             MindForge Design System
+                     │
+       ┌─────────────┼─────────────┐
+       │             │             │
+    Hybrid        Neovim       LSP UI
+       │             │             │
+       └─────────────┴─────────────┘
+                     │
+              Same visual language
+```
+
+Use shared:
+
+- colors
+- typography
+- spacing
+- borders
+- corner radius
+- shadows
+- accent treatment
+- popup geometry
+- editor metrics
+
+---
+
+# 28. COMPLETION VISUAL DESIGN RULES
+
+The completion UI shown in the current implementation is too visually heavy.
+
+Specifically improve:
+
+### Current problems
+
+- popup is too large
+- selected row is too dominant
+- documentation panel is too large
+- excessive empty space
+- completion popup feels detached
+- typography doesn't feel fully integrated
+- popup geometry does not feel native to MindForge
+
+### Desired result
+
+Compact:
+
+```text
+┌──────────────────────────────────┐
+│ ▸ html      HTML element        │
+│   html5     HTML5 document      │
+│   head      HTML head element   │
+│   body      HTML body element   │
+└──────────────────────────────────┘
+```
+
+With optional documentation:
+
+```text
+┌──────────────────────┬──────────────────────┐
+│ ▸ html               │ HTML element         │
+│   html5              │                      │
+│   head               │ <!DOCTYPE html>     │
+│   body               │                      │
+└──────────────────────┴──────────────────────┘
+```
+
+The popup should be approximately as small as the available content requires.
+
+No arbitrary giant fixed dimensions.
+
+---
+
+# 29. ACCESSIBILITY
+
+Completion must remain usable without a mouse.
+
+Everything should be keyboard navigable.
+
+Ensure:
+
+- selected item is obvious
+- focus state is obvious
+- Escape works
+- Enter works
+- arrows work
+- Tab behavior is predictable
+- popup doesn't trap the user unexpectedly
+
+---
+
+# 30. PERFORMANCE
+
+This entire system must be asynchronous.
+
+Do not repeat the previous freeze problem.
+
+Never:
+
+```text
+UI
+ ↓
+LSP request
+ ↓
+WAIT
+ ↓
+UI frozen
+```
+
+Instead:
+
+```text
+UI
+ ↓
+request
+ ↓
+continue rendering
+ ↓
+LSP response
+ ↓
+update state
+ ↓
+render
+```
+
+Completion should feel instantaneous when the server is responsive.
+
+If the server is slow:
+
+```text
+editor remains fully usable
+```
+
+---
+
+# 31. FILE AND WORKSPACE ROOT
+
+LSP needs a proper workspace root.
+
+Implement robust root detection using project markers where appropriate.
+
+Examples:
+
+```text
+package.json
+pyproject.toml
+Cargo.toml
+tsconfig.json
+.git
+composer.json
+```
+
+Do not assume the file's directory is always the workspace root.
+
+The LSP manager should determine:
+
+```text
+current file
+       ↓
+workspace root
+       ↓
+language server
+```
+
+This is essential for real projects.
+
+---
+
+# 32. SERVER LIFECYCLE
+
+Do not start a new language server for every file.
+
+Prefer:
+
+```text
+Workspace
+    ↓
+Language Server Session
+    ↓
+Multiple files
+```
+
+Reuse sessions when appropriate.
+
+Handle:
+
+- startup
+- initialization
+- ready
+- shutdown
+- restart
+- crash
+- unavailable server
+- reconnect
+
+Gracefully.
+
+---
+
+# 33. MULTIPLE LANGUAGES
+
+MindForge may have:
+
+```text
+project/
+├── frontend/
+│   ├── App.tsx
+│   └── package.json
+│
+├── backend/
+│   ├── main.py
+│   └── pyproject.toml
+│
+└── rust/
+    ├── Cargo.toml
+    └── main.rs
+```
+
+The architecture must support multiple language servers/workspaces without global-state collisions.
+
+---
+
+# 34. ERROR HANDLING
+
+LSP failures must never crash MindForge.
+
+Examples:
+
+```text
+Server not installed
+Server executable missing
+Server failed to start
+Server crashed
+Invalid configuration
+Timeout
+Malformed response
+Unsupported capability
+```
+
+Show useful information in the MindForge UI.
+
+Do not dump raw protocol errors into the editor.
+
+---
+
+# 35. LOGGING / DEBUGGING
+
+Provide a controlled LSP log.
+
+Potential future command:
+
+```text
+:LspLog
+```
+
+The log should help diagnose:
+
+- server startup
+- initialization
+- capabilities
+- requests
+- responses
+- crashes
+
+Do not spam production logs.
+
+Allow appropriate debug-level logging.
+
+---
+
+# 36. DO NOT HARD-CODE LANGUAGE BEHAVIOR
+
+Do not write:
+
+```rust
+if python { autocomplete_python() }
+if javascript { autocomplete_javascript() }
+```
+
+LSP exists specifically to avoid that.
+
+MindForge should communicate through the standard LSP protocol.
+
+Language-specific knowledge belongs in the language server.
+
+---
+
+# 37. INSTALLER SECURITY
+
+Do not blindly execute arbitrary installation commands from user input.
+
+Language-server installation definitions must come from a trusted, centralized registry.
+
+Validate:
+
+- executable
+- arguments
+- package name
+- installation method
+
+Do not allow:
+
+```text
+:LspInstall <arbitrary shell command>
+```
+
+The user chooses a registered language, not a shell command.
+
+---
+
+# 38. TESTING
+
+Test at least:
+
+### HTML
+
+```text
+index.html
+```
+
+Test:
+
+- completion
+- tags
+- attributes
+- documentation
+- syntax highlighting
+
+### CSS
+
+```text
+styles.css
+```
+
+### JavaScript
+
+```text
+app.js
+```
+
+### TypeScript
+
+```text
+app.ts
+```
+
+### TSX
+
+```text
+App.tsx
+```
+
+### Python
+
+```text
+main.py
+```
+
+### Rust
+
+```text
+main.rs
+```
+
+Test completion and basic LSP behavior where the server is installed.
+
+---
+
+# 39. REGRESSION TEST
+
+Verify all existing functionality:
+
+```text
+Markdown
+Wikilinks
+Backlinks
+Graph
+SQLite
+Tabs
+Explorer
+Fuzzy finder
+Terminal
+Hybrid
+Neovim
+Vim motions
+Command line
+Status bar
+File switching
+```
+
+Do not sacrifice existing MindForge functionality for LSP.
+
+---
+
+# 40. IMPLEMENTATION STRATEGY
+
+Do not modify everything at once.
+
+Work in controlled stages:
+
+### Stage 1
+Inspect current LSP implementation.
+
+### Stage 2
+Create/clean Language Server Manager.
+
+### Stage 3
+Create/clean server registry.
+
+### Stage 4
 Implement:
 
-- Auto Detect
-- language list
-- search
-- keyboard navigation
-- manual override
-- Escape
-- Enter
+```text
+:LspInstall
+:LspList
+```
 
-### Step 9 — Styling
+### Stage 5
+Clean completion data flow.
 
-Use MindForge's existing visual system.
+### Stage 6
+Replace ugly/raw completion rendering with native MindForge completion UI.
 
-Selected language:
+### Stage 7
+Implement documentation preview.
 
-**accent-colored text/icon only.**
+### Stage 8
+Add LSP status to status bar.
 
-No accent background block.
+### Stage 9
+Add diagnostics architecture.
 
-### Step 10 — LSP boundary
+### Stage 10
+Prepare hover/definition/references.
 
-Ensure the architecture has a clean future extension point.
+### Stage 11
+Test multiple languages/workspaces.
 
-Do not activate LSP.
-
-### Step 11 — Regression testing
-
-Verify Markdown, Wikilinks, graph, tabs, Hybrid, Neovim, search, command line, and existing UI.
-
-### Step 12 — STOP
-
-Do not continue into LSP.
+Do not rush all features into one giant implementation.
 
 ---
 
-# 27. TEST MATRIX
+# 41. MOST IMPORTANT ARCHITECTURAL RULE
 
-Test these files:
-
-```text
-my_book.md
-python_basics.py
-app.js
-main.ts
-App.tsx
-main.rs
-index.php
-index.html
-styles.css
-package.json
-config.yaml
-query.sql
-unknown.xyz
-```
-
-Expected:
+Keep these responsibilities separate:
 
 ```text
-my_book.md        → Markdown
-python_basics.py → Python
-app.js            → JavaScript
-main.ts           → TypeScript
-App.tsx           → TypeScript React
-main.rs           → Rust
-index.php         → PHP
-index.html        → HTML
-styles.css        → CSS
-package.json      → JSON
-config.yaml       → YAML
-query.sql         → SQL
-unknown.xyz       → Plain Text
+                MIND FORGE
+                    │
+     ┌──────────────┼───────────────┐
+     │              │               │
+   Editor         Neovim           LSP
+     │              │               │
+ Rendering      Vim semantics    Language intelligence
+     │              │               │
+     └──────────────┼───────────────┘
+                    │
+              MindForge UI
 ```
 
-Then test manual override.
+Neovim does not become the UI.
 
-Example:
+LSP does not become the UI.
 
-```text
-python_basics.py
-       ↓
-Auto Detect
-       ↓
-Python
-       ↓
-Language dropdown
-       ↓
-JavaScript
-       ↓
-JavaScript highlighting
-```
+The language server does not become the editor.
 
-Then:
-
-```text
-Language dropdown
-       ↓
-Auto Detect
-       ↓
-Python
-```
+MindForge remains the application.
 
 ---
 
-# 28. FINAL ACCEPTANCE CRITERIA
+# 42. FINAL PRODUCT VISION
 
-The task is complete only when:
+The final experience should feel like:
 
-- [ ] Existing Markdown functionality remains intact.
-- [ ] Existing Markdown syntax highlighting remains intact.
-- [ ] Wikilinks remain intact.
-- [ ] Backlinks remain intact.
-- [ ] Graph remains intact.
-- [ ] Existing tabs remain intact.
-- [ ] Existing Neovim integration remains intact.
-- [ ] Hybrid remains intact.
-- [ ] Code files open normally.
-- [ ] File extensions automatically determine language.
-- [ ] Unknown extensions fall back to plain text.
-- [ ] Code syntax highlighting is robust and responsive.
-- [ ] JavaScript highlighting works.
-- [ ] TypeScript highlighting works.
-- [ ] TSX highlighting works.
-- [ ] Python highlighting works.
-- [ ] Rust highlighting works.
-- [ ] PHP highlighting works.
-- [ ] HTML highlighting works.
-- [ ] CSS highlighting works.
-- [ ] JSON highlighting works.
-- [ ] YAML highlighting works.
-- [ ] SQL highlighting works.
-- [ ] Status bar displays the effective language.
-- [ ] Status bar language indicator is clickable.
-- [ ] Dropdown opens cleanly.
-- [ ] Dropdown supports search/filtering.
-- [ ] Dropdown supports keyboard navigation.
-- [ ] Auto Detect is available.
-- [ ] Manual language selection works.
-- [ ] Manual override does not modify the filename.
-- [ ] Auto Detect restores extension-based detection.
-- [ ] Selected language uses accent-colored text/icon.
-- [ ] Selected language does NOT receive a large accent background.
-- [ ] Markdown naming remains clean.
-- [ ] Code filenames remain unrestricted.
-- [ ] Hybrid can edit code files.
-- [ ] Neovim can edit code files.
-- [ ] Ctrl+E continues working.
-- [ ] Hybrid and Neovim maintain the same visual language.
-- [ ] No old Vim implementation is reintroduced.
-- [ ] No LSP server is installed.
-- [ ] No LSP server is downloaded.
-- [ ] No LSP server is launched.
-- [ ] No LSP connection is established.
-- [ ] No LSP features are implemented.
-- [ ] Future LSP integration has a clean architectural boundary.
-- [ ] No existing MindForge functionality regresses.
+```text
+                    MINDFORGE
+┌───────────────────────────────────────────────────────────┐
+│ Tabs / Workspace / Knowledge                              │
+├───────────────────────────────────────────────────────────┤
+│                                                           │
+│  1 │ import React from "react"                            │
+│  2 │                                                      │
+│  3 │ function App() {                                     │
+│  4 │   return <div>Hello</div>                            │
+│  5 │ }                                                    │
+│                                                           │
+│                    ┌─────────────────────┐                │
+│                    │ ▸ div   JSX element │                │
+│                    │   div   HTML        │                │
+│                    │   Dialog            │                │
+│                    └─────────────────────┘                │
+│                                                           │
+├───────────────────────────────────────────────────────────┤
+│ Ln 4  Col 15  UTF-8  Spaces: 2    TypeScript   ● LSP     │
+└───────────────────────────────────────────────────────────┘
+```
+
+And for Markdown:
+
+```text
+┌───────────────────────────────────────────────────────────┐
+│                                                           │
+│ # My Book                                                 │
+│                                                           │
+│ This is my note about [[Programming]].                    │
+│                                                           │
+│ Wikilinks, backlinks, graph, preview...                   │
+│                                                           │
+├───────────────────────────────────────────────────────────┤
+│ Ln 8  Col 12  Markdown                                    │
+└───────────────────────────────────────────────────────────┘
+```
+
+The two worlds coexist naturally.
 
 ---
 
 # FINAL DIRECTIVE
 
-**Do not over-engineer this task.**
+**Do not turn MindForge into VS Code.**
 
-The desired result is:
+Build a better integration between:
 
 ```text
-                  MINDFORGE
-                      │
-       ┌──────────────┴──────────────┐
-       │                             │
-    MARKDOWN                        CODE
-       │                             │
-   Existing system          File Extension Detection
-   remains intact                    │
-       │                      Syntax Highlighting
-   Wikilinks                          │
-   Backlinks                    Hybrid / Neovim
-   Graph                              │
-       │                       Status Bar Language
-       │                              │
-       └──────────────┬───────────────┘
-                      │
-              FUTURE LSP BOUNDARY
-                      │
-                 NOT ACTIVE
+Knowledge
++
+Markdown
++
+Code
++
+Neovim
++
+LSP
++
+MindForge UI
 ```
 
-Build this foundation cleanly.
+The current LSP already works.
 
-**Do not install LSP.**
+Do not throw it away.
 
-**Do not implement LSP.**
+Improve the architecture around it.
 
-**Prepare for LSP.**
+Most importantly, fix the completion UI so that it looks like a **native MindForge component**, not a raw Neovim popup.
 
-Focus this phase on:
+The completion system must be:
 
-> **File extension → language detection → beautiful syntax highlighting → status-bar language selector → manual language override → clean Markdown naming.**
+- beautiful
+- compact
+- fast
+- keyboard-first
+- responsive
+- asynchronous
+- context-aware
+- visually consistent
+- extensible
 
-Everything that already works in MindForge must continue working exactly as before.
+Then build the Language Server Manager around it so commands such as:
 
-LSP is the next phase, not this phase.
+```text
+:LspInstall html
+:LspList
+```
+
+become reliable parts of MindForge.
+
+**Inspect the current implementation first. Reuse working components. Make incremental changes. Do not rewrite working Neovim, Hybrid, Markdown, database, tab, or knowledge functionality.**

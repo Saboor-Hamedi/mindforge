@@ -29,10 +29,14 @@ pub struct GridState {
     pub command_line: String,
     pub popup_items: Vec<String>,
     pub popup_meta: Vec<(String, String)>,
+    /// Documentation / body preview of each completion item.
+    pub popup_info: Vec<String>,
     pub message_at: Option<std::time::Instant>,
     pub popup_selected: Option<usize>,
     pub popup_anchor: Option<(usize, usize)>,
     pub message: String,
+    /// Errors stay visible for a few seconds instead of vanishing on the next redraw.
+    pub message_is_error: bool,
 }
 
 impl GridState {

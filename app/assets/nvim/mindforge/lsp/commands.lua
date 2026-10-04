@@ -11,6 +11,22 @@ local function server_names()
   return registry.names()
 end
 
+--- Sends every server with its status to MindForge's list panel.
+local function push_list(open, filter)
+  local rows = {}
+  for _, name in ipairs(registry.names()) do
+    local spec = registry.servers[name]
+    local status = 'available'
+    if installer.is_installing(name) then
+      status = 'installing'
+    elseif installer.is_installed(name) then
+      status = #vim.lsp.get_clients({ name = name }) > 0 and 'running' or 'installed'
+    end
+    rows[#rows + 1] = { name, status, spec.desc or '', table.concat(spec.config.filetypes or {}, ' ') }
+  end
+  return pcall(vim.rpcnotify, 0, 'mindforge_lsp_list', rows, open and true or false, filter or '')
+end
+
 --- `refresh` re-registers servers after an install changes what can run.
 function M.setup(refresh)
   local cmd = vim.api.nvim_create_user_command
@@ -28,26 +44,32 @@ function M.setup(refresh)
         if ok then
           refresh()
         end
+        push_list(false)
       end)
     end
+    push_list(false)
   end, { nargs = '*', complete = server_names, desc = 'Install language servers' })
 
   cmd('LspUninstall', function(opts)
     for _, name in ipairs(opts.fargs) do
       installer.uninstall(name, function()
         pcall(vim.lsp.enable, name, false)
+        push_list(false)
       end)
     end
   end, { nargs = '+', complete = server_names, desc = 'Uninstall language servers' })
 
-  cmd('LspList', function()
-    local installed, available = {}, {}
-    for _, name in ipairs(registry.names()) do
-      table.insert(installer.is_installed(name) and installed or available, name)
+  cmd('LspList', function(opts)
+    if not push_list(true, opts.args) then
+      local installed = {}
+      for _, name in ipairs(registry.names()) do
+        if installer.is_installed(name) then
+          table.insert(installed, name)
+        end
+      end
+      say(#installed .. ' installed of ' .. #registry.names() .. ': ' .. table.concat(installed, ', '))
     end
-    say('installed: ' .. (#installed > 0 and table.concat(installed, ', ') or '-')
-      .. '  |  available: ' .. (#available > 0 and table.concat(available, ', ') or '-'))
-  end, { desc = 'List language servers' })
+  end, { nargs = '?', desc = 'Browse language servers' })
 
   cmd('LspInfo', function()
     local names = {}

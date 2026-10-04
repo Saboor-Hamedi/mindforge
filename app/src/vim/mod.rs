@@ -1,6 +1,7 @@
 pub mod backend;
 pub mod client;
 pub mod input;
+pub mod lsp_panel;
 pub mod runtime;
 pub mod state;
 

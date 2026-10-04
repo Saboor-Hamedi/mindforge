@@ -51,7 +51,24 @@ M.servers = {
     config = {
       cmd_args = { '--stdio' },
       filetypes = { 'javascript', 'javascriptreact', 'typescript', 'typescriptreact' },
-      root_markers = { 'eslint.config.js', '.eslintrc.json', '.eslintrc.js', 'package.json', '.git' },
+      -- Only runs inside a project that actually configures ESLint; elsewhere
+      -- the server has no workspace and fails every diagnostic request.
+      root_dir = function(bufnr, on_dir)
+        local found = vim.fs.root(bufnr, {
+          'eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs', 'eslint.config.ts',
+          '.eslintrc', '.eslintrc.json', '.eslintrc.js', '.eslintrc.cjs', '.eslintrc.yml', '.eslintrc.yaml',
+        })
+        if found and vim.uv.fs_stat(found .. '/node_modules/eslint') then
+          on_dir(found)
+        end
+      end,
+      on_new_config = nil,
+      before_init = function(_, config)
+        config.settings = vim.tbl_deep_extend('force', config.settings or {}, {
+          workspaceFolder = { uri = vim.uri_from_fname(config.root_dir), name = vim.fn.fnamemodify(config.root_dir, ':t') },
+        })
+      end,
+      settings = { validate = 'on', run = 'onType', nodePath = vim.NIL, workingDirectory = { mode = 'auto' } },
     },
   },
   ts_ls = {

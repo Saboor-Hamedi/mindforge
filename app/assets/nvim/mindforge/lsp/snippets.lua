@@ -22,6 +22,25 @@ local html5 = table.concat({
   '</html>',
 }, '\n')
 
+-- Plain-text body of a snippet for the popup's preview pane.
+local function plain(text)
+  return (text:gsub('%$%{%d+:([^}]*)%}', '%1'):gsub('%$%{%d+%}', ''):gsub('%$%d+', ''))
+end
+
+local skeletons = {
+  { 'HTML5 document skeleton', html5 },
+  {
+    'HTML5 + stylesheet + script',
+    table.concat({
+      '<!DOCTYPE html>', '<html lang="en">', '<head>', '  <meta charset="UTF-8">',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+      '  <title>${1:Document}</title>', '  <link rel="stylesheet" href="style.css">', '</head>',
+      '<body>', '  $0', '  <script src="main.js"></script>', '</body>', '</html>',
+    }, '\n'),
+  },
+  { 'Minimal HTML', '<!DOCTYPE html>\n<html>\n<head>\n  <title>${1:Document}</title>\n</head>\n<body>\n  $0\n</body>\n</html>' },
+}
+
 local js_snippets = {
   { 'clg', 'console.log($0)', 'console.log' },
   { 'fn', 'function ${1:name}(${2:args}) {\n  $0\n}', 'function declaration' },
@@ -105,6 +124,7 @@ local function snippet_item(label, text, detail, sort)
     detail = detail,
     insertText = text,
     insertTextFormat = 2,
+    documentation = plain(text),
     sortText = sort or ('~' .. label), -- real server results rank before snippets
   }
 end
@@ -134,7 +154,10 @@ local function markup_items(filetype, line_before, params, bufnr)
   end
   if bang then
     if not jsx then
-      add('!', html5, 'HTML5 document skeleton', '!')
+      for index, skeleton in ipairs(skeletons) do
+        add('!' .. (index > 1 and ' ' .. index or ''), skeleton[2], skeleton[1], tostring(index))
+        items[#items].filterText = '!'
+      end
     end
     return items
   end
@@ -163,7 +186,12 @@ local function items_for(filetype, params, bufnr)
   end
   if MARKUP[filetype] ~= nil and params then
     local line = vim.api.nvim_buf_get_lines(bufnr, params.position.line, params.position.line + 1, false)[1] or ''
-    vim.list_extend(items, markup_items(filetype, line:sub(1, params.position.character), params, bufnr))
+    local before = line:sub(1, params.position.character)
+    local markup = markup_items(filetype, before, params, bufnr)
+    if before:match('!$') then
+      return markup -- mixing in plain snippets would shift the replaced range
+    end
+    vim.list_extend(items, markup)
   end
   return items
 end
@@ -208,6 +236,9 @@ end
 --- Attaches the snippet server to `bufnr` when its filetype has snippets.
 function M.attach(bufnr)
   local filetype = vim.bo[bufnr].filetype
+  -- `!` must count as a word character so the Emmet "!" skeleton replaces it.
+  local keyword = vim.bo[bufnr].iskeyword:gsub(',!', '')
+  vim.bo[bufnr].iskeyword = MARKUP[filetype] ~= nil and (keyword .. ',!') or keyword
   if not M.snippets[filetype] and MARKUP[filetype] == nil then
     return
   end

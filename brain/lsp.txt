@@ -122,3 +122,12 @@ Built-in HTML / JSX / TSX completion
   No server needed: type a tag (h1) or an Emmet abbreviation (ul.menu>li*3, div#app.card)
   and accept with Tab/Enter to expand it. In .html files type ! for the HTML5 skeleton.
   In JSX/TSX class becomes className and void tags are self-closed.
+
+
+:LspList panel
+  :LspList [filter] opens a scrollable list of every server (installed first).
+  Type to filter, Up/Down/Ctrl+J/K move, Enter installs, Del uninstalls, Esc closes.
+  Completion popup: arrows, Ctrl+J/K, Tab/Enter accept, mouse hover and click.
+  ts_ls needs TypeScript 5: run :LspInstall ts_ls once.
+
+eslint: starts only in a project with an ESLint config AND node_modules/eslint installed (npm i -D eslint); otherwise it stays off.

@@ -32,6 +32,7 @@ pub struct VimBackend {
     layout_font_size: u32,
     cursor_render_initialized: bool,
     busy: Option<String>,
+    lsp_panel: super::lsp_panel::LspPanel,
     line_numbers_enabled: Option<bool>,
     cached_theme: Option<(Color32, Color32, Color32, Color32)>,
 }
@@ -194,6 +195,7 @@ impl VimBackend {
             layout_font_size: 0,
             cursor_render_initialized: false,
             busy: None,
+            lsp_panel: Default::default(),
             line_numbers_enabled: None,
             cached_theme: None,
         })
@@ -221,9 +223,33 @@ impl VimBackend {
                 .and_then(Value::as_str)
                 .unwrap_or("");
             self.busy = (!label.is_empty()).then(|| label.to_owned());
+        } else if items.get(1).and_then(Value::as_str) == Some("mindforge_lsp_list") {
+            self.apply_lsp_list(items.get(2));
         } else if items.get(1).and_then(Value::as_str) == Some("nvim_buf_lines_event") {
             self.apply_lines_event(items.get(2).unwrap_or(&Value::Nil));
         }
+    }
+
+    fn apply_lsp_list(&mut self, args: Option<&Value>) {
+        let Some(args) = args.and_then(Value::as_array) else { return };
+        let text = |value: &Value, i: usize| value.as_array().and_then(|r| r.get(i)).and_then(Value::as_str).unwrap_or("").to_owned();
+        let rows = args
+            .first()
+            .and_then(Value::as_array)
+            .map(|rows| {
+                rows.iter()
+                    .map(|row| super::lsp_panel::LspRow {
+                        name: text(row, 0),
+                        status: text(row, 1),
+                        desc: text(row, 2),
+                        filetypes: text(row, 3),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let open = args.get(1).and_then(Value::as_bool).unwrap_or(false);
+        let filter = args.get(2).and_then(Value::as_str).unwrap_or("");
+        self.lsp_panel.update(rows, open, filter);
     }
 
     fn apply_lines_event(&mut self, args: &Value) {
@@ -376,6 +402,7 @@ impl VimBackend {
                 "popupmenu_show" if !args.is_empty() => {
                     self.grid.popup_items = popupmenu_items(&args[0]);
                     self.grid.popup_meta = popupmenu_meta(&args[0]);
+                    self.grid.popup_info = popupmenu_info(&args[0]);
                     self.grid.popup_selected = args
                         .get(1)
                         .and_then(Value::as_i64)
@@ -386,20 +413,35 @@ impl VimBackend {
                         num(args.get(3).unwrap_or(&Value::Nil)),
                     ));
                 }
+                // Arrow / Ctrl+J/K navigation only emits a select event.
+                "popupmenu_select" if !args.is_empty() => {
+                    self.grid.popup_selected = args[0]
+                        .as_i64()
+                        .filter(|selected| *selected >= 0)
+                        .map(|selected| selected as usize);
+                }
                 "popupmenu_hide" => {
                     self.grid.popup_items.clear();
                     self.grid.popup_meta.clear();
+                    self.grid.popup_info.clear();
                     self.grid.popup_selected = None;
                     self.grid.popup_anchor = None;
                 }
                 "msg_show" if args.len() >= 2 => {
                     if matches!(args[0].as_str(), Some("return_prompt" | "confirm")) {
-                        let _ = self.client.input("<CR>");
+                        let _ = self.client.input("<Esc>");
                     }
+                    self.grid.message_is_error =
+                        matches!(args[0].as_str(), Some("emsg" | "echoerr" | "lua_error" | "rpc_error"));
                     self.grid.message = compact_message(&cmdline_text(&args[1]));
                     self.grid.message_at = Some(std::time::Instant::now());
                 }
                 "msg_clear" => {
+                    let sticky = self.grid.message_is_error
+                        && self.grid.message_at.is_some_and(|at| at.elapsed() < Duration::from_secs(8));
+                    if sticky {
+                        continue;
+                    }
                     self.grid.message.clear();
                     self.grid.message_at = None;
                 }
@@ -984,6 +1026,16 @@ fn popupmenu_items(value: &Value) -> Vec<String> {
         .collect()
 }
 
+fn popupmenu_info(value: &Value) -> Vec<String> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_array)
+        .map(|item| item.get(3).and_then(Value::as_str).unwrap_or("").to_owned())
+        .collect()
+}
+
 /// Maps the LSP completion kind label to a short glyph column.
 fn popupmenu_meta(value: &Value) -> Vec<(String, String)> {
     value
@@ -1017,6 +1069,12 @@ fn mouse_button(button: u8) -> &'static str {
 
 impl EditorBackend for VimBackend {
     fn handle_key(&mut self, event: EditorKeyEvent) -> EditorResult<()> {
+        if self.lsp_panel.open {
+            return match self.lsp_panel.handle_key(event.key, event.modifiers) {
+                super::lsp_panel::PanelAction::Run(keys) => self.client.input(&keys),
+                super::lsp_panel::PanelAction::None => Ok(()),
+            };
+        }
         let mut key = match event.key {
             egui::Key::Escape => "<Esc>".to_owned(),
             egui::Key::Enter => "<CR>".into(),
@@ -1067,6 +1125,10 @@ impl EditorBackend for VimBackend {
     }
 
     fn handle_text(&mut self, text: &str) -> EditorResult<()> {
+        if self.lsp_panel.open {
+            self.lsp_panel.handle_text(text);
+            return Ok(());
+        }
         self.client.input_text(text)
     }
 
@@ -1454,9 +1516,9 @@ impl EditorBackend for VimBackend {
                 egui::vec2(popup_width, popup_height),
             );
             popup_hit = Some((popup_rect, start));
-            painter.rect_filled(popup_rect, 2.0, theme.surface());
-            painter.rect_stroke(popup_rect, 2.0, Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
             let small = crate::services::font_manager::editor_font_id(11.0);
+            painter.rect_filled(popup_rect.translate(egui::vec2(0.0, 4.0)), 8.0, Color32::from_black_alpha(65));
+            painter.rect(popup_rect, 8.0, theme.surface(), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
             for (row, index) in (start..start + visible).enumerate() {
                 let item = &self.grid.popup_items[index];
                 let (kind, extra) = self
@@ -1502,7 +1564,39 @@ impl EditorBackend for VimBackend {
                     );
                 }
             }
-            if total > visible {
+            // Detail pane for the highlighted item, like the hover preview.
+            let focus = selected.or_else(|| hover_pos.and_then(|p| {
+                (popup_rect.contains(p)).then(|| start + ((p.y - popup_rect.min.y) / nvim_row_height) as usize)
+            })).filter(|index| *index < total).unwrap_or(0);
+            let body = self.grid.popup_info.get(focus).map(String::as_str).unwrap_or("");
+            if !body.trim().is_empty() {
+                let lines: Vec<String> = body
+                    .lines()
+                    .take(18)
+                    .map(|line| line.chars().take(64).collect::<String>().replace('\t', "  "))
+                    .collect();
+                let pane_width = (rect.width() * 0.45).clamp(200.0, 420.0);
+                let pane_height = ((lines.len() as f32 + 1.0) * nvim_row_height).min(rect.height());
+                let right_x = popup_rect.max.x + 6.0;
+                let pane_x = if right_x + pane_width <= rect.max.x {
+                    right_x
+                } else {
+                    (popup_rect.min.x - pane_width - 6.0).max(rect.min.x)
+                };
+                let pane_y = popup_y.min((rect.max.y - pane_height).max(rect.min.y));
+                let pane = Rect::from_min_size(Pos2::new(pane_x, pane_y), egui::vec2(pane_width, pane_height));
+                painter.rect_filled(pane.translate(egui::vec2(0.0, 4.0)), 8.0, Color32::from_black_alpha(65));
+                painter.rect(pane, 8.0, theme.surface(), Stroke::new(1.0, theme.border()), egui::StrokeKind::Inside);
+                for (line_index, line) in lines.iter().enumerate() {
+                    painter.text(
+                        Pos2::new(pane.min.x + 10.0, pane.min.y + nvim_row_height * 0.5 + line_index as f32 * nvim_row_height),
+                        Align2::LEFT_TOP,
+                        line,
+                        small.clone(),
+                        theme.text.linear_multiply(0.85),
+                    );
+                }
+            }            if total > visible {
                 painter.text(
                     Pos2::new(popup_rect.max.x - 6.0, popup_rect.max.y - 1.0),
                     Align2::RIGHT_BOTTOM,
@@ -1512,13 +1606,30 @@ impl EditorBackend for VimBackend {
                 );
             }
         }
+        let mut panel_clicked = false;
+        if self.lsp_panel.open {
+            let click = response.clicked().then(|| response.interact_pointer_pos()).flatten();
+            let small = crate::services::font_manager::editor_font_id(11.0);
+            if let Some(index) = self.lsp_panel.paint(&painter, rect, nvim_row_height, &font, &small, theme, click) {
+                if let super::lsp_panel::PanelAction::Run(keys) = self.lsp_panel.activate_row(index) {
+                    let _ = self.client.input(&keys);
+                }
+            }
+            panel_clicked = click.is_some_and(|p| self.lsp_panel.contains(rect, nvim_row_height, p));
+            if response.hovered() {
+                let delta = ui.input(|i| i.raw_scroll_delta.y);
+                if delta != 0.0 {
+                    self.lsp_panel.scroll(if delta > 0.0 { -1 } else { 1 });
+                }
+            }
+        }
         if let Some(error) = &self.error {
             painter.text(origin, Align2::LEFT_TOP, error, font, theme.highlight);
         }
 
         // Mouse interactions
         let mut mouse_actions = Vec::new();
-        if let Some(pos) = response.interact_pointer_pos() {
+        if let Some(pos) = response.interact_pointer_pos().filter(|_| !self.lsp_panel.open && !panel_clicked) {
             let row = ((pos.y - origin.y) / nvim_row_height).floor().max(0.0) as usize;
             let column = ((pos.x - origin.x) / cell_width).floor().max(0.0) as usize;
             if response.dragged() {

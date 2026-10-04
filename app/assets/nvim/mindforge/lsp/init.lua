@@ -43,7 +43,16 @@ local function build_config(name)
   if command then
     server.cmd = vim.list_extend(command, args)
   end
-  server.root_markers = server.root_markers or { '.git' }
+  if spec and spec.tsserver then
+    local lib = installer.typescript_lib(spec)
+    if not lib then
+      return nil
+    end
+    server.init_options = vim.tbl_deep_extend('force', server.init_options or {}, { tsserver = { path = lib } })
+  end
+  if not server.root_dir then
+    server.root_markers = server.root_markers or { '.git' }
+  end
   if override then
     server = vim.tbl_deep_extend('force', server, override)
   end
@@ -112,7 +121,9 @@ end
 function M.reset_buffer()
   local buf = vim.api.nvim_get_current_buf()
   for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
-    pcall(vim.lsp.buf_detach_client, buf, client.id)
+    if not vim.startswith(client.name, 'mindforge-') then
+      pcall(client.stop, client)
+    end
   end
 end
 
