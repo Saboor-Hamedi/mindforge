@@ -95,7 +95,18 @@ local function setup_keys()
   end)
   map('i', '<CR>', function()
     if vim.fn.pumvisible() == 1 then
-      return pum_selected() >= 0 and '<C-y>' or '<C-e><CR>'
+      if pum_selected() >= 0 then
+        return '<C-y>'
+      end
+      -- Nothing highlighted: accept an Emmet-style abbreviation when the menu
+      -- has a result. LSP completion `word` can be the expansion, not the typed
+      -- abbreviation, so matching it against the line incorrectly misses valid items.
+      local first = vim.fn.complete_info({ 'items' }).items[1]
+      local before = vim.api.nvim_get_current_line():sub(1, vim.fn.col('.') - 1)
+      if first and before:match('[%w_]+[>+*#%.].*$') then
+        return '<C-n><C-y>'
+      end
+      return '<C-e><CR>'
     end
     local col = vim.fn.col('.')
     local line = vim.fn.getline('.')

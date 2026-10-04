@@ -12,6 +12,36 @@ use eframe::egui;
 /// Processes all keyboard shortcuts and text typing.
 /// Returns true if a character or text edit occurred in the editor.
 pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
+    // Ctrl+Space is an editor command. Route it before panel shortcut handlers,
+    // which may otherwise return early while a sidebar or prompt owns focus.
+    let ctrl_space = ctx.input(|i| {
+        i.events.iter().find(|event| matches!(event,
+            egui::Event::Key { key: egui::Key::Space, pressed: true, modifiers, .. }
+                if modifiers.ctrl || modifiers.command
+        )).cloned()
+    });
+    if let Some(event) = ctrl_space {
+        let editor_can_receive = matches!(app.misc.mode, Mode::Normal | Mode::Doc)
+            && app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
+            && !app.command_bar.in_command
+            && !app.modal.search_open
+            && !app.modal.settings_open
+            && !app.modal.rename_open
+            && !app.modal.delete_confirm_open
+            && !app.misc.accent_dropdown_open
+            && !app.services.wikilink_autocomplete.is_active;
+        if editor_can_receive {
+            app.sidebar.focused = false;
+            app.tabs.doc_sidebar_focused = false;
+            app.terminal.focused = false;
+            app.services.agent_state.is_input_focused = false;
+            ctx.memory_mut(|memory| memory.surrender_focus(egui::Id::new("deepseek_prompt_input")));
+            if let Some(typed) = crate::vim::input::handle_event(app, &event, now, false, false) {
+                return typed;
+            }
+        }
+    }
+
     // Route critical modal shortcuts (Ctrl+P, Ctrl+Shift+P, Ctrl+,) from the raw key event
     // before Vim input or focused widgets can consume them.
     let (ctrl_p, ctrl_shift_p, ctrl_comma) = ctx.input(|i| {

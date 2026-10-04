@@ -531,4 +531,93 @@
 6. **Security**: replace XOR "encryption" with a real credential store; sanitize updater temp path; bound the clipboard scan; remove `set_var`/`static mut`.
 7. **Dead code**: delete or wire up the SM-2/calibration subsystem, `inline_mode` paths, `statusbar.rs`, `modals/confirm.rs`.
 8. **Hardcodes**: extract shared constants (colors → `Theme`, paths, ids, `ProjectDirs`, `"Untitled Note"`, 14-day window, gutter formula, `lerp_color`).
-9. **Ugliness**: split god functions, de-duplicate the copy-pasted blocks listed above, replace magic char-width `7.x` with real glyph metrics.
+   9. **Ugliness**: split god functions, de-duplicate the copy-pasted blocks listed above, replace magic char-width `7.x` with real glyph metrics.
+
+---
+
+## 🔁 SECOND PASS — ADDITIONAL FINDINGS (not in first pass)
+
+### 🔴 NEW UTF-8 byte-slice panic sites (latent panics on multi-byte text)
+- **app/src/setting/ai_engine.rs:191** — BUG — `format!("✓ Key configured ({}...{})", &clean[..4], &clean[clean.len() - 4..])` guarded only by `clean.len() > 8`; a pasted key with multi-byte UTF-8 (clipboard accepts arbitrary text) slices a non-char-boundary → panic.
+- **app/src/setting/updates.rs:108** — BUG — `if notes.len() > 80 { format!("{}…", &notes[..80]) }` slices GitHub release notes at a fixed byte offset; release notes commonly contain emoji/multi-byte chars → panic.
+- **app/src/setting/updates.rs:156** — BUG — `if msg.len() > 90 { format!("{}…", &msg[..90]) }` same panic risk on error strings (may contain URLs/unicode from reqwest).
+- **app/src/setting/backup.rs:60** — BUG — `format!("...{}", &backup_dir[backup_dir.len() - 39..])` panics when the last 39 bytes are not a char boundary; Windows paths with non-ASCII (e.g. `C:\Users\José\…`) are realistic.
+- **app/src/setting/backup.rs:142** — BUG — `format!("...{}", &s[s.len() - 29..])` same non-char-boundary panic on `last_backup_status` text.
+- **app/src/setting/shortcuts.rs:334** — BUG — `format!("...{}", &path_display[path_display.len().saturating_sub(40)..])` slices the keymap path at a byte offset; non-ASCII user profile directories (common on Windows) → panic.
+
+### 🔴 NEW bugs
+- **app/src/setting/sounds.rs:54-56** — BUG — muting then unmuting always restores `SoundProfile::Thocky` (`sound.profile = SoundProfile::Thocky;`), discarding whatever profile (Clacky, Creamy, …) the user had before muting.
+- **app/src/setting/shortcuts.rs:384** — BUG — `let thumb_h = (visible_h * visible_h / content_h).clamp(24.0, visible_h);` panics ("min is greater than max") whenever the list viewport is shorter than 24px (`visible_h < 24.0` while `max_scroll > 0.0`); latent today only because the modal clamps its height (`setting_container.rs:45`).
+- **app/src/setting/shortcuts.rs:368** — BUG/HARDCODE — `let _ = std::process::Command::new("explorer").arg(parent).spawn();` hardcodes the Windows `explorer` (silently no-ops on macOS/Linux) and discards the `Result` with no user feedback.
+- **app/src/setting/lunaline_tab.rs:73-75, 146-148, 237-239** — BUG (improper error handling) — `if let Ok(json) = serde_json::to_string(config) { on_save_setting(...) }` discards serialization errors with no log or fallback, so a toggle/style change would silently fail to persist.
+- **app/src/app/build.rs:9** — BUG (improper error handling) — `let _ = res.compile();` silently ignores failure to compile the Windows resource (e.g. missing icon file), producing a shipped binary with no icon and no build warning.
+- **app/src/vim/runtime.rs:76-78** — BUG (improper error handling) — `PendingVimInput::Text(text) => { let _ = backend.handle_text(&text); }` (and `paste`/`handle_key` on the next lines) discard all errors from the Neovim backend during pending-input replay, so failed replayed keystrokes go unnoticed.
+- **app/src/bin/publish.rs:95-105** — BUG — `bump_patch` uses `filter_map(|p| p.parse().ok())`, so a version like `1.2.3-beta` yields `parts.len() == 2` and bails with "Unexpected version format" instead of bumping the patch segment (pre-release versions rejected).
+- **app/src/bin/publish.rs:79-93, 107-116** — BUG/UGLY — `read_version` matches the first line `starts_with("version")` (also matches `[workspace.package]`/dependency lines) and keeps trailing comments (`version = "1.0" # x` → `1.0" # x`), after which `write_version`'s `replacen` silently fails to match and the version is never updated (no verification that a replacement occurred).
+- **app/src/bin/publish.rs:170** — BUG (improper error handling) — `io::stdin().read_line(&mut input).ok();` silently ignores stdin failures (closed/redirected stdin), defaulting to the bumped version with no warning.
+- **app/src/bin/publish.rs:143** — BUG (improper error handling) — `std::env::current_dir().expect("cannot get cwd")` panics instead of using the file's own `bail()` helper used everywhere else.
+- **app/src/app/init.rs:575** — UGLY — `eprintln!` used for shutdown-save error reporting in production (no log aggregation; message only visible if launched from a terminal).
+
+### 🔒 NEW security / misleading security claims
+- **app/src/setting/ai_engine.rs:39** — SECURITY — card title reads `"API Key (Encrypted Storage)"`, but storage is `obfuscate_key()` (reversible XOR with a hardcoded salt), not encryption.
+- **app/src/setting/ai_engine.rs:289** — SECURITY — info text claims `"• API keys are hashed and encrypted before storing in your local settings."` — the key is neither hashed (reversible via `deobfuscate_key`) nor encrypted (XOR key is a source literal), misleading users about key safety.
+
+### 🟡 NEW hardcodes
+- **app/src/bin/publish.rs:247** — HARDCODE — `println!("  {CYAN}https://github.com/Saboor-Hamedi/my_first_project/releases/tag/{tag}{RESET}")` — the `publish` binary ALSO hardcodes the leftover `my_first_project` repo URL (same bug as `updater.rs:115`); should be one shared constant.
+- **app/src/vim/runtime.rs:111** — HARDCODE — fabricates a literal `"note.md"` name for Doc-mode buffers passed to Neovim (also `app.rs:144`, `backend.rs:674`).
+- **app/src/vim/runtime.rs:143** — HARDCODE — `(80, 24)` terminal fallback + `.max(20.0)`/`.max(5.0)` minimum grid dims (139-140) are bare magic numbers.
+- **app/src/setting/ai_engine.rs:55, 174, 216-219, 265** — HARDCODE — setting keys `"deepseek_reveal_key"`, `"deepseek_api_key_enc"`, `"deepseek_model"` and model IDs `"deepseek_chat"`/`"deepseek-reasoner"` are string literals scattered through the render function; also URL `"platform.deepseek.com"` (184) and hint `"Paste API key (sk-...)"` (163).
+- **app/src/setting/ai_engine.rs:137-138, 146, 186, 200** — HARDCODE — inline `Color32::from_rgba_unmultiplied(220, 60, 60, 24)`, `Color32::from_rgb(235, 160, 50)`, `Color32::from_rgb(46, 204, 113)` duplicate colors also hardcoded in `sounds.rs` instead of theme tokens.
+- **app/src/setting/ai_engine.rs:32-300** — HARDCODE — pervasive f32 layout literals: `(panel_rect.width() - 56.0).max(320.0)`, `cur_y + 58.0`, card heights `42.0`/`54.0`/`110.0`, offsets `22.0`/`26.0`/`48.0`/`74.0`, button geometry `46.0`/`40.0`/`48.0`/`44.0`/`42.0`.
+- **app/src/setting/updates.rs:107, 136-137** — HARDCODE — `.take(2)` line limit, `80`/`90` truncation widths, `1_048_576.0` MB divisor.
+- **app/src/setting/updates.rs:18, 37, 61, 191, 194** — HARDCODE — `panel_rect.width() - 56.0`, `p_origin.y + 54.0`, `+ 132.0`, `210.0_f32.min(card_w)`, `p_origin.y + 266.0`.
+- **app/src/setting/backup.rs:58, 200** — HARDCODE — `"Default: mindforge_backup/"` and `"mindforge_backup_YYYYMMDD_HHMMSS.db"` hardcode the backup naming convention in the UI (the backup service owns this format, so the two can drift).
+- **app/src/setting/backup.rs:59-60, 141-142** — HARDCODE — truncation thresholds `42`/`39` and `32`/`29` are unexplained.
+- **app/src/setting/backup.rs:39, 67, 86, 121, 124, 155, 186, 189** — HARDCODE — card heights `90.0`/`82.0`/`132.0`, gaps `105.0`/`98.0`, button geometry `card_w - 150.0`/`126.0`/`180.0`, `112.0`/`166.0`.
+- **app/src/setting/carets.rs:57-61, 64-65, 125** — HARDCODE — `chip_start_y = 46.0`, `col_gap = 12.0`, `row_gap = 10.0`, `row_h = 44.0`, hardcoded 4-column grid (`/ 4.0`, `idx % 4`, `idx / 4`, `(len + 3) / 4`).
+- **app/src/setting/carets.rs:169, 185** — HARDCODE — `(1.0 + t * 9.0).round().clamp(1.0, 10.0)` and `((caret.width - 1.0) / 9.0)` hardcode the 1–10 px width range in two places that must stay in sync.
+- **app/src/setting/lunaline_tab.rs:57-58, 130-131, 196-198** — HARDCODE — `col_gap = 10.0`, hardcoded column counts (`/ 4.0`, `/ 3.0`), `row_h = 32.0`, `(available_w - 20.0) * 0.5`, `pill_w = 40.0`.
+- **app/src/setting/tabs.rs:21-33** — HARDCODE/BUG — `pub const ALL: [SettingTab; 11]` must be kept in sync with the enum by hand; adding a variant compiles but silently omits it from the settings UI (no compile-time tie to the enum).
+- **app/src/setting/shortcuts.rs:263** — HARDCODE — `row_left + 8.0 + (g_label.len() as f32 * 6.5) + 12.0` guesses label width with a hardcoded 6.5 px/char, which breaks for proportional fonts and non-ASCII labels.
+- **app/src/setting/shortcuts.rs:29-32, 109-112, 182-215** — HARDCODE — `200.0f32.min(panel_rect.width() - 40.0)`, `pad_x = 20.0`, `row_h = 36.0`, `header_h = 24.0`, `content_h … + 42.0 + 24.0`.
+- **app/src/setting/sounds.rs:64, 71, 89** — HARDCODE — `Color32::from_rgba_unmultiplied(220, 60, 60, 28)` / `Color32::from_rgb(220, 80, 80)` duplicate the same "danger red" hardcoded in `ai_engine.rs:137-138` instead of a shared theme token.
+- **app/src/setting/sounds.rs:93-99** — HARDCODE — `available_w = panel_rect.width() - 56.0` (no `.max()`, can go negative), hardcoded `cols = 4`, `col_gap/row_gap = 10.0`, `s_row_h = 52.0`.
+- **app/src/setting/sounds.rs:156-158** — HARDCODE/UGLY — `Color32::from_rgb((theme.accent.r() as f32 * 0.75) as u8, …)` hand-rolls color dimming with truncating casts; the theme already provides `lerp_to_gamma` used elsewhere.
+- **app/src/setting/editor_mode.rs:31-32, 36, 87, 91** — HARDCODE — `panel_rect.width() - 56.0`, `p_origin.y + 52.0`, card height `128.0`, gap `138.0` (and `card_w` lacks a `.max()` floor, unlike sibling tabs).
+- **app/src/setting/setting_container.rs:40-46, 58, 103** — HARDCODE — backdrop alpha `90`/`160`, modal clamps `(bounds.width() - 80.0).clamp(640.0, 880.0)` / `.clamp(480.0, 680.0)`, `tab_w = 180.0`, `0.35` s click-debounce.
+- **app/src/setting/setting_font.rs:48** — HARDCODE — `(selected_font.is_empty() && font.id == "jetbrains_mono")` hardcodes the default font ID instead of a named constant (also `palette.rs:170`).
+- **app/src/setting/setting_font.rs:128** — HARDCODE — `format!("{} • Install in Windows or drop .ttf into fonts/", font.description)` bakes in a Windows-only instruction and a relative `fonts/` path.
+- **app/src/setting/setting_font.rs:159-160, 171, 187** — HARDCODE — `slider_x = origin.x + 76.0`, `slider_w = 160.0`, `(12.0 + t * 16.0).round().clamp(12.0, 28.0)` hardcode the 12–28 px range in two places.
+- **app/src/app/build.rs:5-8** — HARDCODE — `res.set_icon("assets/icon.ico")` and the `ProductName`/`FileDescription`/`CompanyName` strings are hardcoded relative paths/literals (break if the crate root moves).
+
+### 🟢 NEW ugly code
+- **app/src/setting/ai_engine.rs:7-300** — UGLY — `render_ai_tab` is a ~290-line god function mixing layout math, hit-testing, clipboard access, and painting for three cards with no helpers.
+- **app/src/setting/ai_engine.rs:171-175** — UGLY/perf — `key_changed` is set by `resp.changed()` (line 167), so each character typed re-obfuscates the key and calls `on_save_setting("deepseek_api_key_enc", …)` — a settings write per keypress.
+- **app/src/setting/ai_engine.rs:71, 97, 130** — UGLY/duplication — the identical `resp.clicked() || (hover && ui.input(|i| i.pointer.primary_clicked()))` block (hover cursor + rect + stroke + text) is repeated 3× and also appears in `backup.rs:113`, `sounds.rs:53`, `carets.rs:118`.
+- **app/src/setting/updates.rs:70-165** — UGLY — the 6-arm `match &status` duplicates the `status_card.min + vec2(16.0, …)` text-painting boilerplate in each arm; only the label/color differ.
+- **app/src/setting/carets.rs:7-8** — UGLY — `/// Per-style accent colors shown as indicator dots on each caret chip.` is pasted twice verbatim above `caret_dot_color`.
+- **app/src/setting/carets.rs:12-14** — UGLY — `CaretKind::Block => theme.accent, CaretKind::Beam => theme.accent, CaretKind::Underline => theme.accent` — three identical arms that should be one `_ =>`/or-pattern.
+- **app/src/setting/carets.rs:148-213** — UGLY/duplication — the hand-rolled slider (label + track + active fill + thumb circle + value text) is near-identical to `setting_font.rs:147-210`; the codebase even has an unused `properties.rs` module that could host it.
+- **app/src/setting/carets.rs:165** — UGLY — `i.pointer.primary_down() || i.pointer.primary_clicked()` — `primary_clicked()` implies `primary_down()` within the same frame, so the disjunction is dead logic.
+- **app/src/setting/lunaline_tab.rs:61-118 vs 134-183** — UGLY/duplication — the style-chip loop and color-chip loop are structurally identical (hover check, cursor icon, click handler, stroke, rounded rect, label); only the data source differs — a shared chip-grid helper would collapse ~60 lines (same pattern again in `carets.rs` and `sounds.rs`).
+- **app/src/setting/tabs.rs:51-137** — UGLY — `draw_icon` is an 86-line `match` with hand-coded vector coordinates for 11 icons (e.g. `pos2(center.x - 3.5, center.y - 6.0)`), untestable and full of magic numbers.
+- **app/src/setting/editor_mode.rs:34-85 vs 89-140** — UGLY/duplication — the Hybrid card and Vim card are structurally identical ~50-line blocks (same geometry `128.0`/`138.0`/`34.0`/`17.5`/`110.0`/`14.0`, same hover/click/stroke/paint logic) differing only in text; a `render_mode_card(...)` helper would remove ~40 duplicated lines.
+- **app/src/setting/setting_container.rs:23** (and `setting_panel.rs:31`) — UGLY — `theme: &mut Theme` is only ever used immutably (every child takes `&Theme`); the mutable reference propagates through two layers for no reason.
+- **app/src/setting/setting_font.rs:147-210** — UGLY/duplication — the hand-rolled font-size slider is a near-line-for-line duplicate of `carets.rs:148-213` (same track/fill/thumb/label structure); should be a shared widget.
+- **app/src/wikilink/wikilink_autocompletion.rs:215** — UGLY — `for j in 0..lookahead.len().saturating_sub(1)` index loop instead of iterator.
+- **Cross-cutting — hand-rolled slider widget** duplicated verbatim in `carets.rs:148-213` and `setting_font.rs:147-210`, while `properties.rs` — a module clearly created to host shared widgets like this — is 100% dead code.
+- **Cross-cutting — "chip grid" pattern** (hover → cursor icon → click → stroke → rounded rect → label) copy-pasted across `carets.rs`, `lunaline_tab.rs` (twice), and `sounds.rs`.
+- **Cross-cutting — "danger red" `Color32::from_rgb(220, 60, 60)`** hardcoded independently in `ai_engine.rs:137-138` and `sounds.rs:64,71,89`.
+- **Cross-cutting — non-char-boundary byte slicing** (`&s[..n]`, `&s[len-n..]`) now appears in `ai_engine.rs:191`, `updates.rs:108,156`, `backup.rs:60,142`, `shortcuts.rs:334` (in addition to the first-pass sites) — all latent panics on multi-byte UTF-8; `char_indices`/`graphemes` or `is_char_boundary` checks are needed.
+- **Cross-cutting — ~290 `as usize`/`as f32`/`as i64`/`as u32` casts** across the workspace (truncation/`f64`→`u32` saturation risk); notable `f64`→`u32` saturation at `app/notes.rs:269`.
+- **Cross-cutting — ~160 `.clone()` calls** in render/draw paths (`app/`, `lunaline/`, `view_editor/`, `sidebar/`, `rightsidebar/`) — per-frame allocation pressure; several already flagged individually.
+
+### ⚫ NEW dead code
+- **app/src/setting/properties.rs:7-190** — DEADCODE — entire module: none of the six public helpers (`render_section_header`, `render_property_row`, `render_toggle`, `render_card_frame`, `render_property_slider`, `render_choice_chip`) have any caller anywhere in the crate (grep-verified); meanwhile the tabs re-implement the same widgets inline (`carets.rs`/`setting_font.rs` sliders).
+- **app/src/setting/properties.rs:70** — BUG (improper error handling) — `result.unwrap()` in `render_property_row` relies on the closure always executing; safe today only because the module is never called.
+- **app/src/setting/types.rs:9-23** — DEADCODE — `pub enum VimSubMode` has zero usages anywhere in the crate (grep-verified: only the definition matches).
+- **app/src/setting/types.rs:38, 106** — DEADCODE — `#[allow(dead_code)]` on `VimMotion` and `VimAction`, but both are actively used by `keymap.rs` and `keybindings_tab.rs`; the attributes will mask genuine future dead-code warnings.
+- **app/src/setting/sound.rs:3** — DEADCODE — `pub use super::sounds::{render_sounds_tab, sound_wave_heights};` re-exports `sound_wave_heights` which is never consumed through this path (`setting_panel.rs:90` only uses `render_sounds_tab`); the file is a pointless indirection layer.
+- **app/src/bin/publish.rs:39-42** — DEADCODE — `warn()` is marked `#[allow(dead_code)]` and never called.
+- **app/src/bin/publish.rs:62-76** — DEADCODE — `run_output()` is marked `#[allow(dead_code)]` and never called.
+- **app/src/services/updater.rs:352, 357, 384, 398** — BUG (verify) — four `std::process::exit(0)` calls inside the updater (in addition to `command/dispatch/tools.rs:116`); hard-exiting the process from a background update path can drop unsaved state — confirm each is intentional.

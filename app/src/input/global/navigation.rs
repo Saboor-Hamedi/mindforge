@@ -7,7 +7,7 @@ use eframe::egui;
 
 pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Option<bool> {
     // 1. Sidebar Keyboard Navigation
-    // Critical fix: guarded by !app.command_bar.in_command so typing ':' never gets consumed by the sidebar!
+    // Guarded by !app.command_bar.in_command so typing ':' is never consumed by the sidebar.
     if app.sidebar.open && app.sidebar.focused && !app.command_bar.in_command {
         let (sb_up, sb_down, sb_enter, sb_esc, sb_edit, sb_to_editor, sb_tab) = ctx.input(|i| (
             (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K)) || i.key_pressed(egui::Key::ArrowUp),
