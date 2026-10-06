@@ -7,28 +7,6 @@ use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
 use crate::ui::theme::Theme;
 
-/// File type icon mapper for IDE-style explorer
-fn get_entry_icon(path: &std::path::Path, is_dir: bool, expanded: bool) -> &'static str {
-    if is_dir {
-        if expanded {
-            "▾ 📂"
-        } else {
-            "▸ 📁"
-        }
-    } else {
-        match path.extension().and_then(|s| s.to_str()).unwrap_or("") {
-            "rs" => "    🦀",
-            "md" | "markdown" => "    📝",
-            "py" => "    🐍",
-            "js" | "jsx" | "ts" | "tsx" => "    ⚡",
-            "json" | "toml" | "yaml" | "yml" => "    ⚙",
-            "html" | "css" | "scss" => "    🌐",
-            "txt" | "log" => "    📄",
-            _ => "    📄",
-        }
-    }
-}
-
 /// Renders the inline file or folder creation row in the tree (VS Code style).
 fn render_inline_creation(
     ui: &mut egui::Ui,
@@ -169,7 +147,7 @@ fn render_tree_entry(
     let active = active_file
         .is_some_and(|path| crate::workspace::same_path(path, entry_path));
     let expanded = workspace.expanded.contains(entry_path);
-    let icon = get_entry_icon(entry_path, entry_is_directory, expanded);
+    let (caret, glyph) = super::icons::get_explorer_icon(entry_path, entry_is_directory, expanded);
     let file_name = entry_path.file_name().unwrap_or_default().to_string_lossy();
 
     let row_w = ui.available_width();
@@ -224,7 +202,11 @@ fn render_tree_entry(
         theme.text.lerp_to_gamma(theme.muted, 0.20)
     };
 
-    let display_str = format!("{icon}  {file_name}");
+    let display_str = if entry_is_directory {
+        format!("{caret} {glyph}  {file_name}")
+    } else {
+        format!("   {glyph}  {file_name}")
+    };
     text_painter.text(
         pos2(text_x, row_rect.center().y),
         Align2::LEFT_CENTER,
@@ -542,6 +524,9 @@ pub fn render_sidebar_body(
                 }
                 crate::ui::menu::MenuAction::RefreshWorkspace => {
                     action = Some(SidebarAction::WorkspaceRefresh);
+                }
+                crate::ui::menu::MenuAction::CloseWorkspace => {
+                    action = Some(SidebarAction::CloseWorkspace);
                 }
             }
         }

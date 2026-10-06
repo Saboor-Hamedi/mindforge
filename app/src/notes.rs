@@ -46,36 +46,69 @@ pub fn quick_save_active_note(app: &mut App, now: f64) {
     }
 
     if app.notes.active_note_id.is_none() {
-        let mut picker = rfd::FileDialog::new();
-        if let Some(root) = app.workspace.root.as_deref() {
-            picker = picker.set_directory(root);
-        }
-        let suggested = if app.notes.active_note_title.trim().is_empty() {
-            "Untitled.md".to_string()
-        } else {
-            format!("{}.md", app.notes.active_note_title.trim())
-        };
-        let Some(path) = picker.set_file_name(suggested).save_file() else {
-            app.set_status("Save cancelled", now);
-            return;
-        };
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)
-        {
-            Ok(mut file) => {
-                use std::io::Write;
-                if let Err(error) = file.write_all(content.as_bytes()) {
-                    app.set_status(format!("Save failed: {error}"), now);
-                    return;
+        let (path, title) = if let Some(root) = app.workspace.root.as_ref() {
+            let file_name = if app.notes.active_note_title.trim().is_empty() {
+                "Untitled.md".to_string()
+            } else {
+                let t = app.notes.active_note_title.trim();
+                if std::path::Path::new(t).extension().is_some() {
+                    t.to_string()
+                } else {
+                    format!("{t}.md")
                 }
+            };
+            let mut target = root.join(&file_name);
+            let mut suffix = 2;
+            let has_ext = std::path::Path::new(&file_name).extension().is_some();
+            while target.exists() {
+                target = if has_ext {
+                    let stem = std::path::Path::new(&file_name)
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(&file_name);
+                    let ext = std::path::Path::new(&file_name)
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("");
+                    root.join(format!("{stem}_{suffix}.{ext}"))
+                } else {
+                    root.join(format!("{file_name}_{suffix}.md"))
+                };
+                suffix += 1;
+            }
+            let display_title = target
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            (target, display_title)
+        } else {
+            let picker = rfd::FileDialog::new();
+            let suggested = if app.notes.active_note_title.trim().is_empty() {
+                "Untitled.md".to_string()
+            } else {
+                let t = app.notes.active_note_title.trim();
+                if std::path::Path::new(t).extension().is_some() {
+                    t.to_string()
+                } else {
+                    format!("{t}.md")
+                }
+            };
+            let Some(p) = picker.set_file_name(suggested).save_file() else {
+                app.set_status("Save cancelled", now);
+                return;
+            };
+            let display_title = p
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            (p, display_title)
+        };
+
+        match std::fs::write(&path, content.as_bytes()) {
+            Ok(()) => {
                 let path = crate::workspace::normalized_path(&path);
-                let title = path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned();
                 if let Some(tab) = app.open_notes.get_mut(app.tabs.active_tab) {
                     tab.file_path = Some(path.clone());
                     tab.title = title.clone();
@@ -89,13 +122,11 @@ pub fn quick_save_active_note(app: &mut App, now: f64) {
                 app.editor.last_saved_time = now;
                 app.sync_active_tab();
                 app.save_open_tabs();
+                if app.workspace.root.is_some() {
+                    let _ = app.workspace.refresh();
+                }
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     backend.mark_saved();
-                }
-                if let Some(id) = app.notes.active_note_id {
-                    if let Some(note) = app.notes.notes_list.iter_mut().find(|note| note.id == id) {
-                        note.body = content;
-                    }
                 }
                 app.set_status(format!("Saved {}", app.display_file_path(&path)), now);
             }

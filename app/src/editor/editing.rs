@@ -4,8 +4,13 @@ impl Editor {
     pub fn insert(&mut self, c: char) {
         if self.has_selection() {
             self.delete_selection();
-        } else if c.is_whitespace() || self.undo_stack.is_empty() {
+            self.in_typing_burst = true;
+        } else if !self.in_typing_burst {
             self.save_undo_snapshot();
+            self.in_typing_burst = true;
+        }
+        if c.is_whitespace() {
+            self.in_typing_burst = false;
         }
         self.buf.insert(self.cur, c);
         self.cur += 1;
@@ -16,8 +21,10 @@ impl Editor {
     pub fn insert_str(&mut self, s: &str) {
         if self.has_selection() {
             self.delete_selection();
+        } else {
+            self.save_undo_snapshot();
         }
-        self.save_undo_snapshot();
+        self.in_typing_burst = false;
         let chars: Vec<char> = s.chars().filter(|&c| c != '\r').collect();
         let count = chars.len();
         let cur = self.cur.min(self.buf.len());
@@ -27,6 +34,7 @@ impl Editor {
     }
 
     pub fn backspace(&mut self) {
+        self.in_typing_burst = false;
         if self.delete_selection() {
             return;
         }

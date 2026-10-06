@@ -3,14 +3,36 @@
 use eframe::egui::{self, CursorIcon, Key, ResizeDirection, ViewportCommand};
 
 pub fn window_shortcuts(ctx: &egui::Context) {
-    let (drag, f11, quit, is_fs) = ctx.input(|i| (
+    let (drag, f11, quit, new_window, is_fs) = ctx.input(|i| (
         i.modifiers.alt && i.pointer.primary_pressed(),
         i.key_pressed(Key::F11),
         (i.modifiers.ctrl && i.modifiers.shift && i.key_pressed(Key::W))
             || (i.modifiers.ctrl && i.key_pressed(Key::Q)),
+        (i.modifiers.ctrl || i.modifiers.command)
+            && i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(Key::N),
         i.viewport().fullscreen.unwrap_or(false),
     ));
 
+    if new_window {
+        if let Ok(exe) = std::env::current_exe() {
+            let (pos_x, pos_y) = ctx.input(|i| {
+                if let Some(pos) = i.viewport().outer_rect.map(|r| r.min) {
+                    (pos.x + 36.0, pos.y + 36.0)
+                } else {
+                    (100.0, 100.0)
+                }
+            });
+            let _ = std::process::Command::new(exe)
+                .arg("--new-window")
+                .arg("--pos-x")
+                .arg(pos_x.to_string())
+                .arg("--pos-y")
+                .arg(pos_y.to_string())
+                .spawn();
+        }
+    }
     if drag {
         ctx.send_viewport_cmd(ViewportCommand::StartDrag);
     }

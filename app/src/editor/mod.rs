@@ -24,6 +24,7 @@ pub struct Editor {
     pub selection_inclusive: bool,
     pub undo_stack: Vec<EditorSnapshot>,
     pub redo_stack: Vec<EditorSnapshot>,
+    pub in_typing_burst: bool,
     pub desired_col: Option<usize>,
     pub line_offsets: Vec<usize>,
     pub offsets_dirty: bool,

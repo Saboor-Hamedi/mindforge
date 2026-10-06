@@ -2,8 +2,14 @@ use super::Editor;
 
 impl Editor {
     pub fn insert_line_below(&mut self) {
+        self.save_undo_snapshot();
         self.end();
-        self.insert('\n');
+        self.in_typing_burst = false;
+        self.buf.insert(self.cur, '\n');
+        self.cur += 1;
+        self.selection = None;
+        self.desired_col = None;
+        self.mark_dirty();
     }
 
     pub fn current_line_span(&self) -> (usize, usize) {

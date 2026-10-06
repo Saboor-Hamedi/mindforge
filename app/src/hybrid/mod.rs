@@ -81,13 +81,25 @@ impl HybridEngine {
                     return true;
                 }
                 Key::Enter => {
-                    if !ed.exit_block_or_table() {
-                        ed.insert_line_below();
-                    }
+                    ed.insert_line_below();
+                    return true;
+                }
+                Key::Z => {
+                    ed.undo();
+                    return true;
+                }
+                Key::Y => {
+                    ed.redo();
                     return true;
                 }
                 _ => {}
             }
+        }
+
+        // ── Ctrl + Shift + Z: Redo ───────────────────────────────────────────
+        if ctrl && shift && !alt && key == Key::Z {
+            ed.redo();
+            return true;
         }
 
         // ── Tab / Shift+Tab indentation ───────────────────────────────────────
@@ -205,5 +217,36 @@ mod tests {
 
         assert!(hybrid.handle_key(&mut ed, Key::D, Modifiers::CTRL));
         assert_eq!(ed.text(), "line 1\nline 1\nline 2");
+    }
+
+    #[test]
+    fn test_hybrid_ctrl_enter_inserts_line_below() {
+        let mut ed = Editor::new();
+        for c in "hello".chars() {
+            ed.insert(c);
+        }
+        let mut hybrid = HybridEngine::new();
+
+        assert!(hybrid.handle_key(&mut ed, Key::Enter, Modifiers::CTRL));
+        assert_eq!(ed.text(), "hello\n");
+        assert_eq!(ed.cur, 6);
+
+        // Undo should cleanly revert the Ctrl+Enter newline
+        assert!(hybrid.handle_key(&mut ed, Key::Z, Modifiers::CTRL));
+        assert_eq!(ed.text(), "hello");
+    }
+
+    #[test]
+    fn test_hybrid_typing_burst_undo() {
+        let mut ed = Editor::new();
+        ed.insert_str("start ");
+        for c in "world".chars() {
+            ed.insert(c);
+        }
+        assert_eq!(ed.text(), "start world");
+
+        let mut hybrid = HybridEngine::new();
+        assert!(hybrid.handle_key(&mut ed, Key::Z, Modifiers::CTRL));
+        assert_eq!(ed.text(), "start ");
     }
 }

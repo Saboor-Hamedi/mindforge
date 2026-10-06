@@ -17,6 +17,7 @@ impl Editor {
     }
 
     pub fn undo(&mut self) -> bool {
+        self.in_typing_burst = false;
         if let Some(prev) = self.undo_stack.pop() {
             self.redo_stack.push(EditorSnapshot {
                 buf: self.buf.clone(),
@@ -34,6 +35,7 @@ impl Editor {
     }
 
     pub fn redo(&mut self) -> bool {
+        self.in_typing_burst = false;
         if let Some(next) = self.redo_stack.pop() {
             self.undo_stack.push(EditorSnapshot {
                 buf: self.buf.clone(),

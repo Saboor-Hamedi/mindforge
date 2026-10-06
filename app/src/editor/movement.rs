@@ -2,6 +2,7 @@ use super::Editor;
 
 impl Editor {
     pub fn left(&mut self) {
+        self.in_typing_burst = false;
         self.desired_col = None;
         if let Some((start, _)) = self.selected_range() {
             self.cur = start;
@@ -13,6 +14,7 @@ impl Editor {
     }
 
     pub fn right(&mut self) {
+        self.in_typing_burst = false;
         self.desired_col = None;
         if let Some((_, end)) = self.selected_range() {
             self.cur = end;
@@ -24,6 +26,7 @@ impl Editor {
     }
 
     pub fn left_select(&mut self) {
+        self.in_typing_burst = false;
         self.desired_col = None;
         if self.selection.is_none() {
             self.selection = Some(self.cur);
@@ -32,6 +35,7 @@ impl Editor {
     }
 
     pub fn right_select(&mut self) {
+        self.in_typing_burst = false;
         self.desired_col = None;
         if self.selection.is_none() {
             self.selection = Some(self.cur);
@@ -41,6 +45,7 @@ impl Editor {
 
     #[allow(dead_code)]
     pub fn home(&mut self) {
+        self.in_typing_burst = false;
         self.desired_col = None;
         self.selection = None;
         while self.cur > 0 && self.buf[self.cur - 1] != '\n' {
@@ -50,6 +55,7 @@ impl Editor {
 
     #[allow(dead_code)]
     pub fn end(&mut self) {
+        self.in_typing_burst = false;
         self.desired_col = None;
         self.selection = None;
         while self.cur < self.buf.len() && self.buf[self.cur] != '\n' {
@@ -59,6 +65,7 @@ impl Editor {
 
     #[allow(dead_code)]
     pub fn up(&mut self) {
+        self.in_typing_burst = false;
         self.selection = None;
         let (row, col) = self.row_col();
         if row == 0 {
@@ -70,6 +77,7 @@ impl Editor {
     }
 
     pub fn up_select(&mut self) {
+        self.in_typing_burst = false;
         if self.selection.is_none() {
             self.selection = Some(self.cur);
         }
@@ -84,6 +92,7 @@ impl Editor {
 
     #[allow(dead_code)]
     pub fn down(&mut self) {
+        self.in_typing_burst = false;
         self.selection = None;
         let (row, col) = self.row_col();
         let target_col = self.desired_col.unwrap_or(col);
@@ -92,6 +101,7 @@ impl Editor {
     }
 
     pub fn down_select(&mut self) {
+        self.in_typing_burst = false;
         if self.selection.is_none() {
             self.selection = Some(self.cur);
         }
@@ -102,6 +112,7 @@ impl Editor {
     }
 
     pub fn set_row_col(&mut self, target_row: usize, target_col: usize) {
+        self.in_typing_burst = false;
         let mut cur_row = 0;
         let mut line_start = 0;
         for (i, &c) in self.buf.iter().enumerate() {
@@ -154,12 +165,14 @@ impl Editor {
     }
 
     pub fn word_left(&mut self) {
+        self.in_typing_burst = false;
         self.desired_col = None;
         self.cur = self.prev_word_boundary(self.cur);
         self.selection = None;
     }
 
     pub fn word_right(&mut self) {
+        self.in_typing_burst = false;
         self.desired_col = None;
         self.cur = self.next_word_boundary(self.cur);
         self.selection = None;

@@ -839,13 +839,24 @@ impl VimBackend {
                 });
             }
         }
-        if response.hovered() {
-            let delta = ui.input(|i| i.raw_scroll_delta.y);
+        if response.hovered() && !self.lsp_panel.open {
+            let delta = ui.input(|i| {
+                if i.raw_scroll_delta.y.abs() > 0.0 {
+                    i.raw_scroll_delta.y
+                } else {
+                    i.smooth_scroll_delta.y
+                }
+            });
             if delta != 0.0 {
-                let steps = (delta / nvim_row_height).round() as i32;
-                let action = if steps > 0 { "up" } else { "down" };
-                for _ in 0..steps.unsigned_abs().min(12) {
-                    let _ = self.client.input_mouse("wheel", action, "", 0, 0, 0);
+                let steps = ((delta.abs() / nvim_row_height).ceil() as usize).clamp(1, 8);
+                let action = if delta > 0.0 { "up" } else { "down" };
+                let (mouse_row, mouse_col) = ui.input(|i| i.pointer.hover_pos()).map_or((0, 0), |pos| {
+                    let r = ((pos.y - origin.y) / nvim_row_height).floor().max(0.0) as usize;
+                    let c = ((pos.x - origin.x) / cell_width).floor().max(0.0) as usize;
+                    (r, c)
+                });
+                for _ in 0..steps {
+                    let _ = self.client.input_mouse("wheel", action, "", 0, mouse_row, mouse_col);
                 }
             }
         }

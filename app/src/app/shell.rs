@@ -526,6 +526,9 @@ impl App {
                                 let _ = self.workspace.refresh();
                                 self.set_status("Workspace refreshed", now);
                             }
+                            SidebarAction::CloseWorkspace => {
+                                self.close_workspace(now);
+                            }
                             SidebarAction::SwitchMode(idx) => match idx {
                                 0 => self.misc.mode = Mode::Normal,
                                 1 => {
@@ -876,27 +879,21 @@ impl App {
                                     link.start >= line.char_start && link.start <= line.char_end
                                 })
                                 .unwrap_or(0);
-                            let line = &self.editor.visual_lines[row];
-                            let anchor = pos2(
-                                ed_origin.x
-                                    + link.start.saturating_sub(line.char_start) as f32 * cell_w,
-                                ed_origin.y + (row + 1) as f32 * line_h,
-                            );
-                            found_hover = Some((link.target.clone(), anchor));
+                            if let Some(line) = self.editor.visual_lines.get(row) {
+                                let anchor = pos2(
+                                    ed_origin.x
+                                        + link.start.saturating_sub(line.char_start) as f32 * cell_w,
+                                    ed_origin.y + (row + 1) as f32 * line_h,
+                                );
+                                found_hover = Some((link.target.clone(), anchor));
+                            }
 
                             if ui.input(|i| {
                                 i.pointer.primary_clicked()
                                     || i.pointer.button_pressed(egui::PointerButton::Primary)
                             }) {
-                                if let Some(note) = crate::wikilink::resolve_wikilink(
-                                    &link.target,
-                                    &self.notes.notes_list,
-                                ) {
-                                    self.open_note_by_id(note.id, now);
-                                } else {
-                                    self.create_new_note(now);
-                                    crate::notes::rename_active_note(self, &link.target, now);
-                                }
+                                self.follow_wikilink(&link.target, now);
+                                self.services.hover_wikilink.clear();
                             }
                             break;
                         }
@@ -992,13 +989,8 @@ impl App {
             bounds,
         ) {
             match act {
-                crate::wikilink::hover_wikilink::HoverWikiLinkAction::OpenNote { id, title } => {
-                    if let Some(note_id) = id {
-                        self.open_note_by_id(note_id, now);
-                    } else {
-                        self.create_new_note(now);
-                        crate::notes::rename_active_note(self, &title, now);
-                    }
+                crate::wikilink::hover_wikilink::HoverWikiLinkAction::OpenNote { id: _, title } => {
+                    self.follow_wikilink(&title, now);
                 }
             }
         }

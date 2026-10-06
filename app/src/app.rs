@@ -181,13 +181,28 @@ impl App {
                             let _ = self.workspace.refresh();
                         }
                     }
+                    let root_str = root.to_string_lossy().into_owned();
                     let _ =
                         self.services
                             .db_tx
                             .send(crate::services::db_worker::DbMsg::SaveSetting {
                                 key: "workspace_root".into(),
-                                val: root.to_string_lossy().into_owned(),
+                                val: root_str.clone(),
                             });
+
+                    // Track recent workspaces (MRU order, max 10, without duplicating)
+                    let mut recents: Vec<String> = crate::services::db_worker::get_stored_setting("recent_workspaces")
+                        .and_then(|s| serde_json::from_str(&s).ok())
+                        .unwrap_or_default();
+                    recents.retain(|p| p != &root_str);
+                    recents.insert(0, root_str);
+                    recents.truncate(10);
+                    if let Ok(json) = serde_json::to_string(&recents) {
+                        let _ = self.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
+                            key: "recent_workspaces".into(),
+                            val: json,
+                        });
+                    }
                 }
                 if let (Some(backend), Some(root)) = (
                     self.services.vim_runtime.backend.as_mut(),
@@ -198,6 +213,111 @@ impl App {
                 self.set_status("Workspace opened", now);
             }
             Err(e) => self.set_status(format!("Could not open workspace: {e}"), now),
+        }
+    }
+
+    /// Closes the active workspace and returns to the welcome page when no tabs are open.
+    pub fn close_workspace(&mut self, now: f64) {
+        self.workspace.root = None;
+        self.workspace.entries.clear();
+        self.workspace.expanded.clear();
+        self.workspace.selected_items.clear();
+        self.workspace.selection_anchor = None;
+        self.workspace.dialog = None;
+        self.workspace.dialog_name.clear();
+        self.workspace.dialog_error = None;
+        let _ = self
+            .services
+            .db_tx
+            .send(crate::services::db_worker::DbMsg::SaveSetting {
+                key: "workspace_root".into(),
+                val: String::new(),
+            });
+        if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+            let _ = backend.set_workspace_root(std::path::Path::new(""));
+        }
+        if self.open_notes.is_empty() {
+            self.misc.show_welcome = true;
+        }
+        self.set_status("Workspace closed", now);
+    }
+
+    /// Removes a workspace path from the recent list WITHOUT deleting any files on disk.
+    pub fn remove_recent_workspace(&mut self, path: &std::path::Path) {
+        let path_str = path.to_string_lossy();
+        let mut recents: Vec<String> = crate::services::db_worker::get_stored_setting("recent_workspaces")
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        recents.retain(|p| p.as_str() != path_str);
+        if let Ok(json) = serde_json::to_string(&recents) {
+            let _ = self.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
+                key: "recent_workspaces".into(),
+                val: json,
+            });
+        }
+    }
+
+    /// Returns the stored list of recent workspace paths.
+    pub fn get_recent_workspaces(&self) -> Vec<std::path::PathBuf> {
+        crate::services::db_worker::get_stored_setting("recent_workspaces")
+            .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
+            .map(|list| list.into_iter().map(std::path::PathBuf::from).collect())
+            .unwrap_or_default()
+    }
+
+    /// Navigates to or creates a note/document target referenced by a Wikilink `[[target]]`.
+    /// Resolves against workspace files on disk first, then database notes.
+    pub fn follow_wikilink(&mut self, target: &str, now: f64) {
+        let clean = target.trim();
+        if clean.is_empty() {
+            return;
+        }
+
+        // 1. Check workspace entries if a project workspace is active
+        if let Some(root) = self.workspace.root.as_ref() {
+            let direct_file = root.join(clean);
+            if direct_file.is_file() {
+                self.open_file_path(direct_file, now);
+                return;
+            }
+            let md_file = root.join(format!("{}.md", clean));
+            if md_file.is_file() {
+                self.open_file_path(md_file, now);
+                return;
+            }
+
+            // Search by stem or filename in workspace entries
+            let clean_lower = clean.to_ascii_lowercase();
+            if let Some(entry) = self.workspace.entries.iter().find(|e| {
+                !e.directory && (
+                    e.path.file_stem().is_some_and(|s| s.to_string_lossy().to_ascii_lowercase() == clean_lower)
+                    || e.path.file_name().is_some_and(|n| n.to_string_lossy().to_ascii_lowercase() == clean_lower)
+                )
+            }) {
+                let path = entry.path.clone();
+                self.open_file_path(path, now);
+                return;
+            }
+
+            // If not found in workspace and not in notes, create file in workspace root
+            let in_notes = crate::wikilink::resolve_wikilink(clean, &self.notes.notes_list);
+            if in_notes.is_none() {
+                let new_path = root.join(format!("{}.md", clean));
+                let initial = format!("# {}\n\n", clean);
+                if std::fs::write(&new_path, initial).is_ok() {
+                    let _ = self.workspace.refresh();
+                    self.open_file_path(new_path, now);
+                    return;
+                }
+            }
+        }
+
+        // 2. Fall back to existing database notes
+        if let Some(note) = crate::wikilink::resolve_wikilink(clean, &self.notes.notes_list) {
+            self.open_note_by_id(note.id, now);
+        } else {
+            self.create_new_note(now);
+            crate::notes::rename_active_note(self, clean, now);
         }
     }
 
@@ -225,8 +345,13 @@ impl App {
         } else {
             tab.title.as_str()
         };
-        let dir = crate::workspace::default_workspace_dir().join("Scratch");
-        std::fs::create_dir_all(&dir)?;
+        let dir = if let Some(root) = &self.workspace.root {
+            root.clone()
+        } else {
+            let d = crate::workspace::default_workspace_dir().join("Scratch");
+            std::fs::create_dir_all(&d)?;
+            d
+        };
         let safe: String = title
             .chars()
             .map(|c| {
@@ -242,10 +367,27 @@ impl App {
         } else {
             safe.trim()
         };
-        let mut path = dir.join(format!("{stem}.md"));
+        let has_ext = std::path::Path::new(stem).extension().is_some();
+        let mut path = if has_ext {
+            dir.join(stem)
+        } else {
+            dir.join(format!("{stem}.md"))
+        };
         let mut suffix = 2;
         while path.exists() {
-            path = dir.join(format!("{stem} {suffix}.md"));
+            path = if has_ext {
+                let file_stem = std::path::Path::new(stem)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(stem);
+                let ext = std::path::Path::new(stem)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("");
+                dir.join(format!("{file_stem}_{suffix}.{ext}"))
+            } else {
+                dir.join(format!("{stem} {suffix}.md"))
+            };
             suffix += 1;
         }
         {
@@ -278,6 +420,8 @@ impl App {
         );
         if self.workspace.root.is_none() {
             self.open_workspace(crate::workspace::default_workspace_dir(), now);
+        } else {
+            let _ = self.workspace.refresh();
         }
         self.sync_active_tab();
         self.save_open_tabs();

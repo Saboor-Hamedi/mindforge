@@ -57,17 +57,27 @@ pub fn render_menu_container(
         }
     }
 
-    // Boundary Repositioning: ensure menu never extends outside the application window
+    // Boundary Repositioning:
+    // normal -> open below/right
+    // near bottom -> open above
+    // near right edge -> shift left
+    // near corner -> adjust both
+    let margin = 6.0;
+    let right_bound = window_rect.max.x - margin;
+    let bottom_bound = window_rect.max.y - 38.0; // strictly clear sidebar footer and statusbar
+
     let mut x = state.position.x;
     let mut y = state.position.y;
 
-    let margin = 6.0;
-    if x + menu_w > window_rect.max.x - margin {
-        x = (window_rect.max.x - menu_w - margin).max(window_rect.min.x + margin);
+    if x + menu_w > right_bound {
+        x = state.position.x - menu_w;
     }
-    if y + total_h > window_rect.max.y - margin {
-        y = (window_rect.max.y - total_h - margin).max(window_rect.min.y + margin);
+    x = x.clamp(window_rect.min.x + margin, (right_bound - menu_w).max(window_rect.min.x + margin));
+
+    if y + total_h > bottom_bound {
+        y = state.position.y - total_h;
     }
+    y = y.clamp(window_rect.min.y + margin, (bottom_bound - total_h).max(window_rect.min.y + margin));
 
     let menu_rect = Rect::from_min_size(pos2(x, y), vec2(menu_w, total_h));
 
@@ -157,11 +167,11 @@ pub fn render_menu_container(
             )
         };
 
-        // Draw shadow / border / sharp background
+        // Draw shadow / border / sharp background (2px radius)
         let painter = ui.painter();
         painter.rect(
             menu_rect,
-            0.0, // Strictly sharp 0px radius (NO round card border)
+            2.0, // Sharp, professional 2px radius
             bg_color,
             Stroke::new(MENU_BORDER_WIDTH, theme.border().gamma_multiply(0.75)),
             egui::StrokeKind::Inside,

@@ -151,8 +151,11 @@ impl App {
             None
         };
 
+        let show_dashboard = self.misc.mode == Mode::Normal
+            && (self.misc.show_welcome || self.open_notes.is_empty());
+
         let are_tabs_visible =
-            (self.misc.show_tabs || self.open_notes.len() > 1) && !self.misc.zen_mode;
+            !show_dashboard && (self.misc.show_tabs || self.open_notes.len() > 1) && !self.misc.zen_mode;
         if are_tabs_visible {
             if matches!(self.misc.mode, Mode::Normal | Mode::Stats) {
                 let in_stats = self.misc.mode == Mode::Stats;
@@ -553,12 +556,14 @@ impl App {
                 let search_matches: Option<(&[usize], usize)> = None;
 
                 if show_dashboard {
+                    let recent_workspaces = self.get_recent_workspaces();
                     if let Some(dash_action) = crate::views::dashboard::render_welcome_dashboard(
                         ui,
                         painter,
                         actual_editor_rect,
                         &self.misc.theme,
                         self.notes.total_notes_count,
+                        &recent_workspaces,
                         modals_open,
                     ) {
                         match dash_action {
@@ -577,6 +582,17 @@ impl App {
                             crate::views::dashboard::DashboardAction::OpenRecent(id) => {
                                 self.misc.show_welcome = false;
                                 self.open_note_by_id(id, now);
+                            }
+                            crate::views::dashboard::DashboardAction::OpenRecentWorkspace(path) => {
+                                self.misc.show_welcome = false;
+                                if path.is_dir() {
+                                    self.open_workspace(path, now);
+                                } else {
+                                    self.open_file_path(path, now);
+                                }
+                            }
+                            crate::views::dashboard::DashboardAction::RemoveRecentWorkspace(path) => {
+                                self.remove_recent_workspace(&path);
                             }
                             crate::views::dashboard::DashboardAction::OpenTerminal => {
                                 self.terminal.open = true;
@@ -703,9 +719,7 @@ impl App {
                             || self.services.hover_wikilink.is_mouse_inside_popup,
                         search_matches,
                         self.editor.show_line_numbers,
-                        if active_language == crate::language::FileLanguage::PlainText
-                            || active_language == crate::language::FileLanguage::Markdown
-                        {
+                        if active_language == crate::language::FileLanguage::PlainText {
                             None
                         } else {
                             Some(active_language)

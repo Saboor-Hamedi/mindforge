@@ -15,7 +15,7 @@ use eframe::egui::{self, pos2, vec2, Align2, FontId, Rect};
 
 /// Actions that can be triggered from the dashboard's quick-action buttons.
 /// Returned by `render_welcome_dashboard` when the user interacts with a button.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DashboardAction {
     /// Create a new blank note (Ctrl+N)
     NewNote,
@@ -23,6 +23,10 @@ pub enum DashboardAction {
     FindNote,
     /// Open a recently accessed note by its ID
     OpenRecent(i64),
+    /// Open a recently accessed workspace folder or file
+    OpenRecentWorkspace(std::path::PathBuf),
+    /// Remove an item from the recent workspaces list
+    RemoveRecentWorkspace(std::path::PathBuf),
     /// Toggle the embedded terminal pane
     OpenTerminal,
     /// Toggle the AI assistant drawer
@@ -54,6 +58,7 @@ const ASCII_LOGO: [&str; 6] = [
 /// * `rect` — Screen area to render within (clipped automatically)
 /// * `theme` — Active color theme for consistent styling
 /// * `total_notes` — Total note count displayed in the subtitle
+/// * `recent_workspaces` — 3-4 recent workspace paths to show
 /// * `modals_open` — When true, suppresses hover effects and clicks (modal is on top)
 ///
 /// # Returns
@@ -64,6 +69,7 @@ pub fn render_welcome_dashboard(
     rect: Rect,
     theme: &Theme,
     total_notes: usize,
+    recent_workspaces: &[std::path::PathBuf],
     modals_open: bool,
 ) -> Option<DashboardAction> {
     if rect.width() < 120.0 || rect.height() < 80.0 {
@@ -205,13 +211,79 @@ pub fn render_welcome_dashboard(
         }
 
         if !modals_open && (resp.clicked() || (hovered && ui.input(|i| i.pointer.primary_clicked()))) {
-            action = Some(*act);
+            action = Some(act.clone());
         }
     }
 
-    // ── 3. Subtle Obsidian Vault Drag & Drop Hint (Zero background aesthetic) ───
-    if rect.height() >= 330.0 {
-        let hint_y = actions_start_y + visible_actions.len() as f32 * (btn_h + btn_gap) + 14.0;
+    // ── 3. Recent Workspaces & Projects ───────────────────────────────────
+    let recent_count = recent_workspaces.len().min(4);
+    let mut recents_bottom_y = actions_start_y + visible_actions.len() as f32 * (btn_h + btn_gap);
+    if recent_count > 0 && rect.height() >= 320.0 {
+        let recents_y_start = actions_start_y + visible_actions.len() as f32 * (btn_h + btn_gap) + 14.0;
+
+        painter.text(
+            pos2(center.x, recents_y_start),
+            Align2::CENTER_CENTER,
+            "Recent",
+            FontId::monospace(11.5),
+            theme.muted,
+        );
+
+        let row_h = 22.0;
+        for (i, p) in recent_workspaces.iter().take(4).enumerate() {
+            let row_y = recents_y_start + 16.0 + i as f32 * (row_h + 3.0);
+            let row_rect = Rect::from_center_size(pos2(center.x, row_y), vec2(btn_w, row_h));
+            let resp = ui.allocate_rect(row_rect, egui::Sense::click());
+            let hovered = resp.hovered() || ui.rect_contains_pointer(row_rect);
+
+            if !modals_open && hovered {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+
+            let name = p.file_name().unwrap_or_default().to_string_lossy();
+            let is_dir = p.is_dir();
+            let icon = if is_dir { "📁" } else { "📄" };
+
+            // Left icon + name
+            painter.text(
+                pos2(row_rect.min.x + 8.0, row_rect.center().y),
+                Align2::LEFT_CENTER,
+                format!("{icon}  {name}"),
+                FontId::monospace(12.0),
+                if hovered && !modals_open { theme.highlight } else { theme.text },
+            );
+
+            // Right side: '✕' remove button on hover
+            let remove_btn_rect = Rect::from_min_max(
+                pos2(row_rect.max.x - 22.0, row_rect.min.y),
+                pos2(row_rect.max.x - 4.0, row_rect.max.y),
+            );
+
+            if hovered && !modals_open {
+                let remove_hovered = ui.rect_contains_pointer(remove_btn_rect);
+                painter.text(
+                    pos2(remove_btn_rect.center().x, remove_btn_rect.center().y),
+                    Align2::CENTER_CENTER,
+                    "✕",
+                    FontId::monospace(11.5),
+                    if remove_hovered { theme.highlight } else { theme.muted },
+                );
+
+                if ui.input(|inp| inp.pointer.primary_clicked()) && remove_hovered {
+                    action = Some(DashboardAction::RemoveRecentWorkspace(p.clone()));
+                }
+            }
+
+            if !modals_open && resp.clicked() && action.is_none() {
+                action = Some(DashboardAction::OpenRecentWorkspace(p.clone()));
+            }
+        }
+        recents_bottom_y = recents_y_start + 16.0 + recent_count as f32 * (row_h + 3.0);
+    }
+
+    // ── 4. Subtle Obsidian Vault Drag & Drop Hint (Zero background aesthetic) ───
+    if rect.height() >= 420.0 {
+        let hint_y = recents_bottom_y + 16.0;
         painter.text(
             pos2(center.x, hint_y),
             Align2::CENTER_CENTER,

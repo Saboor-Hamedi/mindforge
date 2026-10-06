@@ -15,7 +15,7 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
                     || i.key_pressed(egui::Key::ArrowUp),
                 (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J))
                     || i.key_pressed(egui::Key::ArrowDown),
-                i.key_pressed(egui::Key::Enter),
+                !i.modifiers.ctrl && !i.modifiers.command && i.key_pressed(egui::Key::Enter),
                 i.key_pressed(egui::Key::Escape),
                 !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::I),
                 (!i.modifiers.alt
@@ -84,7 +84,7 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
                     || i.key_pressed(egui::Key::ArrowUp),
                 (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J))
                     || i.key_pressed(egui::Key::ArrowDown),
-                i.key_pressed(egui::Key::Enter),
+                !i.modifiers.ctrl && !i.modifiers.command && i.key_pressed(egui::Key::Enter),
                 i.key_pressed(egui::Key::Escape),
                 !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::I),
                 (!i.modifiers.alt

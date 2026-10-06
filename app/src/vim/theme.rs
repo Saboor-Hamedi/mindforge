@@ -30,15 +30,16 @@ impl VimBackend {
         let is_light = theme.is_light();
 
         let h1_fg = accent_hex.clone();
-        let h2_fg = if is_light { "#d97706" } else { "#e5c07b" };
-        let h3_fg = if is_light { "#0284c7" } else { "#61afef" };
-        let h4_fg = if is_light { "#16a34a" } else { "#98c379" };
-        let h5_fg = if is_light { "#9333ea" } else { "#c678dd" };
-        let h6_fg = if is_light { "#0d9488" } else { "#56b6c2" };
+        let h2_fg = "#61afef";
+        let h3_fg = "#98c379";
+        let h4_fg = "#e06c75";
+        let h5_fg = "#d19a66";
+        let h6_fg = "#d19a66";
 
-        let bold_fg = if is_light { "#b91c1c" } else { "#e06c75" };
+        let bold_fg = hl_hex.clone();
         let italic_fg = if is_light { "#0284c7" } else { "#61afef" };
-        let code_fg = if is_light { "#059669" } else { "#98c379" };
+        let code_fg = "#d19a66"; // amber, exactly matching Hybrid syntax
+        let wikilink_fg = "#c678dd"; // purple, exactly matching Hybrid syntax
         let stmt_fg = if is_light { "#9333ea" } else { "#c678dd" };
         let ident_fg = if is_light { "#0284c7" } else { "#61afef" };
         let str_fg = if is_light { "#16a34a" } else { "#98c379" };
@@ -91,8 +92,10 @@ impl VimBackend {
                 markdownOrderedListMarker = {{ fg = "{accent}" }},
                 markdownRule = {{ fg = "{muted}" }},
                 markdownUrl = {{ fg = "{url_fg}", underline = true }},
-                markdownLinkText = {{ fg = "{accent}", underline = true }},
+                markdownLinkText = {{ fg = "{h2_fg}", underline = true }},
                 markdownLink = {{ fg = "{muted}" }},
+                markdownWikiLink = {{ fg = "{wikilink_fg}" }},
+                ["@markup.link.wikilink"] = {{ fg = "{wikilink_fg}" }},
                 markdownId = {{ fg = "{accent}" }},
                 markdownIdDeclaration = {{ fg = "{accent}" }},
                 markdownAutomaticLink = {{ fg = "{url_fg}", underline = true }},
@@ -118,7 +121,7 @@ impl VimBackend {
                 ["@markup.list.checked"] = {{ fg = "{muted}" }},
                 ["@markup.list.unchecked"] = {{ fg = "{accent}", bold = true }},
                 ["@markup.link.url"] = {{ fg = "{url_fg}", underline = true }},
-                ["@markup.link.label"] = {{ fg = "{accent}", underline = true }},
+                ["@markup.link.label"] = {{ fg = "{h2_fg}", underline = true }},
                 Comment = {{ fg = "{muted}", italic = true }},
                 Statement = {{ fg = "{stmt_fg}" }},
                 Identifier = {{ fg = "{ident_fg}" }},
@@ -149,6 +152,7 @@ impl VimBackend {
             bold_fg = bold_fg,
             italic_fg = italic_fg,
             code_fg = code_fg,
+            wikilink_fg = wikilink_fg,
             stmt_fg = stmt_fg,
             ident_fg = ident_fg,
             str_fg = str_fg,

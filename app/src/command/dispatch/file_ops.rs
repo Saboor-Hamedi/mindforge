@@ -68,9 +68,26 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             handle_import(app, args, now);
             true
         }
-        "edit" | "editor" | "note" | "notes" => {
-            app.misc.mode = Mode::Normal;
-            app.set_status("Switched to Notes Editor", now);
+        "edit" | "editor" | "note" | "notes" | "e" => {
+            let clean = args.trim_matches(|c| c == '"' || c == '\'').trim();
+            if !clean.is_empty() {
+                let target_path = if let Some(root) = &app.workspace.root {
+                    root.join(clean)
+                } else {
+                    crate::workspace::default_workspace_dir().join(clean)
+                };
+                if !target_path.exists() {
+                    if let Some(parent) = target_path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(&target_path, "");
+                    let _ = app.workspace.refresh();
+                }
+                app.open_file_path(target_path, now);
+            } else {
+                app.misc.mode = Mode::Normal;
+                app.set_status("Switched to Notes Editor", now);
+            }
             true
         }
         "open" | "o" => {
@@ -87,7 +104,24 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             true
         }
         "new" | "n" => {
-            app.create_new_note(now);
+            let clean = args.trim_matches(|c| c == '"' || c == '\'').trim();
+            if !clean.is_empty() {
+                let target_path = if let Some(root) = &app.workspace.root {
+                    root.join(clean)
+                } else {
+                    crate::workspace::default_workspace_dir().join(clean)
+                };
+                if !target_path.exists() {
+                    if let Some(parent) = target_path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(&target_path, "");
+                    let _ = app.workspace.refresh();
+                }
+                app.open_file_path(target_path, now);
+            } else {
+                app.create_new_note(now);
+            }
             true
         }
         "sort" | "sort!" => {

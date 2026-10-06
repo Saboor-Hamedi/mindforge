@@ -137,6 +137,10 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
             app.tabs.doc_sidebar_focused = false;
             app.set_status("Sidebar closed", now);
         }
+        let _ = app.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
+            key: "sidebar".into(),
+            val: if app.sidebar.open { "true".into() } else { "false".into() },
+        });
         return Some(false);
     }
 

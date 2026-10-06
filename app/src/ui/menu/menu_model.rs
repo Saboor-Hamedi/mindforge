@@ -37,6 +37,7 @@ pub enum MenuAction {
     Reveal(PathBuf),
     OpenWorkspace,
     RefreshWorkspace,
+    CloseWorkspace,
 }
 
 /// A single line item within a MenuContainer (action or visual separator).
@@ -95,8 +96,11 @@ impl MenuItem {
 /// Builds the context menu items for a file.
 pub fn file_menu(path: &Path) -> Vec<MenuItem> {
     let p = path.to_path_buf();
+    let parent = p.parent().unwrap_or(path).to_path_buf();
     vec![
         MenuItem::action("open", "Open", Some("📄"), Some("Enter"), MenuAction::OpenFile(p.clone())),
+        MenuItem::action("new_file", "New File", Some("📄+"), None, MenuAction::NewFile(parent.clone())),
+        MenuItem::action("new_folder", "New Folder", Some("📁+"), None, MenuAction::NewFolder(parent)),
         MenuItem::Separator,
         MenuItem::action("rename", "Rename", Some("✏"), Some("F2"), MenuAction::Rename(p.clone())),
         MenuItem::destructive("delete", "Delete", Some("🗑"), Some("Del"), MenuAction::Delete(p.clone())),
@@ -136,5 +140,7 @@ pub fn root_menu(root: &Path) -> Vec<MenuItem> {
         MenuItem::Separator,
         MenuItem::action("copy_path", "Copy Path", Some("📋"), None, MenuAction::CopyPath(p.clone())),
         MenuItem::action("reveal", "Reveal in File Explorer", Some("↗"), None, MenuAction::Reveal(p)),
+        MenuItem::Separator,
+        MenuItem::action("close_workspace", "Close Workspace", Some("✖"), None, MenuAction::CloseWorkspace),
     ]
 }

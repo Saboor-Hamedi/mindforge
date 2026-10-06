@@ -6,6 +6,8 @@ pub mod body;
 pub mod footer;
 #[path = "header.rs"]
 pub mod header;
+#[path = "icons.rs"]
+pub mod icons;
 
 #[allow(unused_imports)]
 pub use body::render_sidebar_body;
@@ -20,6 +22,7 @@ use crate::workspace::{WorkspaceDialog, WorkspaceState};
 
 pub const SECTION_GAP: f32 = 5.0;
 
+#[allow(dead_code)]
 pub enum SidebarAction {
     SwitchMode(usize),
     LoadNote { id: i64, topic: String, body: String, index: usize },
@@ -38,6 +41,7 @@ pub enum SidebarAction {
     WorkspaceCommit,
     WorkspaceCancel,
     WorkspaceRefresh,
+    CloseWorkspace,
 }
 
 pub fn render_sidebar(

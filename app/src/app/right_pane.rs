@@ -71,23 +71,40 @@ impl App {
 
             match self.right_pane.tab {
                 RightPaneTab::Preview => {
-                    let note_text = if self.misc.mode == Mode::Doc {
-                        self.editor.doc_ed.text()
+                    let is_markdown = self.active_language() == crate::language::FileLanguage::Markdown
+                        || self.misc.mode == Mode::Doc;
+                    if is_markdown {
+                        let note_text = if self.misc.mode == Mode::Doc {
+                            self.editor.doc_ed.text()
+                        } else {
+                            self.editor.ed.text()
+                        };
+                        render_markdown_preview(
+                            ui,
+                            painter,
+                            r_content_rect,
+                            &note_text,
+                            &mut self.editor.preview_scroll_y,
+                            &self.misc.theme,
+                            ed_font_size,
+                            any_modal_open
+                                || self.editor.dragging_splitter
+                                || self.sidebar.dragging_splitter,
+                        );
                     } else {
-                        self.editor.ed.text()
-                    };
-                    render_markdown_preview(
-                        ui,
-                        painter,
-                        r_content_rect,
-                        &note_text,
-                        &mut self.editor.preview_scroll_y,
-                        &self.misc.theme,
-                        ed_font_size,
-                        any_modal_open
-                            || self.editor.dragging_splitter
-                            || self.sidebar.dragging_splitter,
-                    );
+                        ui.allocate_new_ui(
+                            eframe::egui::UiBuilder::new()
+                                .max_rect(r_content_rect)
+                                .layout(eframe::egui::Layout::centered_and_justified(eframe::egui::Direction::TopDown)),
+                            |ui| {
+                                ui.label(
+                                    eframe::egui::RichText::new("Markdown preview is available for Markdown files")
+                                        .color(self.misc.theme.muted)
+                                        .size(12.5),
+                                );
+                            },
+                        );
+                    }
                 }
                 RightPaneTab::AiAgent => {
                     self.services.agent_state.is_open = true;

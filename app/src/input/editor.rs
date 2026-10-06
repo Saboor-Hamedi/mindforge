@@ -78,12 +78,7 @@ pub fn handle_editor_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64
             let text = app.editor.ed.text();
             let links = crate::wikilink::extract_wikilinks(&text);
             if let Some(link) = links.into_iter().find(|l| app.editor.ed.cur >= l.start && app.editor.ed.cur <= l.end) {
-                if let Some(note) = crate::wikilink::resolve_wikilink(&link.target, &app.notes.notes_list) {
-                    app.open_note_by_id(note.id, now);
-                } else {
-                    app.create_new_note(now);
-                    crate::notes::rename_active_note(app, &link.target, now);
-                }
+                app.follow_wikilink(&link.target, now);
                 app.services.hover_wikilink.clear();
                 return true;
             }
@@ -116,9 +111,7 @@ pub fn handle_editor_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64
             return true;
         }
         Enter if modifiers.ctrl || modifiers.command => {
-            if !target_ed.exit_block_or_table() {
-                target_ed.insert_line_below();
-            }
+            target_ed.insert_line_below();
             if !is_doc {
                 app.editor.is_dirty = true;
             }

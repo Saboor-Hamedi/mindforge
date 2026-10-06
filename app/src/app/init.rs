@@ -30,6 +30,10 @@ pub fn default_backup_dir() -> std::path::PathBuf {
 
 impl App {
     pub fn new() -> Self {
+        Self::new_with_flags(false)
+    }
+
+    pub fn new_with_flags(is_new_window: bool) -> Self {
         let tx = spawn_db_worker();
 
         let mut app = Self {
@@ -103,75 +107,80 @@ impl App {
 
         app.load_settings();
         let stored_settings = crate::services::db_worker::get_all_stored_settings();
-        if let Some(path) = stored_settings.get("workspace_root") {
-            app.open_workspace(std::path::PathBuf::from(path), 0.0);
-        }
 
-        // Restore active document and open tabs from settings.json
-        let saved_tabs = stored_settings
-            .get("open_tabs_v2")
-            .and_then(|json| serde_json::from_str::<Vec<SavedTab>>(json).ok());
-        if let Some(entries) = saved_tabs {
-            for entry in entries {
-                match entry {
-                    SavedTab::Note(_id) => {}
-                    SavedTab::File(path) => {
-                        let path = std::path::PathBuf::from(path);
-                        let Ok(content) = std::fs::read_to_string(&path) else {
-                            continue;
-                        };
-                        if let Ok(version) = crate::workspace::file_fingerprint(&path) {
-                            app.file_versions.insert(path.clone(), version);
+        if !is_new_window {
+            if let Some(path) = stored_settings.get("workspace_root") {
+                app.open_workspace(std::path::PathBuf::from(path), 0.0);
+            }
+
+            // Restore active document and open tabs from settings.json
+            let saved_tabs = stored_settings
+                .get("open_tabs_v2")
+                .and_then(|json| serde_json::from_str::<Vec<SavedTab>>(json).ok());
+            if let Some(entries) = saved_tabs {
+                for entry in entries {
+                    match entry {
+                        SavedTab::Note(_id) => {}
+                        SavedTab::File(path) => {
+                            let path = std::path::PathBuf::from(path);
+                            let Ok(content) = std::fs::read_to_string(&path) else {
+                                continue;
+                            };
+                            if let Ok(version) = crate::workspace::file_fingerprint(&path) {
+                                app.file_versions.insert(path.clone(), version);
+                            }
+                            let mut file_ed = Editor::new();
+                            file_ed.set_text(&content.replace("\r\n", "\n").replace('\r', "\n"));
+                            file_ed.clear_history();
+                            app.open_notes.push(OpenNote {
+                                id: 0,
+                                title: path
+                                    .file_name()
+                                    .and_then(|name| name.to_str())
+                                    .unwrap_or("Untitled")
+                                    .to_string(),
+                                editor: file_ed,
+                                scroll_y: 0.0,
+                                is_dirty: false,
+                                file_path: Some(path),
+                                language_override: None,
+                            });
                         }
-                        let mut file_ed = Editor::new();
-                        file_ed.set_text(&content.replace("\r\n", "\n").replace('\r', "\n"));
-                        file_ed.clear_history();
-                        app.open_notes.push(OpenNote {
-                            id: 0,
-                            title: path
-                                .file_name()
-                                .and_then(|name| name.to_str())
-                                .unwrap_or("Untitled")
-                                .to_string(),
-                            editor: file_ed,
-                            scroll_y: 0.0,
-                            is_dirty: false,
-                            file_path: Some(path),
-                            language_override: None,
-                        });
-                    }
-                    SavedTab::Untitled { title, content } => {
-                        let mut ed = Editor::new();
-                        ed.set_text(&content.replace("\r\n", "\n").replace('\r', "\n"));
-                        ed.clear_history();
-                        app.open_notes.push(OpenNote {
-                            id: 0,
-                            title,
-                            editor: ed,
-                            scroll_y: 0.0,
-                            is_dirty: false,
-                            file_path: None,
-                            language_override: None,
-                        });
+                        SavedTab::Untitled { title, content } => {
+                            let mut ed = Editor::new();
+                            ed.set_text(&content.replace("\r\n", "\n").replace('\r', "\n"));
+                            ed.clear_history();
+                            app.open_notes.push(OpenNote {
+                                id: 0,
+                                title,
+                                editor: ed,
+                                scroll_y: 0.0,
+                                is_dirty: false,
+                                file_path: None,
+                                language_override: None,
+                            });
+                        }
                     }
                 }
-            }
-            if app.open_notes.is_empty() {
-                app.misc.show_welcome = true;
+                if app.open_notes.is_empty() {
+                    app.misc.show_welcome = true;
+                } else {
+                    app.misc.show_welcome = false;
+                    app.misc.show_tabs = true;
+                    let saved_active = stored_settings
+                        .get("open_tabs_v2_active")
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap_or(0);
+                    app.tabs.active_tab = saved_active.min(app.open_notes.len() - 1);
+                    app.tabs.last_active_tab = app.tabs.active_tab;
+                    let target = &app.open_notes[app.tabs.active_tab];
+                    app.notes.active_note_id = (target.id > 0).then_some(target.id);
+                    app.notes.active_note_title = target.title.clone();
+                    app.editor.ed = target.editor.clone();
+                    app.editor.scroll_y = target.scroll_y;
+                }
             } else {
-                app.misc.show_welcome = false;
-                app.misc.show_tabs = true;
-                let saved_active = stored_settings
-                    .get("open_tabs_v2_active")
-                    .and_then(|s| s.parse::<usize>().ok())
-                    .unwrap_or(0);
-                app.tabs.active_tab = saved_active.min(app.open_notes.len() - 1);
-                app.tabs.last_active_tab = app.tabs.active_tab;
-                let target = &app.open_notes[app.tabs.active_tab];
-                app.notes.active_note_id = (target.id > 0).then_some(target.id);
-                app.notes.active_note_title = target.title.clone();
-                app.editor.ed = target.editor.clone();
-                app.editor.scroll_y = target.scroll_y;
+                app.misc.show_welcome = true;
             }
         } else {
             app.misc.show_welcome = true;
@@ -193,17 +202,7 @@ impl App {
         }
 
         if app.open_notes.is_empty() {
-            app.open_notes.push(OpenNote {
-                id: 0,
-                title: "Untitled Note".to_string(),
-                editor: Editor::new(),
-                scroll_y: 0.0,
-                is_dirty: false,
-                file_path: None,
-                language_override: None,
-            });
-            app.tabs.active_tab = 0;
-            app.tabs.last_active_tab = 0;
+            app.misc.show_welcome = true;
         }
 
         app
@@ -475,6 +474,11 @@ impl App {
                 val: json,
             });
         }
+        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
+            key: "sidebar".into(),
+            val: if self.sidebar.open { "true".into() } else { "false".into() },
+        });
+        self.persist_workspace_expansion();
         self.save_open_tabs();
     }
 

@@ -103,6 +103,17 @@ pub const INIT_LUA: &str = r#"
         end,
     })
 
+    -- Markdown wikilink syntax highlighting
+    vim.api.nvim_create_autocmd({ 'FileType' }, {
+        pattern = { 'markdown', 'md' },
+        callback = function()
+            pcall(vim.cmd, [[
+                syntax match markdownWikiLink /\[\[[^\]]\+\]\]/
+                hi def link markdownWikiLink markdownWikiLink
+            ]])
+        end,
+    })
+
     -- Indent / Dedent (Ctrl+] / Ctrl+[)
     vim.keymap.set('n', '<C-]>', '>>', { noremap = true, silent = true })
     vim.keymap.set('v', '<C-]>', '>gv', { noremap = true, silent = true })

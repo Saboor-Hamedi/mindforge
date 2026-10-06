@@ -284,7 +284,9 @@ pub fn render_editor_body(
         } else {
             None
         };
-        let line_chars = &ed.buf[line.char_start..line.char_end];
+        let start = line.char_start.min(ed.buf.len());
+        let end = line.char_end.min(ed.buf.len()).max(start);
+        let line_chars = &ed.buf[start..end];
         if let Some(language) = language {
             let source_line: String = line_chars.iter().collect();
             let job = super::preview::syntax::highlight_editor_code_line(

@@ -197,11 +197,21 @@ impl WorkspaceState {
         })? {
             WorkspaceDialog::CreateFile => {
                 validate_name(name)?;
-                create_file(&self.dialog_parent.join(name))?;
+                let parent = if self.dialog_parent.as_os_str().is_empty() || !self.dialog_parent.exists() {
+                    self.root.clone().unwrap_or_else(default_workspace_dir)
+                } else {
+                    self.dialog_parent.clone()
+                };
+                create_file(&parent.join(name))?;
             }
             WorkspaceDialog::CreateFolder => {
                 validate_name(name)?;
-                create_dir(&self.dialog_parent.join(name))?;
+                let parent = if self.dialog_parent.as_os_str().is_empty() || !self.dialog_parent.exists() {
+                    self.root.clone().unwrap_or_else(default_workspace_dir)
+                } else {
+                    self.dialog_parent.clone()
+                };
+                create_dir(&parent.join(name))?;
             }
             WorkspaceDialog::Rename => {
                 validate_name(name)?;

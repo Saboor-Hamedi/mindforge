@@ -29,6 +29,7 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
             if changed {
                 if app.misc.mode != Mode::Doc {
                     app.editor.is_dirty = true;
+                    app.sync_active_tab();
                 }
                 app.misc.sound.play();
                 app.set_status("Undo", now);
@@ -64,6 +65,7 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
             if changed {
                 if app.misc.mode != Mode::Doc {
                     app.editor.is_dirty = true;
+                    app.sync_active_tab();
                 }
                 app.misc.sound.play();
                 app.set_status("Redo", now);

@@ -135,27 +135,17 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         return;
     }
 
-    let (active_text, active_row, active_col, active_doc_id, active_tab_idx, file_name, language) =
+    let (active_doc_id, active_tab_idx, file_name, language) =
         if app.misc.mode == Mode::Doc {
-            let text = app.editor.doc_ed.text();
-            let (r, c) = app.editor.doc_ed.row_col();
             (
-                text,
-                r,
-                c,
                 Some(-(app.tabs.active_doc_idx as i64 + 1)),
                 Some(app.tabs.active_doc_tab),
                 "note.md".to_string(),
                 crate::language::FileLanguage::Markdown,
             )
         } else {
-            let text = app.editor.ed.text();
-            let (r, c) = app.editor.ed.row_col();
             let file_name = app.active_buffer_name();
             (
-                text,
-                r,
-                c,
                 app.notes.active_note_id,
                 Some(app.tabs.active_tab),
                 file_name,
@@ -168,6 +158,14 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         && app.services.vim_runtime.start_rx.is_none()
         && app.services.vim_runtime.start_error.is_none()
     {
+        let (active_text, active_row, active_col) = if app.misc.mode == Mode::Doc {
+            let (r, c) = app.editor.doc_ed.row_col();
+            (app.editor.doc_ed.text(), r, c)
+        } else {
+            let (r, c) = app.editor.ed.row_col();
+            (app.editor.ed.text(), r, c)
+        };
+
         let (tx, rx) = std::sync::mpsc::channel();
         app.services.vim_runtime.start_rx = Some(rx);
         app.services.vim_runtime.start_note_id = active_doc_id;
@@ -214,6 +212,14 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
             || app.services.vim_runtime.language != Some(language)
             || app.services.vim_runtime.buffer_name.as_deref() != Some(file_name.as_str());
         if switched_document || (entering_vim && !vim_started_this_frame) {
+            let (active_text, active_row, active_col) = if app.misc.mode == Mode::Doc {
+                let (r, c) = app.editor.doc_ed.row_col();
+                (app.editor.doc_ed.text(), r, c)
+            } else {
+                let (r, c) = app.editor.ed.row_col();
+                (app.editor.ed.text(), r, c)
+            };
+
             if entering_vim {
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     backend.tick();
