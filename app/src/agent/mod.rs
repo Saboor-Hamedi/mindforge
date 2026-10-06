@@ -111,7 +111,7 @@ impl AgentState {
         }
     }
 
-    /// Send current input prompt with dynamic database context to DeepSeek
+    /// Send current input prompt with dynamic notes context to DeepSeek
     pub fn send_message(&mut self, notes: &[Note], active_note: Option<(&str, &str)>) {
         let text = self.input_text.trim().to_string();
         if text.is_empty() || self.is_thinking {
@@ -129,8 +129,8 @@ impl AgentState {
         self.scroll_to_bottom = true;
         self.error_msg = None;
 
-        // Build system prompt with live database knowledge
-        let system_prompt = build_database_system_prompt(notes, active_note);
+        // Build system prompt with live notes knowledge
+        let system_prompt = build_workspace_system_prompt(notes, active_note);
 
         let mut api_messages = Vec::new();
         api_messages.push(ApiMessage {
@@ -184,8 +184,8 @@ impl AgentState {
 }
 
 /// Constructs a comprehensive knowledge-base system prompt so DeepSeek understands
-/// the entire user database, when data was added, and what topics exist.
-pub fn build_database_system_prompt(notes: &[Note], active_note: Option<(&str, &str)>) -> String {
+/// the user's notes, when data was added, and what topics exist.
+pub fn build_workspace_system_prompt(notes: &[Note], active_note: Option<(&str, &str)>) -> String {
     let now = chrono::Local::now();
     let now_str = now.format("%A, %B %d, %Y at %H:%M").to_string();
 
@@ -219,12 +219,12 @@ pub fn build_database_system_prompt(notes: &[Note], active_note: Option<(&str, &
     format!(
         "You are MindForge AI, an advanced intelligent knowledge companion.\n\
         The current date and time is {}.\n\
-        You have direct awareness of the user's SQLite knowledge base containing {} document(s).\n\n\
+        You have direct awareness of the user's knowledge base containing {} document(s).\n\n\
         USER KNOWLEDGE BASE INDEX:\n\
         {}\
         {}\n\n\
         GUIDELINES:\n\
-        - Answer questions accurately using the user's notes and database timestamps.\n\
+        - Answer questions accurately using the user's notes and timestamps.\n\
         - You know exactly when each note was created, what topics are covered, and how documents relate.\n\
         - When citing facts, mention the document topic and date created.\n\
         - Format responses cleanly with concise markdown.",
@@ -250,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deepseek_database_prompt_builder() {
+    fn test_deepseek_workspace_prompt_builder() {
         let dt = NaiveDateTime::parse_from_str("2026-09-23 10:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
         let notes = vec![
             Note {
@@ -262,7 +262,7 @@ mod tests {
             },
         ];
 
-        let prompt = build_database_system_prompt(&notes, Some(("Rust Ownership", "Memory safety without garbage collection.")));
+        let prompt = build_workspace_system_prompt(&notes, Some(("Rust Ownership", "Memory safety without garbage collection.")));
         assert!(prompt.contains("1 document(s)"));
         assert!(prompt.contains("Rust Ownership"));
         assert!(prompt.contains("2026-09-23 10:00"));

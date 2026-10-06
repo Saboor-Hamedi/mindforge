@@ -1,8 +1,8 @@
 //! Modal dialogs and overlay menus (Preferences, Search, Rename, Delete confirmation, Accent picker).
 
 use super::App;
+use crate::modals::{render_confirm_modal, render_rename_modal, render_search_modal};
 use crate::mode::Mode;
-use crate::modals::{render_delete_confirm_modal, render_rename_modal, render_search_modal};
 use crate::services::db_worker::DbMsg;
 use crate::setting::{render_setting_container, SettingPanelAction};
 use eframe::egui::{self, Rect, Ui};
@@ -59,7 +59,9 @@ impl App {
                         self.trigger_backup(now);
                     }
                     SettingPanelAction::CheckUpdates => {
-                        self.services.updater.check_for_updates(env!("CARGO_PKG_VERSION"));
+                        self.services
+                            .updater
+                            .check_for_updates(env!("CARGO_PKG_VERSION"));
                     }
                     SettingPanelAction::DownloadUpdate => {
                         self.services.updater.start_download();
@@ -95,11 +97,17 @@ impl App {
                 match item.action {
                     crate::services::fuzzy::PaletteAction::OpenNote(id) => {
                         self.modal.search_open = false;
-                        if let Some(ref db) = self.services.db {
-                            if let Ok(Some(n)) = db.get_note(id) {
-                                self.load_note(n.id, n.topic, n.body, now);
-                            }
+                        if let Some(n) = self.notes.notes_list.iter().find(|n| n.id == id).cloned() {
+                            self.load_note(n.id, n.topic, n.body, now);
                         }
+                    }
+                    crate::services::fuzzy::PaletteAction::OpenWorkspaceFile(path) => {
+                        self.modal.search_open=false;
+                        self.open_file_path(path,now);
+                    }
+                    crate::services::fuzzy::PaletteAction::OpenWorkspaceFolder(path) => {
+                        self.modal.search_open=false;
+                        if self.workspace.reveal(&path){self.persist_workspace_expansion();}
                     }
                     crate::services::fuzzy::PaletteAction::ApplyTheme(theme_kind) => {
                         self.misc.theme = crate::ui::theme::Theme::from_kind(theme_kind);
@@ -111,7 +119,10 @@ impl App {
                             key: "theme".into(),
                             val: theme_kind.name().into(),
                         });
-                        self.set_status(&format!("Switched to {} theme", theme_kind.display_name()), now);
+                        self.set_status(
+                            &format!("Switched to {} theme", theme_kind.display_name()),
+                            now,
+                        );
                         // Live in-place update so active checkmark updates without moving!
                         self.update_search_results();
                     }
@@ -130,21 +141,41 @@ impl App {
                     crate::services::fuzzy::PaletteAction::ToggleSidebar => {
                         self.modal.search_open = false;
                         self.sidebar.open = !self.sidebar.open;
-                        self.set_status(if self.sidebar.open { "Sidebar opened" } else { "Sidebar closed" }, now);
+                        self.set_status(
+                            if self.sidebar.open {
+                                "Sidebar opened"
+                            } else {
+                                "Sidebar closed"
+                            },
+                            now,
+                        );
                     }
                     crate::services::fuzzy::PaletteAction::ToggleRightSidebar => {
                         self.modal.search_open = false;
                         self.editor.preview_open = !self.editor.preview_open;
-                        let val = if self.editor.preview_open { "true" } else { "false" };
+                        let val = if self.editor.preview_open {
+                            "true"
+                        } else {
+                            "false"
+                        };
                         let _ = self.services.db_tx.send(DbMsg::SaveSetting {
                             key: "preview".into(),
                             val: val.into(),
                         });
-                        self.set_status(if self.editor.preview_open { "Right Pane opened" } else { "Right Pane closed" }, now);
+                        self.set_status(
+                            if self.editor.preview_open {
+                                "Right Pane opened"
+                            } else {
+                                "Right Pane closed"
+                            },
+                            now,
+                        );
                     }
                     crate::services::fuzzy::PaletteAction::ToggleBacklinks => {
                         self.modal.search_open = false;
-                        if self.editor.preview_open && self.right_pane.tab == crate::app::RightPaneTab::Backlinks {
+                        if self.editor.preview_open
+                            && self.right_pane.tab == crate::app::RightPaneTab::Backlinks
+                        {
                             self.editor.preview_open = false;
                             let _ = self.services.db_tx.send(DbMsg::SaveSetting {
                                 key: "preview".into(),
@@ -163,7 +194,9 @@ impl App {
                     }
                     crate::services::fuzzy::PaletteAction::ToggleOutline => {
                         self.modal.search_open = false;
-                        if self.editor.preview_open && self.right_pane.tab == crate::app::RightPaneTab::Outline {
+                        if self.editor.preview_open
+                            && self.right_pane.tab == crate::app::RightPaneTab::Outline
+                        {
                             self.editor.preview_open = false;
                             let _ = self.services.db_tx.send(DbMsg::SaveSetting {
                                 key: "preview".into(),
@@ -183,12 +216,23 @@ impl App {
                     crate::services::fuzzy::PaletteAction::TogglePreview => {
                         self.modal.search_open = false;
                         self.editor.preview_open = !self.editor.preview_open;
-                        let val = if self.editor.preview_open { "true" } else { "false" };
+                        let val = if self.editor.preview_open {
+                            "true"
+                        } else {
+                            "false"
+                        };
                         let _ = self.services.db_tx.send(DbMsg::SaveSetting {
                             key: "preview".into(),
                             val: val.into(),
                         });
-                        self.set_status(if self.editor.preview_open { "Preview ON" } else { "Preview OFF" }, now);
+                        self.set_status(
+                            if self.editor.preview_open {
+                                "Preview ON"
+                            } else {
+                                "Preview OFF"
+                            },
+                            now,
+                        );
                     }
                     crate::services::fuzzy::PaletteAction::ToggleAi => {
                         self.modal.search_open = false;
@@ -202,7 +246,14 @@ impl App {
                     crate::services::fuzzy::PaletteAction::ToggleTerminal => {
                         self.modal.search_open = false;
                         self.terminal.open = !self.terminal.open;
-                        self.set_status(if self.terminal.open { "Terminal docked (:term)" } else { "Terminal closed" }, now);
+                        self.set_status(
+                            if self.terminal.open {
+                                "Terminal docked (:term)"
+                            } else {
+                                "Terminal closed"
+                            },
+                            now,
+                        );
                     }
                     crate::services::fuzzy::PaletteAction::ToggleZen => {
                         self.modal.search_open = false;
@@ -216,7 +267,14 @@ impl App {
                             self.misc.show_titlebar = true;
                             self.misc.show_tabs = true;
                         }
-                        self.set_status(if self.misc.zen_mode { "Zen Mode ON (Ctrl+.)" } else { "Zen Mode OFF" }, now);
+                        self.set_status(
+                            if self.misc.zen_mode {
+                                "Zen Mode ON (Ctrl+.)"
+                            } else {
+                                "Zen Mode OFF"
+                            },
+                            now,
+                        );
                     }
                     crate::services::fuzzy::PaletteAction::ToggleTitlebar => {
                         self.modal.search_open = false;
@@ -268,7 +326,9 @@ impl App {
                     }
                     crate::services::fuzzy::PaletteAction::ImportWorkspace => {
                         self.modal.search_open = false;
-                        self.services.workspace_importer.is_modal_open = true;
+                        if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                            self.open_workspace(path, now);
+                        }
                     }
                     crate::services::fuzzy::PaletteAction::RunScan => {
                         self.modal.search_open = false;
@@ -305,7 +365,10 @@ impl App {
                                 val: json,
                             });
                         }
-                        self.set_status(&format!("LunaLine color set to {}", color_mode.name()), now);
+                        self.set_status(
+                            &format!("LunaLine color set to {}", color_mode.name()),
+                            now,
+                        );
                     }
                     crate::services::fuzzy::PaletteAction::ShowSoundPicker => {
                         // handled in modals.rs (sets query to >sound), no-op here
@@ -335,7 +398,13 @@ impl App {
                             val: kind.name().into(),
                         });
                         crate::notes::update_search_results(self);
-                        self.set_status(&format!("Caret style: {}", crate::ui::palette::caret_display_name(kind)), now);
+                        self.set_status(
+                            &format!(
+                                "Caret style: {}",
+                                crate::ui::palette::caret_display_name(kind)
+                            ),
+                            now,
+                        );
                     }
                     crate::services::fuzzy::PaletteAction::OpenFontPicker => {
                         self.modal.search_query = ">font ".to_string();
@@ -344,7 +413,10 @@ impl App {
                     }
                     crate::services::fuzzy::PaletteAction::ApplyFont(font_name) => {
                         self.misc.selected_font = font_name.clone();
-                        crate::services::font_manager::apply_font(ui.ctx(), &self.misc.selected_font);
+                        crate::services::font_manager::apply_font(
+                            ui.ctx(),
+                            &self.misc.selected_font,
+                        );
                         self.editor.cell = None;
                         let _ = self.services.db_tx.send(DbMsg::SaveSetting {
                             key: "selected_font".into(),
@@ -370,7 +442,17 @@ impl App {
                             val: mode_str.into(),
                         });
                         crate::notes::update_search_results(self);
-                        self.set_status(&format!("Editor mode: {}", if mode == crate::app::EditorInputMode::Vim { "Vim" } else { "Hybrid" }), now);
+                        self.set_status(
+                            &format!(
+                                "Editor mode: {}",
+                                if mode == crate::app::EditorInputMode::Vim {
+                                    "Vim"
+                                } else {
+                                    "Hybrid"
+                                }
+                            ),
+                            now,
+                        );
                     }
                 }
             }
@@ -401,33 +483,94 @@ impl App {
 
         // 4. Delete Confirmation Modal
         if self.modal.delete_confirm_open {
-            let target_title = if let Some(del_id) = self.modal.pending_delete_note_id {
-                self.notes.notes_list.iter().find(|n| n.id == del_id).map(|n| n.topic.as_str()).unwrap_or("this note")
+            let (target_title, is_folder) = if let Some(path) = self.modal.pending_delete_path.as_ref() {
+                let name = path
+                    .file_name()
+                    .unwrap_or(path.as_os_str())
+                    .to_string_lossy()
+                    .into_owned();
+                (name, path.is_dir())
+            } else if let Some(del_id) = self.modal.pending_delete_note_id {
+                let name = self
+                    .notes
+                    .notes_list
+                    .iter()
+                    .find(|n| n.id == del_id)
+                    .map(|n| n.topic.clone())
+                    .unwrap_or_else(|| "this note".to_string());
+                (name, false)
             } else {
-                &self.notes.active_note_title
+                (self.notes.active_note_title.clone(), false)
             };
-            let act = render_delete_confirm_modal(
+
+            let title = if is_folder {
+                "Delete Folder"
+            } else {
+                "Delete File"
+            };
+            let message = format!(
+                "Are you sure you want to permanently delete \"{}\"?\nThis action cannot be undone.",
+                target_title
+            );
+
+            let act = render_confirm_modal(
                 ui,
                 painter,
                 bounds,
-                target_title,
+                title,
+                &message,
+                "Delete (Enter)",
                 &self.misc.theme,
                 self.modal.delete_just_opened,
             );
             self.modal.delete_just_opened = false;
             if act.confirmed {
                 self.modal.delete_confirm_open = false;
-                if let Some(del_id) = self.modal.pending_delete_note_id.take() {
+                if let Some(path) = self.modal.pending_delete_path.take() {
+                    let to_close: Vec<usize> = self
+                        .open_notes
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(idx, t)| {
+                            if t.file_path.as_ref().is_some_and(|p| p.starts_with(&path)) {
+                                Some(idx)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    for idx in to_close.into_iter().rev() {
+                        self.close_tab(idx, now);
+                    }
+                    let file_name_disp = path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned();
+                    match crate::workspace::delete_path(&path) {
+                        Ok(()) => {
+                            let _ = self.workspace.refresh();
+                            self.set_status(format!("Deleted {}", file_name_disp), now);
+                        }
+                        Err(e) => {
+                            self.set_status(format!("Failed to delete {}: {}", file_name_disp, e), now);
+                        }
+                    }
+                } else if let Some(del_id) = self.modal.pending_delete_note_id.take() {
                     let _ = self.services.db_tx.send(DbMsg::DeleteNote { id: del_id });
                     self.notes.notes_list.retain(|n| n.id != del_id);
                     if self.notes.active_note_id == Some(del_id) {
                         self.delete_active_note(now);
                     } else {
-                        self.open_notes.retain(|t| t.id != del_id);
-                        if self.tabs.active_tab >= self.open_notes.len() && !self.open_notes.is_empty() {
-                            self.tabs.active_tab = self.open_notes.len() - 1;
+                        let to_close: Vec<usize> = self
+                            .open_notes
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, t)| if t.id == del_id { Some(idx) } else { None })
+                            .collect();
+                        for idx in to_close.into_iter().rev() {
+                            self.close_tab(idx, now);
                         }
-                        self.save_open_tabs();
                     }
                     self.set_status("Note deleted", now);
                 } else {
@@ -437,6 +580,7 @@ impl App {
             if act.should_close {
                 self.modal.delete_confirm_open = false;
                 self.modal.pending_delete_note_id = None;
+                self.modal.pending_delete_path = None;
             }
         }
 
@@ -453,19 +597,20 @@ impl App {
                 &mut self.misc.opacity,
                 &mut self.misc.blur_effect,
                 &mut |key: &str, val: &str| {
-                    let _ = self.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
-                        key: key.into(),
-                        val: val.into(),
-                    });
+                    let _ =
+                        self.services
+                            .db_tx
+                            .send(crate::services::db_worker::DbMsg::SaveSetting {
+                                key: key.into(),
+                                val: val.into(),
+                            });
                 },
             );
             if let Some(act) = action {
                 match act {
                     crate::accent::AccentAction::Changed => {
                         self.misc.accent_overrides.apply(&mut self.misc.theme);
-                        if let Some(ref db) = self.services.db {
-                            let _ = self.misc.accent_overrides.save_to_db(db);
-                        }
+                        self.misc.accent_overrides.save_to_settings(&self.services.db_tx);
                         if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
                             backend.sync_theme(&self.misc.theme);
                         }
@@ -474,9 +619,7 @@ impl App {
                     crate::accent::AccentAction::ResetAll => {
                         self.misc.accent_overrides.clear();
                         self.misc.theme = crate::ui::theme::Theme::from_kind(self.misc.theme.kind);
-                        if let Some(ref db) = self.services.db {
-                            let _ = self.misc.accent_overrides.save_to_db(db);
-                        }
+                        self.misc.accent_overrides.save_to_settings(&self.services.db_tx);
                         if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
                             backend.sync_theme(&self.misc.theme);
                         }
@@ -486,20 +629,6 @@ impl App {
                         self.misc.accent_dropdown_open = false;
                     }
                 }
-            }
-        }
-
-        // 6. Workspace / Obsidian Vault Import Modal
-        if self.services.workspace_importer.is_modal_open {
-            let act = crate::workspace_import::render_import_modal(
-                ui,
-                painter,
-                bounds,
-                &mut self.services.workspace_importer,
-                &self.misc.theme,
-            );
-            if matches!(act, crate::workspace_import::ImportModalAction::RefreshNotes) {
-                self.reload_db_state();
             }
         }
     }

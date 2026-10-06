@@ -43,6 +43,8 @@ pub enum RightPaneTab {
 }
 
 pub struct App {
+    pub workspace: crate::workspace::WorkspaceState,
+    pub file_versions: std::collections::HashMap<std::path::PathBuf, u64>,
     pub editor: crate::state::editor::EditorState,
     pub command_bar: crate::state::command_bar::CommandBarState,
     pub misc: crate::state::misc::MiscState,
@@ -91,17 +93,196 @@ pub struct App {
     // Webscan (:scan & :scans) state
     pub scan: crate::state::scan::ScanState,
 
-
     // Embedded Terminal (:term) docked session state
     pub terminal: crate::state::terminal::TerminalState,
-
-
 
     // Right side pane (Preview and AI Agent tabs)
     pub right_pane: crate::state::right_pane::RightPaneState,
 }
 
 impl App {
+    pub fn display_file_path(&self, path: &std::path::Path) -> String {
+        if let Some(root) = self.workspace.root.as_deref() {
+            if let Some(relative) = crate::workspace::relative_display(root, path) {
+                return relative;
+            }
+        }
+        path.file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "file".into())
+    }
+
+    fn apply_external_workspace_renames(&mut self) {
+        let renames = self.workspace.take_external_renames();
+        if renames.is_empty() { return; }
+        for (old, new) in renames {
+            self.remap_workspace_prefix(&old, &new);
+            let versions: Vec<_> = self.file_versions.iter().map(|(p,v)|(p.clone(),*v)).collect();
+            for (path,version) in versions {
+                if path.starts_with(&old) { if let Ok(suffix)=path.strip_prefix(&old) {
+                    self.file_versions.remove(&path);
+                    let moved=new.join(suffix);
+                    if let Ok(actual)=crate::workspace::file_fingerprint(&moved) { self.file_versions.insert(moved,actual); }
+                    else { self.file_versions.insert(moved,version); }
+                } }
+            }
+            for tab in &mut self.open_notes {
+                if let Some(path)=tab.file_path.as_mut() { if path.starts_with(&old) {
+                    if let Ok(suffix)=path.strip_prefix(&old) { *path=new.join(suffix); }
+                    if *path==new { tab.title=new.file_name().unwrap_or_default().to_string_lossy().into_owned(); }
+                } }
+            }
+        }
+        let _=self.workspace.refresh();
+        self.persist_workspace_expansion();
+        self.save_open_tabs();
+    }
+
+    fn remap_workspace_prefix(&mut self,old:&std::path::Path,new:&std::path::Path){
+        let expanded:Vec<_>=self.workspace.expanded.iter().cloned().collect();
+        for path in expanded {if path.starts_with(old){if let Ok(suffix)=path.strip_prefix(old){self.workspace.expanded.remove(&path);self.workspace.expanded.insert(new.join(suffix));}}}
+        let selected:Vec<_>=self.workspace.selected_items.iter().cloned().collect();
+        for path in selected {if path.starts_with(old){if let Ok(suffix)=path.strip_prefix(old){self.workspace.selected_items.remove(&path);self.workspace.selected_items.insert(new.join(suffix));}}}
+        if let Some(anchor)=self.workspace.selection_anchor.as_mut(){if anchor.starts_with(old){if let Ok(suffix)=anchor.strip_prefix(old){*anchor=new.join(suffix);}}}
+    }
+
+    fn persist_workspace_expansion(&self) {
+        if let Some(root) = self.workspace.root.as_ref() {
+            let key = format!("workspace_expanded:{}", root.to_string_lossy());
+            let paths: Vec<String> = self
+                .workspace
+                .expanded
+                .iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect();
+            if let Ok(value) = serde_json::to_string(&paths) {
+                let _ = self
+                    .services
+                    .db_tx
+                    .send(crate::services::db_worker::DbMsg::SaveSetting {
+                        key,
+                        val: value,
+                    });
+            }
+        }
+    }
+    pub fn open_workspace(&mut self, path: std::path::PathBuf, now: f64) {
+        match self.workspace.open(path) {
+            Ok(()) => {
+                if let Some(root) = self.workspace.root.clone() {
+                    let expanded_key = format!("workspace_expanded:{}", root.to_string_lossy());
+                    if let Some(saved) = crate::services::db_worker::get_stored_setting(&expanded_key) {
+                        if let Ok(paths) = serde_json::from_str::<Vec<String>>(&saved) {
+                            for path in paths.into_iter().map(std::path::PathBuf::from) {
+                                if path.is_dir() && path.starts_with(&root) {
+                                    self.workspace.expanded.insert(path);
+                                }
+                            }
+                            let _ = self.workspace.refresh();
+                        }
+                    }
+                    let _ =
+                        self.services
+                            .db_tx
+                            .send(crate::services::db_worker::DbMsg::SaveSetting {
+                                key: "workspace_root".into(),
+                                val: root.to_string_lossy().into_owned(),
+                            });
+                }
+                if let (Some(backend), Some(root)) = (
+                    self.services.vim_runtime.backend.as_mut(),
+                    self.workspace.root.as_deref(),
+                ) {
+                    let _ = backend.set_workspace_root(root);
+                }
+                self.set_status("Workspace opened", now);
+            }
+            Err(e) => self.set_status(format!("Could not open workspace: {e}"), now),
+        }
+    }
+
+    pub fn toggle_workspace_folder(&mut self,path:&std::path::Path){
+        self.workspace.toggle(path);
+        self.persist_workspace_expansion();
+    }
+
+    pub fn persist_scratch_tab(&mut self, index: usize, now: f64) -> std::io::Result<()> {
+        let tab = self
+            .open_notes
+            .get(index)
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No scratch tab"))?;
+        if tab.file_path.is_some() || tab.id > 0 {
+            return Ok(());
+        }
+        let is_active = index == self.tabs.active_tab;
+        let content = if is_active {
+            self.editor.ed.text()
+        } else {
+            tab.editor.text()
+        };
+        let title = if tab.title.trim().is_empty() {
+            "Untitled Note"
+        } else {
+            tab.title.as_str()
+        };
+        let dir = crate::workspace::default_workspace_dir().join("Scratch");
+        std::fs::create_dir_all(&dir)?;
+        let safe: String = title
+            .chars()
+            .map(|c| {
+                if "<>:\"/\\|?*".contains(c) || c.is_control() {
+                    '_'
+                } else {
+                    c
+                }
+            })
+            .collect();
+        let stem = if safe.trim().is_empty() {
+            "Untitled Note"
+        } else {
+            safe.trim()
+        };
+        let mut path = dir.join(format!("{stem}.md"));
+        let mut suffix = 2;
+        while path.exists() {
+            path = dir.join(format!("{stem} {suffix}.md"));
+            suffix += 1;
+        }
+        {
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)?;
+            file.write_all(content.as_bytes())?;
+        }
+        let path = crate::workspace::normalized_path(&path);
+        let display_title = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        if let Some(tab) = self.open_notes.get_mut(index) {
+            tab.file_path = Some(path.clone());
+            tab.title = display_title.clone();
+            tab.is_dirty = false;
+        }
+        if is_active {
+            self.notes.active_note_title = display_title;
+            self.editor.is_dirty = false;
+            self.editor.last_saved_time = now;
+        }
+        self.file_versions.insert(
+            path.clone(),
+            crate::workspace::file_fingerprint(&path).unwrap_or(0),
+        );
+        if self.workspace.root.is_none() {
+            self.open_workspace(crate::workspace::default_workspace_dir(), now);
+        }
+        self.sync_active_tab();
+        self.save_open_tabs();
+        Ok(())
+    }
     /// Computes the exact monospace character advance width and line height.
     /// Measuring 100 characters eliminates single-glyph bounding box ink discrepancies,
     /// guaranteeing that caret placement at `col * cw` aligns with rendered text at any line length.
@@ -121,11 +302,14 @@ impl App {
         self.open_notes
             .get(self.tabs.active_tab)
             .map(|tab| {
-                tab.language_override.unwrap_or_else(|| match tab.file_path.as_deref() {
-                    Some(path) => crate::language::FileLanguage::from_path(path),
-                    None => crate::language::FileLanguage::from_title(&self.notes.active_note_title)
-                        .unwrap_or(crate::language::FileLanguage::Markdown),
-                })
+                tab.language_override
+                    .unwrap_or_else(|| match tab.file_path.as_deref() {
+                        Some(path) => crate::language::FileLanguage::from_path(path),
+                        None => {
+                            crate::language::FileLanguage::from_title(&self.notes.active_note_title)
+                                .unwrap_or(crate::language::FileLanguage::Markdown)
+                        }
+                    })
             })
             .unwrap_or(crate::language::FileLanguage::Markdown)
     }
@@ -135,7 +319,11 @@ impl App {
         self.open_notes
             .get(self.tabs.active_tab)
             .and_then(|tab| tab.file_path.as_deref())
-            .map(|path| path.to_string_lossy().into_owned())
+            .map(|path| {
+                crate::workspace::normalized_path(path)
+                    .to_string_lossy()
+                    .into_owned()
+            })
             .unwrap_or_else(|| {
                 let title = self.notes.active_note_title.trim();
                 if crate::language::FileLanguage::from_title(title).is_some() {
@@ -159,12 +347,17 @@ impl App {
     }
 
     pub fn open_file_path(&mut self, path: std::path::PathBuf, now: f64) {
-        if let Some(index) = self
-            .open_notes
-            .iter()
-            .position(|tab| tab.file_path.as_ref() == Some(&path))
-        {
+        let path = crate::workspace::normalized_path(&path);
+        if self.workspace.reveal(&path) {
+            self.persist_workspace_expansion();
+        }
+        if let Some(index) = self.open_notes.iter().position(|tab| {
+            tab.file_path
+                .as_ref()
+                .is_some_and(|p| crate::workspace::same_path(p, &path))
+        }) {
             self.switch_tab(index, now);
+            self.sidebar.focused=false;
             return;
         }
         let content = match std::fs::read_to_string(&path) {
@@ -180,13 +373,24 @@ impl App {
             current.scroll_y = self.editor.scroll_y;
             current.is_dirty = self.editor.is_dirty;
         }
+        if self
+            .open_notes
+            .get(self.tabs.active_tab)
+            .is_some_and(|tab| tab.file_path.is_none() && tab.id == 0 && tab.is_dirty)
+        {
+            let _ = self.persist_scratch_tab(self.tabs.active_tab, now);
+        }
         let title = path
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("Untitled")
             .to_string();
+        self.file_versions.insert(
+            path.clone(),
+            crate::workspace::file_fingerprint(&path).unwrap_or(0),
+        );
         let mut editor = Editor::new();
-        editor.insert_str(&content);
+        editor.set_text(&content);
         editor.clear_history();
         self.notes.active_note_id = None;
         self.notes.active_note_title = title.clone();
@@ -206,9 +410,166 @@ impl App {
         });
         self.tabs.active_tab = self.open_notes.len() - 1;
         self.tabs.last_active_tab = self.tabs.active_tab;
+        self.sidebar.focused=false;
+        self.misc.caret.gliding=false;
         self.save_active_note_id();
         self.save_open_tabs();
-        self.set_status(format!("Opened {}", path.display()), now);
+        self.set_status(format!("Opened {}", self.display_file_path(&path)), now);
+    }
+
+    pub fn perform_workspace_dialog(&mut self, now: f64) {
+        let kind = self.workspace.dialog;
+        let dialog_parent=self.workspace.dialog_parent.clone();
+        let old = self.workspace.selected_path.clone();
+        if kind == Some(crate::workspace::WorkspaceDialog::Delete) {
+            if let Some(path) = old.as_ref() {
+                let busy = self
+                    .open_notes
+                    .iter()
+                    .filter_map(|t| t.file_path.as_ref())
+                    .any(|p| p.starts_with(path));
+                if busy {
+                    self.set_status("Close files in this item before deleting it", now);
+                    return;
+                }
+            }
+        }
+        let created_name = self.workspace.dialog_name.trim().to_string();
+        let new = if kind == Some(crate::workspace::WorkspaceDialog::Rename) {
+            old.as_ref()
+                .map(|p| p.with_file_name(self.workspace.dialog_name.trim()))
+        } else {
+            None
+        };
+        match self.workspace.perform() {
+            Ok(()) => {
+                if matches!(kind,Some(crate::workspace::WorkspaceDialog::CreateFile|crate::workspace::WorkspaceDialog::CreateFolder)) {
+                    self.workspace.expanded.insert(dialog_parent.clone());
+                    let _=self.workspace.refresh();
+                    self.persist_workspace_expansion();
+                    if kind == Some(crate::workspace::WorkspaceDialog::CreateFile) {
+                        let created_file = dialog_parent.join(&created_name);
+                        if created_file.is_file() {
+                            self.open_file_path(created_file, now);
+                        }
+                    }
+                }
+                if kind == Some(crate::workspace::WorkspaceDialog::Delete) {
+                    self.reload_db_state();
+                }
+                if let (Some(old), Some(new)) = (old, new) {
+                    self.remap_workspace_prefix(&old, &new);
+                    let versions: Vec<_> = self
+                        .file_versions
+                        .iter()
+                        .map(|(p, v)| (p.clone(), *v))
+                        .collect();
+                    for (path, version) in versions {
+                        if path.starts_with(&old) {
+                            if let Ok(suffix) = path.strip_prefix(&old) {
+                                self.file_versions.remove(&path);
+                                self.file_versions.insert(new.join(suffix), version);
+                            }
+                        }
+                    }
+                    for tab in &mut self.open_notes {
+                        if let Some(path) = tab.file_path.as_mut() {
+                            let direct = *path == old;
+                            if path.starts_with(&old) {
+                                if let Ok(suffix) = path.strip_prefix(&old) {
+                                    *path = new.join(suffix);
+                                }
+                            }
+                            if direct {
+                                tab.title = new
+                                    .file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .into_owned();
+                            }
+                        }
+                    }
+                    let _ = self.workspace.refresh();
+                    self.persist_workspace_expansion();
+                    self.save_open_tabs();
+                }
+                self.set_status("Workspace updated", now);
+            }
+            Err(e) => {
+                self.workspace.dialog_error=Some(e.to_string());
+                self.set_status(format!("Filesystem operation failed: {e}"), now);
+            }
+        }
+    }
+
+    pub fn move_workspace_items(
+        &mut self,
+        sources: &[std::path::PathBuf],
+        destination: &std::path::Path,
+        now: f64,
+    ) {
+        let mut top = sources.to_vec();
+        top.sort_by_key(|p| p.components().count());
+        top.dedup();
+        top.retain(|candidate| {
+            !sources
+                .iter()
+                .any(|parent| parent != candidate && candidate.starts_with(parent))
+        });
+        let targets: Vec<_> = top
+            .iter()
+            .map(|p| {
+                (
+                    p.clone(),
+                    destination.join(p.file_name().unwrap_or_default()),
+                )
+            })
+            .collect();
+        match crate::workspace::move_paths(&top, destination) {
+            Ok(()) => {
+                for tab in &mut self.open_notes {
+                    if let Some(path) = tab.file_path.as_mut() {
+                        for (from, to) in &targets {
+                            if path.starts_with(from) {
+                                if let Ok(suffix) = path.strip_prefix(from) {
+                                    *path = to.join(suffix);
+                                }
+                                if path == to {
+                                    tab.title = to
+                                        .file_name()
+                                        .unwrap_or_default()
+                                        .to_string_lossy()
+                                        .into_owned();
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+                for (from,to) in &targets {self.remap_workspace_prefix(from,to);}
+                let versions: Vec<_> = self
+                    .file_versions
+                    .iter()
+                    .map(|(p, v)| (p.clone(), *v))
+                    .collect();
+                for (from, to) in &targets {
+                    for (path, version) in &versions {
+                        if path.starts_with(from) {
+                            if let Ok(suffix) = path.strip_prefix(from) {
+                                self.file_versions.remove(path);
+                                self.file_versions.insert(to.join(suffix), *version);
+                            }
+                        }
+                    }
+                }
+                let _ = self.workspace.refresh();
+                self.workspace.rebuild_search_index();
+                self.persist_workspace_expansion();
+                self.save_open_tabs();
+                self.set_status("Moved selected filesystem items", now);
+            }
+            Err(error) => self.set_status(format!("Move failed: {error}"), now),
+        }
     }
 }
 
@@ -227,6 +588,11 @@ impl eframe::App for App {
         }
 
         let now = ctx.input(|i| i.time);
+        if self.workspace.poll_external(now) {
+            self.apply_external_workspace_renames();
+            if self.modal.search_open { self.update_search_results(); }
+            ctx.request_repaint();
+        }
         let dt = ctx.input(|i| i.unstable_dt).clamp(0.0, 0.05);
         let mode_at_frame_start = self.services.editor_controller.mode;
         crate::vim::runtime::update(self, ctx, now, mode_at_frame_start);
@@ -235,7 +601,10 @@ impl eframe::App for App {
         let (cw, _) = self.cell_size(ctx);
         let screen_w = ctx.screen_rect().width();
         let left_margin = if self.sidebar.open {
-            crate::layout::GAP + self.sidebar.width + crate::layout::SPLITTER_BAR_W + crate::layout::GAP
+            crate::layout::GAP
+                + self.sidebar.width
+                + crate::layout::SPLITTER_BAR_W
+                + crate::layout::GAP
         } else {
             crate::layout::GAP
         };
@@ -251,13 +620,21 @@ impl eframe::App for App {
             editor_w
         };
         let (ed_font_size, _, _) = self.misc.zoom.editor_metrics(self.misc.font_size, ctx);
-        let active_ed = if self.misc.mode == Mode::Doc { &self.editor.doc_ed } else { &self.editor.ed };
-        let in_vim = self.services.editor_controller.mode == EditorInputMode::Vim && matches!(self.misc.mode, Mode::Normal | Mode::Doc);
+        let active_ed = if self.misc.mode == Mode::Doc {
+            &self.editor.doc_ed
+        } else {
+            &self.editor.ed
+        };
+        let in_vim = self.services.editor_controller.mode == EditorInputMode::Vim
+            && matches!(self.misc.mode, Mode::Normal | Mode::Doc);
         let use_inline_markdown = self.editor.inline_mode
             && (self.misc.mode == Mode::Doc
                 || self.active_language() == crate::language::FileLanguage::Markdown);
         self.editor.visual_lines = if in_vim {
-            vec![crate::types::VisualLine { char_start: 0, char_end: active_ed.buf.len() }]
+            vec![crate::types::VisualLine {
+                char_start: 0,
+                char_end: active_ed.buf.len(),
+            }]
         } else if use_inline_markdown {
             let gutter_w = if self.editor.show_line_numbers {
                 let total_lines = (active_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
@@ -266,9 +643,17 @@ impl eframe::App for App {
             } else {
                 0.0
             };
-            let pad_x = if self.editor.show_line_numbers { 16.0 } else { 24.0 };
+            let pad_x = if self.editor.show_line_numbers {
+                16.0
+            } else {
+                24.0
+            };
             let safe_w = effective_editor_w;
-            let effective_gutter_w = if safe_w > gutter_w + 40.0 { gutter_w } else { 0.0 };
+            let effective_gutter_w = if safe_w > gutter_w + 40.0 {
+                gutter_w
+            } else {
+                0.0
+            };
             let wrap_w = (effective_editor_w - effective_gutter_w - pad_x - 24.0).max(120.0);
             let inline_layout = crate::view_editor::inline::compute_inline_layout_ctx(
                 ctx,
@@ -280,7 +665,11 @@ impl eframe::App for App {
             );
             inline_layout.compute_visual_lines()
         } else {
-            let gutter_space = if self.editor.show_line_numbers { 42.0 } else { 0.0 };
+            let gutter_space = if self.editor.show_line_numbers {
+                42.0
+            } else {
+                0.0
+            };
             let text_area_w = (effective_editor_w - gutter_space - 8.0).max(100.0);
             let max_cols = (text_area_w / cw).floor().max(15.0) as usize;
             active_ed.compute_visual_lines(max_cols)
@@ -320,15 +709,27 @@ impl eframe::App for App {
             }
         }
 
-        // Periodic auto-flush of activity stats to database every 10 seconds
+        // Periodic auto-flush of activity stats to storage every 10 seconds
         if (now - self.activity.last_flush_time) > 10.0 {
             self.flush_activity(now);
             self.save_caret_position();
         }
 
         // Auto-save when idle for 1.2s in Normal mode
-        if self.editor.is_dirty && (now - self.misc.last_char_time) > 1.2 && self.misc.mode == Mode::Normal {
-            self.quick_save_active_note(now);
+        let has_persistent_document = self.notes.active_note_id.is_some()
+            || self
+                .open_notes
+                .get(self.tabs.active_tab)
+                .is_some_and(|tab| tab.file_path.is_some());
+        if self.editor.is_dirty
+            && (now - self.misc.last_char_time) > 1.2
+            && self.misc.mode == Mode::Normal
+        {
+            if has_persistent_document {
+                self.quick_save_active_note(now);
+            } else if self.persist_scratch_tab(self.tabs.active_tab, now).is_err() {
+                self.set_status("Scratch autosave failed", now);
+            }
             self.save_caret_position();
         }
 
@@ -344,11 +745,13 @@ impl eframe::App for App {
                 self.scan.scan_rx = None;
                 match msg {
                     Ok(scan_res) => {
-                        // Persist scan result to SQLite
-                        if let Some(ref db) = self.services.db {
-                            if let Ok(json_str) = serde_json::to_string(&scan_res.findings) {
-                                let _ = db.save_scan(&scan_res.url, scan_res.note.as_deref(), &json_str);
-                            }
+                        // Persist scan result to filesystem scans.json
+                        if let Ok(json_str) = serde_json::to_string(&scan_res.findings) {
+                            crate::services::db_worker::save_stored_scan(
+                                &scan_res.url,
+                                scan_res.note.as_deref(),
+                                &json_str,
+                            );
                         }
                         self.scan.active_scan_result = Some(scan_res);
                         self.scan.active_scan_error = None;
@@ -367,15 +770,11 @@ impl eframe::App for App {
             }
         }
 
-        // Detect dragged & dropped Obsidian vaults, folders, and markdown files
-        if crate::workspace_import::handle_drag_and_drop(ctx, &mut self.services.workspace_importer) {
-            self.set_status("Started vault import in background...", now);
-        }
-
-        // Poll whether background workspace import completed
-        if let Some(count) = self.services.workspace_importer.poll_completion() {
-            self.reload_db_state();
-            self.set_status(&format!("Successfully imported {} notes into MindForge", count), now);
+        // Open dropped folders and files as filesystem workspaces
+        if crate::workspace_import::handle_drag_and_drop(ctx, &mut self.workspace) {
+            if let Some(root) = self.workspace.root.clone() {
+                self.open_workspace(root, now);
+            }
         }
 
         window_shortcuts(ctx);
@@ -403,16 +802,19 @@ impl eframe::App for App {
             ctx.request_repaint();
         } else if focused
             && (self.command_bar.in_command
-                || self.services.vim_runtime.backend.as_ref().is_some_and(|b| b.busy_label().is_some())
+                || self
+                    .services
+                    .vim_runtime
+                    .backend
+                    .as_ref()
+                    .is_some_and(|b| b.busy_label().is_some())
                 || !self.misc.showcmd.text.is_empty()
                 || self.modal.search_open
                 || self.modal.settings_open
                 || self.modal.help_open
                 || self.modal.rename_open
                 || self.modal.delete_confirm_open
-                || self.misc.accent_dropdown_open
-                || self.services.workspace_importer.is_modal_open
-                || self.services.workspace_importer.is_active())
+                || self.misc.accent_dropdown_open)
         {
             ctx.request_repaint_after(Duration::from_millis(16));
         } else {

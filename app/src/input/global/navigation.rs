@@ -9,36 +9,47 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
     // 1. Sidebar Keyboard Navigation
     // Guarded by !app.command_bar.in_command so typing ':' is never consumed by the sidebar.
     if app.sidebar.open && app.sidebar.focused && !app.command_bar.in_command {
-        let (sb_up, sb_down, sb_enter, sb_esc, sb_edit, sb_to_editor, sb_tab) = ctx.input(|i| (
-            (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K)) || i.key_pressed(egui::Key::ArrowUp),
-            (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J)) || i.key_pressed(egui::Key::ArrowDown),
-            i.key_pressed(egui::Key::Enter),
-            i.key_pressed(egui::Key::Escape),
-            !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::I),
-            (!i.modifiers.alt && (i.key_pressed(egui::Key::L) || i.key_pressed(egui::Key::ArrowRight))),
-            !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::Tab),
-        ));
+        let (sb_up, sb_down, sb_enter, sb_esc, sb_edit, sb_to_editor, sb_tab) = ctx.input(|i| {
+            (
+                (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K))
+                    || i.key_pressed(egui::Key::ArrowUp),
+                (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J))
+                    || i.key_pressed(egui::Key::ArrowDown),
+                i.key_pressed(egui::Key::Enter),
+                i.key_pressed(egui::Key::Escape),
+                !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::I),
+                (!i.modifiers.alt
+                    && (i.key_pressed(egui::Key::L) || i.key_pressed(egui::Key::ArrowRight))),
+                !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::Tab),
+            )
+        });
 
         if sb_esc || sb_to_editor || sb_tab {
             app.sidebar.focused = false;
-            app.set_status("Editor active (Ctrl+H to return to Sidebar)", now);
+            app.misc.caret.gliding = false;
+            app.set_status("Editor active (Ctrl+B toggles the Sidebar)", now);
             return Some(false);
         }
 
         if sb_edit {
             app.sidebar.focused = false;
+            app.misc.caret.gliding = false;
             if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     let _ = backend.handle_text("i");
                 } else {
-                    app.services.vim_runtime.queue_input(crate::vim::PendingVimInput::Text("i".into()));
+                    app.services
+                        .vim_runtime
+                        .queue_input(crate::vim::PendingVimInput::Text("i".into()));
                 }
             }
             return Some(false);
         }
 
         if sb_down {
-            if !app.notes.notes_list.is_empty() && app.sidebar.selected_idx + 1 < app.notes.notes_list.len() {
+            if !app.notes.notes_list.is_empty()
+                && app.sidebar.selected_idx + 1 < app.notes.notes_list.len()
+            {
                 app.sidebar.selected_idx += 1;
                 app.sidebar.needs_scroll = true;
             }
@@ -67,14 +78,19 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
 
     // 2. Documentation Sidebar Navigation
     if app.misc.mode == Mode::Doc && app.tabs.doc_sidebar_focused && !app.command_bar.in_command {
-        let (doc_up, doc_down, doc_enter, doc_esc, doc_edit, doc_to_reader) = ctx.input(|i| (
-            (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K)) || i.key_pressed(egui::Key::ArrowUp),
-            (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J)) || i.key_pressed(egui::Key::ArrowDown),
-            i.key_pressed(egui::Key::Enter),
-            i.key_pressed(egui::Key::Escape),
-            !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::I),
-            (!i.modifiers.alt && (i.key_pressed(egui::Key::L) || i.key_pressed(egui::Key::ArrowRight))),
-        ));
+        let (doc_up, doc_down, doc_enter, doc_esc, doc_edit, doc_to_reader) = ctx.input(|i| {
+            (
+                (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K))
+                    || i.key_pressed(egui::Key::ArrowUp),
+                (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J))
+                    || i.key_pressed(egui::Key::ArrowDown),
+                i.key_pressed(egui::Key::Enter),
+                i.key_pressed(egui::Key::Escape),
+                !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::I),
+                (!i.modifiers.alt
+                    && (i.key_pressed(egui::Key::L) || i.key_pressed(egui::Key::ArrowRight))),
+            )
+        });
 
         if doc_esc {
             app.tabs.doc_sidebar_focused = false;
@@ -88,7 +104,9 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     let _ = backend.handle_text("i");
                 } else {
-                    app.services.vim_runtime.queue_input(crate::vim::PendingVimInput::Text("i".into()));
+                    app.services
+                        .vim_runtime
+                        .queue_input(crate::vim::PendingVimInput::Text("i".into()));
                 }
             }
             return Some(false);
@@ -125,12 +143,17 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
     }
 
     // 3. Scan View Navigation
-    if matches!(app.misc.mode, Mode::ScanReport | Mode::ScanHistory) && !app.command_bar.in_command {
-        let (scan_up, scan_down, scan_esc) = ctx.input(|i| (
-            (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K)) || i.key_pressed(egui::Key::ArrowUp),
-            (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J)) || i.key_pressed(egui::Key::ArrowDown),
-            i.key_pressed(egui::Key::Escape),
-        ));
+    if matches!(app.misc.mode, Mode::ScanReport | Mode::ScanHistory) && !app.command_bar.in_command
+    {
+        let (scan_up, scan_down, scan_esc) = ctx.input(|i| {
+            (
+                (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K))
+                    || i.key_pressed(egui::Key::ArrowUp),
+                (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J))
+                    || i.key_pressed(egui::Key::ArrowDown),
+                i.key_pressed(egui::Key::Escape),
+            )
+        });
 
         if scan_esc {
             app.misc.mode = app.scan.prev_mode_before_scan;
@@ -139,7 +162,8 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
         }
 
         if scan_down {
-            app.scan.scan_report_scroll_y = (app.scan.scan_report_scroll_y + 40.0).clamp(0.0, 5000.0);
+            app.scan.scan_report_scroll_y =
+                (app.scan.scan_report_scroll_y + 40.0).clamp(0.0, 5000.0);
             return Some(false);
         }
 
@@ -152,7 +176,9 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
     // 4. Global Escape Dismissal
     let esc = ctx.input(|i| i.key_pressed(egui::Key::Escape));
     if esc {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.command_bar.in_command {
+        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
+            && !app.command_bar.in_command
+        {
             return None;
         }
         app.misc.showcmd.clear();

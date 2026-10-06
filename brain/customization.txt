@@ -29,7 +29,7 @@ Press [Ctrl+E] to toggle between two writing modes:
 --------------------------------------------------------------------------------
 Press [Ctrl+.] or type ":zen" to enter distraction-free Zen mode:
   * Maximized Canvas: Hides titlebar, tabs, sidebar, preview, and terminal.
-  * SQLite Persistence: Zen mode state is faithfully remembered across launches.
+  * Settings Persistence: Zen mode state is faithfully remembered across launches.
   * Granular Toggles: Hide or show individual surfaces anytime via commands
     (:titlebar, :sidebar, :tabs, :ai, :preview, :settings).
 

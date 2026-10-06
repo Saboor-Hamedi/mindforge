@@ -21,8 +21,8 @@ Preferences Dialog ([Ctrl+,]):
 --------------------------------------------------------------------------------
   NORMAL            Default navigation, operators, motions, and text objects.
   INSERT            Text entry (i, I, a, A, o, O).
-  VISUAL            Character-wise selection (v).
-  VISUAL LINE       Full-line selection and block operations (V).
+  VISUAL            Character-wise selection (v or mouse drag).
+  VISUAL LINE       Full-line selection and block operations (V or triple-click).
   COMMAND-LINE      Command bar for file operations, settings, and lua (:).
 
 
@@ -38,16 +38,34 @@ Preferences Dialog ([Ctrl+,]):
   G                 Jump to end of document
 
 
-4. MODE TRANSITIONS
+4. MOUSE SELECTION & DRAGGING
+--------------------------------------------------------------------------------
+  Left Click        Place cursor at clicked line and column
+  Left Drag         Select text smoothly; selection background tracks mouse live
+  Double-Click      Select entire word under cursor
+  Triple-Click      Select entire line under cursor
+
+
+5. SEARCH & HIGHLIGHTS
+--------------------------------------------------------------------------------
+  *                 Search for word under cursor forward (highlights matches)
+  #                 Search for word under cursor backward
+  /pattern          Search for pattern forward
+  ?pattern          Search for pattern backward
+  n / N             Jump to next / previous search match
+  Esc in Normal     Immediately clears all search highlights (:nohlsearch)
+
+
+6. MODE TRANSITIONS
 --------------------------------------------------------------------------------
   i / I             Enter Insert mode before cursor / at line start
   a / A             Enter Insert mode after cursor / at line end
   o / O             Open new line below / above and enter Insert mode
   v / V             Enter Visual / Visual Line selection mode
-  Esc               Return to Normal mode
+  Esc               Return to Normal mode (and clears search highlights)
 
 
-5. OPERATORS & TEXT OBJECTS
+7. OPERATORS & TEXT OBJECTS
 --------------------------------------------------------------------------------
   d{motion}         Delete text covered by motion (e.g. dw, d$, dd)
   c{motion}         Change text and enter Insert mode (e.g. cw, ci", c$)
@@ -56,7 +74,17 @@ Preferences Dialog ([Ctrl+,]):
   u / Ctrl+R        Undo / Redo changes
 
 
-6. SHOWCMD KEYSTROKE HUD
+8. LANGUAGE INTELLIGENCE (LSP)
+--------------------------------------------------------------------------------
+  K                 Hover documentation popup (:Hover)
+  gd                Go to definition (:Definition)
+  gr                Find references (:References)
+  <F2> / <leader>rn Symbol rename (:Rename)
+  Alt+Enter / <leader>ca  Code actions / Quick-fixes (:CodeAction)
+  Alt+Shift+F / <leader>f Format document (:Format)
+
+
+9. SHOWCMD KEYSTROKE HUD
 --------------------------------------------------------------------------------
 MindForge includes a floating Heads-Up Display in the bottom-right corner:
   * [VIM]   Tracks multi-key operators in progress (e.g. "ci\"", "3dd", "d$").

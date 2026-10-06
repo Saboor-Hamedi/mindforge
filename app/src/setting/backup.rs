@@ -1,4 +1,4 @@
-//! Database backup and snapshot settings tab.
+//! Settings and workspace backup settings tab.
 
 use super::SettingPanelAction;
 use crate::ui::theme::Theme;
@@ -27,7 +27,7 @@ pub fn render_backup_tab(
     painter.text(
         p_origin + vec2(0.0, 22.0),
         Align2::LEFT_TOP,
-        "Atomic SQLite database snapshots with WAL write-protection",
+        "Automated settings and configuration backup snapshots",
         FontId::proportional(12.0),
         theme.muted,
     );
@@ -196,9 +196,9 @@ pub fn render_backup_tab(
     );
 
     let features = [
-        ("• WAL Architecture", "Guarantees high write speed and transactional safety."),
-        ("• Automated Snapshots", "Timestamped as mindforge_backup_YYYYMMDD_HHMMSS.db"),
-        ("• Zero Lock Contention", "Atomic snapshots execute without freezing the editor."),
+        ("• Filesystem Snapshots", "Guarantees complete safety of your settings and notes."),
+        ("• Automated Archives", "Timestamped directories saved to your backup folder."),
+        ("• Zero Lock Contention", "Backups execute instantaneously in background threads."),
     ];
     for (idx, (label, desc)) in features.iter().enumerate() {
         let y = info_card.min.y + 12.0 + idx as f32 * 38.0;

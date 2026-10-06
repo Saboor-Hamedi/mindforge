@@ -15,7 +15,7 @@ bloat, forced logins, and visual clutter. MindForge delivers the exact opposite:
   * Instantaneous Speed: Built in Rust with GPU-accelerated graphics (egui).
     Every keystroke renders at native display refresh rates (60Hz to 144Hz).
   * Local-First & Private: Notes, metadata, settings, search indices, and daily
-    activity logs live in an embedded SQLite database. No telemetry, no accounts.
+    activity logs live directly on the local filesystem. No telemetry, no accounts.
   * Cognitive Ergonomics: You never need to lift your hands off the keyboard.
     Modal Vim motions, Hybrid shortcuts, and command-palette controls keep you
     in deep focus.

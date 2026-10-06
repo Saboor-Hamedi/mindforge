@@ -281,13 +281,13 @@ pub fn render_ai_tab(
     painter.text(
         pos2(info_rect.min.x + 14.0, info_rect.min.y + 14.0),
         Align2::LEFT_TOP,
-        "🔒 Local Database Privacy & Security",
+        "🔒 Local Privacy & Security",
         FontId::proportional(12.5),
         theme.highlight,
     );
 
     let info_text = "• API keys are hashed and encrypted before storing in your local settings.\n\
-                     • DeepSeek AI queries your SQLite notes dynamically via prompt context.\n\
+                     • DeepSeek AI queries your open notes dynamically via prompt context.\n\
                      • Use shortcut Ctrl+Shift+I or the status bar button to summon the agent anytime.\n\
                      • Chat history can be cleared or deleted at any time with zero trace.";
     painter.text(

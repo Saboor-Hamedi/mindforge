@@ -61,3 +61,12 @@ pub struct DailyActivity {
     pub notes_edited: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanRecord {
+    pub id: i64,
+    pub url: String,
+    pub note: Option<String>,
+    pub findings_json: String,
+    pub scanned_at: String,
+}
+

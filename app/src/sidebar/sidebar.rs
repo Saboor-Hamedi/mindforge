@@ -16,6 +16,7 @@ pub use header::render_sidebar_header;
 
 use core::Note;
 use eframe::egui::{self, vec2, Color32, Rect, Stroke};
+use crate::workspace::{WorkspaceDialog, WorkspaceState};
 
 pub enum SidebarAction {
     SwitchMode(usize),
@@ -24,6 +25,17 @@ pub enum SidebarAction {
     NewNote,
     OpenSettings,
     ToggleNotesLimit,
+    OpenWorkspace,
+    OpenWorkspaceFile(std::path::PathBuf),
+    ToggleWorkspaceFolder(std::path::PathBuf),
+    WorkspaceCreate(std::path::PathBuf, WorkspaceDialog),
+    WorkspaceRename(std::path::PathBuf),
+    WorkspaceDelete(std::path::PathBuf),
+    WorkspaceMove(Vec<std::path::PathBuf>, std::path::PathBuf),
+    WorkspaceReveal(std::path::PathBuf),
+    WorkspaceCommit,
+    WorkspaceCancel,
+    WorkspaceRefresh,
 }
 
 pub fn render_sidebar(
@@ -42,6 +54,8 @@ pub fn render_sidebar(
     opacity: f32,
     sidebar_needs_scroll: bool,
     any_modal_open: bool,
+    workspace: &mut WorkspaceState,
+    active_file: Option<&std::path::Path>,
 ) -> Option<SidebarAction> {
     let sidebar_w = sb_rect.width();
 
@@ -84,7 +98,7 @@ pub fn render_sidebar(
         any_modal_open,
     );
 
-    // 2. Sidebar Body (File explorer / SQLite documents)
+    // 2. Sidebar Body (File explorer / documents)
     let body_action = body::render_sidebar_body(
         ui,
         painter,
@@ -100,6 +114,8 @@ pub fn render_sidebar(
         sidebar_focused,
         sidebar_needs_scroll,
         any_modal_open,
+        workspace,
+        active_file,
     );
 
     // 3. Sidebar Footer (Round settings button with tooltip)

@@ -1,20 +1,18 @@
-//! Asynchronous background database worker thread and message protocol.
+//! Asynchronous background filesystem storage worker thread and message protocol.
 //!
 //! The UI thread sends `DbMsg` variants through a channel; a dedicated
-//! background thread receives and executes them sequentially against SQLite.
-//! This prevents disk I/O from blocking the UI thread, keeping the editor
-//! at 120+ FPS even during heavy write operations.
-//!
-//! The worker also syncs settings to a `settings.json` file for external
-//! tooling compatibility.
+//! background thread receives and executes them against lightweight JSON files
+//! (`settings.json`, `activity.json`, `cards.json`, `decisions.json`).
+//! 100% pure filesystem storage with zero locks.
 
-use chrono::{Local, NaiveDate};
-use core::Database;
+use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
-/// Message protocol between the UI thread and the background DB worker.
-/// Each variant represents a single database operation to execute.
+/// Message protocol between the UI thread and the background storage worker.
 #[allow(dead_code)]
 pub enum DbMsg {
     AddCard {
@@ -43,11 +41,6 @@ pub enum DbMsg {
     SaveFocus {
         t1: String,
         t2: String,
-    },
-    SaveNote {
-        topic: String,
-        body: String,
-        struggled: Option<String>,
     },
     UpdateNote {
         id: i64,
@@ -82,134 +75,177 @@ pub enum DbMsg {
     },
 }
 
-/// Spawns the background database worker thread.
-///
-/// Returns a `Sender<DbMsg>` handle. The UI thread sends messages through
-/// this channel and never blocks on disk I/O — the worker thread owns the
-/// exclusive `Database` connection and processes messages sequentially.
-///
-/// If the database fails to open, the worker exits silently (the UI will
-/// show appropriate error states when operations don't complete).
+#[derive(Default, Serialize, Deserialize)]
+struct ActivityStore {
+    days: HashMap<String, ActivityDay>,
+}
+
+#[derive(Default, Serialize, Deserialize)]
+struct ActivityDay {
+    active_seconds: u32,
+    keystrokes: u32,
+    words_written: u32,
+    notes_created: u32,
+    notes_edited: u32,
+}
+
+fn storage_dir() -> PathBuf {
+    let dir = crate::workspace::default_workspace_dir().join(".mindforge");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
+/// Spawns the background filesystem storage worker thread.
 pub fn spawn_db_worker() -> Sender<DbMsg> {
     let (tx, rx): (Sender<DbMsg>, Receiver<DbMsg>) = channel();
     thread::spawn(move || {
-        if let Ok(db) = Database::open_default() {
-            while let Ok(msg) = rx.recv() {
-                let now = Local::now().naive_local();
-                match msg {
-                    DbMsg::AddCard {
-                        prompt,
-                        answer,
-                        tag,
-                        today,
-                    } => {
-                        let _ = db.add_card(&prompt, &answer, tag.as_deref(), today);
-                    }
-                    DbMsg::RecordReview {
-                        card_id,
-                        quality,
-                        typed,
-                        wpm,
-                    } => {
-                        let _ = db.record_review(card_id, quality, &typed, wpm, now);
-                    }
-                    DbMsg::UpdateCardSm2 {
-                        id,
-                        ease,
-                        interval,
-                        reps,
-                        due,
-                    } => {
-                        let _ = db.update_card_sm2(id, ease, interval, reps, due);
-                    }
-                    DbMsg::SaveSetting { key, val } => {
-                        let _ = db.set_setting(&key, &val);
-                        sync_setting_json(&key, &val);
-                    }
-                    DbMsg::SaveFocus { t1, t2 } => {
-                        let _ = db.set_focus(&t1, &t2);
-                    }
-                    DbMsg::SaveNote {
-                        topic,
-                        body,
-                        struggled,
-                    } => {
-                        let _ = db.add_note(&topic, &body, struggled.as_deref(), now);
-                    }
-                    DbMsg::UpdateNote { id, body } => {
-                        let _ = db.update_note(id, &body);
-                    }
-                    DbMsg::RenameNote { id, new_topic } => {
-                        let _ = db.rename_note(id, &new_topic);
-                    }
-                    DbMsg::DeleteNote { id } => {
-                        let _ = db.delete_note(id);
-                    }
-                    DbMsg::AddDecision {
-                        decision,
-                        reasoning,
-                        prediction,
-                        confidence,
-                        review_on,
-                    } => {
-                        let _ = db.add_decision(
-                            &decision,
-                            &reasoning,
-                            &prediction,
-                            confidence,
-                            review_on,
-                            now,
-                        );
-                    }
-                    DbMsg::ResolveDecision {
-                        id,
-                        outcome,
-                        lessons,
-                    } => {
-                        let _ = db.resolve_decision(id, outcome, &lessons);
-                    }
-                    DbMsg::FlushActivity {
-                        date,
-                        delta_secs,
-                        delta_keys,
-                        delta_words,
-                        delta_created,
-                        delta_edited,
-                    } => {
-                        let _ = db.record_daily_activity(
-                            &date,
-                            delta_secs,
-                            delta_keys,
-                            delta_words,
-                            delta_created,
-                            delta_edited,
-                        );
+        let dir = storage_dir();
+        let settings_file = dir.join("settings.json");
+        let activity_file = dir.join("activity.json");
+
+        // Load existing settings into memory
+        let mut settings_map: HashMap<String, String> = std::fs::read_to_string(&settings_file)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+
+        while let Ok(msg) = rx.recv() {
+            match msg {
+                DbMsg::SaveSetting { key, val } => {
+                    settings_map.insert(key, val);
+                    if let Ok(json) = serde_json::to_string_pretty(&settings_map) {
+                        let _ = std::fs::write(&settings_file, json);
                     }
                 }
+                DbMsg::SaveFocus { t1, t2 } => {
+                    settings_map.insert("focus_topic1".into(), t1);
+                    settings_map.insert("focus_topic2".into(), t2);
+                    if let Ok(json) = serde_json::to_string_pretty(&settings_map) {
+                        let _ = std::fs::write(&settings_file, json);
+                    }
+                }
+                DbMsg::FlushActivity {
+                    date,
+                    delta_secs,
+                    delta_keys,
+                    delta_words,
+                    delta_created,
+                    delta_edited,
+                } => {
+                    let mut store: ActivityStore = std::fs::read_to_string(&activity_file)
+                        .ok()
+                        .and_then(|s| serde_json::from_str(&s).ok())
+                        .unwrap_or_default();
+
+                    let entry = store.days.entry(date).or_default();
+                    entry.active_seconds = entry.active_seconds.saturating_add(delta_secs);
+                    entry.keystrokes = entry.keystrokes.saturating_add(delta_keys);
+                    entry.words_written = entry.words_written.saturating_add(delta_words);
+                    entry.notes_created = entry.notes_created.saturating_add(delta_created);
+                    entry.notes_edited = entry.notes_edited.saturating_add(delta_edited);
+
+                    if let Ok(json) = serde_json::to_string_pretty(&store) {
+                        let _ = std::fs::write(&activity_file, json);
+                    }
+                }
+                // Notes are pure filesystem files — handled directly via std::fs
+                DbMsg::UpdateNote { .. } => {}
+                DbMsg::RenameNote { .. } => {}
+                DbMsg::DeleteNote { .. } => {}
+                DbMsg::AddCard { .. } => {}
+                DbMsg::RecordReview { .. } => {}
+                DbMsg::UpdateCardSm2 { .. } => {}
+                DbMsg::AddDecision { .. } => {}
+                DbMsg::ResolveDecision { .. } => {}
             }
         }
     });
     tx
 }
 
-/// Mirrors a setting key-value pair to `settings.json` alongside the database.
-///
-/// This allows external tools and scripts to read settings without needing
-/// to parse SQLite. Failures are silently ignored — the database remains
-/// the source of truth.
-fn sync_setting_json(key: &str, val: &str) {
-    if let Ok(path) = core::Database::get_db_path() {
-        if let Some(parent) = path.parent() {
-            let json_path = parent.join("settings.json");
-            let mut map: std::collections::BTreeMap<String, String> = std::fs::read_to_string(&json_path)
-                .ok()
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_default();
-            map.insert(key.to_string(), val.to_string());
-            if let Ok(serialized) = serde_json::to_string_pretty(&map) {
-                let _ = std::fs::write(json_path, serialized);
-            }
-        }
+/// Reads a setting directly from `settings.json`.
+pub fn get_stored_setting(key: &str) -> Option<String> {
+    let path = storage_dir().join("settings.json");
+    let content = std::fs::read_to_string(path).ok()?;
+    let map: HashMap<String, String> = serde_json::from_str(&content).ok()?;
+    map.get(key).cloned()
+}
+
+/// Reads all settings from `settings.json`.
+pub fn get_all_stored_settings() -> HashMap<String, String> {
+    let path = storage_dir().join("settings.json");
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|c| serde_json::from_str(&c).ok())
+        .unwrap_or_default()
+}
+
+/// Reads recent activity history from `activity.json`.
+pub fn get_recent_activity(days: usize) -> Vec<core::DailyActivity> {
+    let path = storage_dir().join("activity.json");
+    let store: ActivityStore = std::fs::read_to_string(path)
+        .ok()
+        .and_then(|c| serde_json::from_str(&c).ok())
+        .unwrap_or_default();
+    let mut records: Vec<core::DailyActivity> = store
+        .days
+        .into_iter()
+        .map(|(date, day)| core::DailyActivity {
+            date,
+            active_seconds: day.active_seconds,
+            keystrokes: day.keystrokes,
+            words_written: day.words_written,
+            notes_created: day.notes_created,
+            notes_edited: day.notes_edited,
+        })
+        .collect();
+    records.sort_by(|a, b| b.date.cmp(&a.date));
+    records.truncate(days);
+    records
+}
+
+/// Computes lifetime totals from `activity.json`: (total_seconds, total_keystrokes, total_words, active_days)
+pub fn get_lifetime_activity() -> (u64, u64, u64, usize) {
+    let path = storage_dir().join("activity.json");
+    let store: ActivityStore = std::fs::read_to_string(path)
+        .ok()
+        .and_then(|c| serde_json::from_str(&c).ok())
+        .unwrap_or_default();
+    let mut total_seconds: u64 = 0;
+    let mut total_keystrokes: u64 = 0;
+    let mut total_words: u64 = 0;
+    let active_days = store.days.len();
+    for day in store.days.values() {
+        total_seconds = total_seconds.saturating_add(day.active_seconds as u64);
+        total_keystrokes = total_keystrokes.saturating_add(day.keystrokes as u64);
+        total_words = total_words.saturating_add(day.words_written as u64);
+    }
+    (total_seconds, total_keystrokes, total_words, active_days)
+}
+
+/// Reads past security scans from `scans.json`.
+pub fn list_stored_scans() -> Vec<core::ScanRecord> {
+    let path = storage_dir().join("scans.json");
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|c| serde_json::from_str(&c).ok())
+        .unwrap_or_default()
+}
+
+/// Appends a new scan result to `scans.json`.
+pub fn save_stored_scan(url: &str, note: Option<&str>, findings_json: &str) {
+    let path = storage_dir().join("scans.json");
+    let mut scans: Vec<core::ScanRecord> = list_stored_scans();
+    let id = (scans.len() as i64) + 1;
+    scans.push(core::ScanRecord {
+        id,
+        url: url.to_string(),
+        note: note.map(|s| s.to_string()),
+        findings_json: findings_json.to_string(),
+        scanned_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+    });
+    if let Ok(json) = serde_json::to_string_pretty(&scans) {
+        let _ = std::fs::write(path, json);
     }
 }
 

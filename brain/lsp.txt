@@ -3,8 +3,9 @@ LANGUAGE SERVERS (LSP) & COMPLETION
 
 MindForge's Vim mode embeds Neovim, so it uses Neovim's built-in LSP client.
 You get a VS Code style completion dropdown, snippets (the HTML skeleton,
-React hooks, ...), diagnostics and go-to-definition. Servers are installed and
-configured from Lua, the same way you would in Neovim.
+React hooks, Python def, ...), hover documentation, symbol renaming, code actions,
+diagnostics, and go-to-definition. Servers are installed and configured from Lua,
+the same way you would in Neovim.
 
 Note: LSP currently works in Vim mode only. Hybrid mode and the Markdown
 editor do not run language servers yet.
@@ -19,36 +20,73 @@ index.html, main.py), switch to Vim mode, then run:
     :LspInstall html css ts_ls     install specific servers
 
 Installs run in the background; progress is shown in the message line.
-Snippet completion works immediately, with no server installed. Type "html"
-in an .html file and press Tab for the full HTML5 skeleton.
+Snippet completion works immediately, with no server installed. Type "def" in a
+.py file or "html" in an .html file and press Tab/Enter to expand.
 
 
-2. KEYS IN THE COMPLETION DROPDOWN
-----------------------------------
-    Ctrl+J         next item   (does NOT toggle the terminal while open)
-    Ctrl+K         previous item
-    Tab / Enter    accept the selected item (Tab selects the first if none)
-    Shift+Tab      previous item / previous snippet placeholder
-    Esc            close the dropdown
-    Ctrl+Space     open completion manually
-    Ctrl+H / Ctrl+L  sidebar / right pane (unchanged)
-    gd             go to definition (Normal mode)
+2. LANGUAGE INTELLIGENCE KEYMAPS
+--------------------------------
+    K                  Hover documentation popup (:Hover) - Esc immediately closes it
+    gd                 Go to definition (:Definition)
+    gr                 Find references (:References)
+    <F2>               Symbol rename (:Rename) - notifies if unsupported
+    <leader>rn         Symbol rename (Space + r + n)
+    Alt+Enter (<M-CR>) Code action / Quick-fix (:CodeAction)
+    <leader>ca         Code action (Space + c + a)
+    Alt+Shift+F (<A-F>) Format document (:Format)
+    <leader>f          Format document (Space + f)
+    <leader>d          Show line diagnostic floating message
+    [d / ]d            Jump to previous / next diagnostic
 
-Ctrl+J toggles the terminal again as soon as the dropdown is closed.
-Inside a snippet, Tab / Shift+Tab jump between placeholders.
+
+3. KEYS IN THE COMPLETION DROPDOWN & SNIPPETS
+---------------------------------------------
+    Enter              Accept top suggestion or selected item immediately (e.g. h1 -> <h1></h1>)
+    Ctrl+J             Next completion item (does NOT toggle terminal while open)
+    Ctrl+K             Previous completion item
+    Tab                Accept item or trigger completion
+    Shift+Tab          Previous item in menu / previous snippet placeholder
+    Esc                Close completion dropdown / close hover floating window / cancel snippet
+    Ctrl+Space         Open completion dropdown manually
+    Ctrl+L             Return focus from the sidebar/right pane to the editor
+    Ctrl+H             Remains editor input (Hybrid backspace; forwarded to Neovim in Vim mode)
+
+Snippet Placeholders (VS Code Friendly):
+    - Expanding snippets (e.g. "def", "fn", "html5") highlights placeholders
+      with an elegant accent underline.
+    - Press Tab / Shift+Tab to jump between placeholders.
+    - Pressing Esc, switching modes, or leaving the buffer immediately stops
+      the snippet session and clears all placeholder marks.
+    - Reaching the final placeholder ($0) and pressing Tab or Enter cleanly
+      completes the snippet with zero lingering highlights.
 
 
-3. COMMANDS
+4. MOUSE SELECTION & DRAG
+-------------------------
+    Left Click         Move cursor to clicked cell
+    Left Drag          Smoothly select text; selection background tracks mouse live
+    Double-Click       Select word under cursor
+    Triple-Click       Select whole line under cursor
+    Esc in Normal      Clears search highlights (:nohlsearch) and active snippets
+
+
+5. COMMANDS
 -----------
-    :LspInstall [names]    install (default: servers for this file type)
-    :LspUninstall names    remove a managed server
-    :LspList               installed / not installed
-    :LspInfo               servers attached to the current buffer
-    :LspRestart            restart servers for the current buffer
-    :LspConfig             open your lsp.lua
+    :LspInstall [names]    Install servers (default: servers for active file type)
+    :LspUninstall names    Remove a managed server
+    :LspList               Browse installed and available language servers
+    :LspInfo               Show servers attached to the current buffer
+    :LspRestart            Restart language servers for the current buffer
+    :LspConfig             Open your lsp.lua configuration
+    :Format                Format current buffer using active LSP server
+    :Rename                Rename symbol under cursor
+    :CodeAction            Trigger LSP quick-fixes and refactorings
+    :References            Find all references to symbol under cursor
+    :Hover                 Show hover documentation for symbol
+    :Definition            Jump to symbol definition
 
 
-4. BUILT-IN SERVERS
+6. BUILT-IN SERVERS
 -------------------
     html, cssls, jsonls    vscode-langservers-extracted (npm)
     ts_ls                  JavaScript / TypeScript / JSX / TSX (npm)
@@ -64,7 +102,7 @@ installed for the respective servers.
 <home> = %APPDATA%\mindforge\mindforge
 
 
-5. CUSTOMISING WITH LUA
+7. CUSTOMISING WITH LUA
 -----------------------
 First launch creates   <home>\nvim\lsp.lua   (never overwritten). Edit it:
 
@@ -88,7 +126,7 @@ Entries are merged over the built-in ones, so you only list what changes.
 A custom server only needs cmd, filetypes and root_markers.
 
 
-6. BRING YOUR OWN CONFIG (NATIVE NEOVIM STYLE)
+8. BRING YOUR OWN CONFIG (NATIVE NEOVIM STYLE)
 ----------------------------------------------
 Any file   <home>\nvim\lsp\<name>.lua   returning a config table is loaded as
 a native Neovim 0.11 server definition and enabled automatically:
@@ -104,25 +142,24 @@ Your own <home>\nvim\init.lua still loads as before and can call
 vim.lsp.config() / vim.lsp.enable() directly.
 
 
-7. ADDING A SERVER TO THE CATALOGUE
+9. ADDING A SERVER TO THE CATALOGUE
 -----------------------------------
 Built-in definitions live in app/assets/nvim/mindforge/lsp/registry.lua. Each
 entry has desc, npm (package list) or rustup (component), bin and config.
 
 
-8. TROUBLESHOOTING
-------------------
+10. TROUBLESHOOTING
+-------------------
 - No dropdown: run :LspInfo. Snippets always show; semantic items need a
   server from :LspList.
 - "npm not found": install Node.js and restart MindForge.
 - Server fails to start: run it by hand (<home>\nvim\servers\npm\node_modules\.bin).
-- Hover popups are not rendered yet; use diagnostics (inline) and gd.
+- Hover documentation: Press K or run :Hover over any identifier.
 
 Built-in HTML / JSX / TSX completion
   No server needed: type a tag (h1) or an Emmet abbreviation (ul.menu>li*3, div#app.card)
   and accept with Tab/Enter to expand it. In .html files type ! for the HTML5 skeleton.
   In JSX/TSX class becomes className and void tags are self-closed.
-
 
 :LspList panel
   :LspList [filter] opens a scrollable list of every server (installed first).

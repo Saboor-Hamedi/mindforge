@@ -1,7 +1,7 @@
 //! Daily activity and writing analytics tracking state.
 //!
 //! Accumulates keystrokes, words, and active time in memory, then flushes
-//! to SQLite every 10 seconds via the background DB worker. Also holds
+//! to disk every 10 seconds via the background storage worker. Also holds
 //! the loaded history and lifetime totals for the stats view.
 
 use core::DailyActivity;
@@ -19,9 +19,9 @@ pub struct ActivityState {
     pub pending_created: u32,
     /// Accumulated notes edited since last flush
     pub pending_edited: u32,
-    /// Timestamp of the last database flush
+    /// Timestamp of the last storage flush
     pub last_flush_time: f64,
-    /// Today's activity record (loaded from DB)
+    /// Today's activity record (loaded from storage)
     pub today_activity: DailyActivity,
     /// Historical daily activity records (most recent first)
     pub activity_history: Vec<DailyActivity>,

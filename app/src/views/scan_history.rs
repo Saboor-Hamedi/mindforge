@@ -1,4 +1,4 @@
-//! History view for past webscans stored in SQLite (`:scans` command).
+//! History view for past webscans (`:scans` command).
 //!
 //! Displays a scrollable list of previous security scans with:
 //! - URL and timestamp for each scan

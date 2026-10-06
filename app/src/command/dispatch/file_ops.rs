@@ -2,13 +2,15 @@
 
 use crate::app::{App, EditorInputMode};
 use crate::mode::Mode;
-use crate::services::db_worker::DbMsg;
 
 pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> bool {
     match cmd {
         "w" | "write" | "save" => {
             if app.misc.mode == Mode::Doc {
-                app.set_status("Documentation files are read-only (changes not saved).", now);
+                app.set_status(
+                    "Documentation files are read-only (changes not saved).",
+                    now,
+                );
                 return true;
             }
             app.quick_save_active_note(now);
@@ -16,7 +18,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
         }
         "r" | "rename" => {
             if app.misc.mode == Mode::Doc {
-                app.set_status("Documentation files are read-only and cannot be renamed.", now);
+                app.set_status(
+                    "Documentation files are read-only and cannot be renamed.",
+                    now,
+                );
                 return true;
             }
             if !args.is_empty() {
@@ -126,7 +131,10 @@ fn handle_export(app: &mut App, args: &str, now: f64) {
             if let Some(out_path) = chosen_path {
                 match std::fs::write(&out_path, md) {
                     Ok(_) => {
-                        app.set_status(format!("Exported scan report: {}", out_path.display()), now);
+                        app.set_status(
+                            format!("Exported scan report: {}", out_path.display()),
+                            now,
+                        );
                     }
                     Err(e) => {
                         app.set_status(format!("Export failed: {}", e), now);
@@ -149,7 +157,13 @@ fn handle_export(app: &mut App, args: &str, now: f64) {
     };
     let safe_name = title
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>();
     let default_name = format!("{}.md", safe_name.trim());
 
@@ -187,9 +201,7 @@ fn handle_export(app: &mut App, args: &str, now: f64) {
 fn handle_import(app: &mut App, args: &str, now: f64) {
     let clean_arg = args.trim_matches(|c| c == '"' || c == '\'').trim();
     let chosen_file = if clean_arg.is_empty() {
-        rfd::FileDialog::new()
-            .add_filter("Markdown & Text Files", &["md", "txt", "markdown"])
-            .pick_file()
+        rfd::FileDialog::new().pick_file()
     } else {
         let mut p = std::path::PathBuf::from(clean_arg);
         if !p.exists() {
@@ -210,50 +222,7 @@ fn handle_import(app: &mut App, args: &str, now: f64) {
     };
 
     if let Some(path) = chosen_file {
-        match std::fs::read_to_string(&path) {
-            Ok(content) => {
-                let title = path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("Imported Note")
-                    .to_string();
-                let ext = path
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("txt");
-                let clean_content = content.replace("\r\n", "\n").replace('\r', "\n");
-                let now_dt = chrono::Local::now().naive_local();
-                if let Some(ref db) = app.services.db {
-                    if let Ok(new_id) = db.add_note(&title, &clean_content, None, now_dt) {
-                        app.notes.active_note_id = Some(new_id);
-                        app.notes.notes_list.insert(0, core::Note {
-                            id: new_id,
-                            topic: title.clone(),
-                            body: clean_content.clone(),
-                            struggled_with: None,
-                            created_at: now_dt,
-                        });
-                        app.notes.total_notes_count += 1;
-                    }
-                } else {
-                    let _ = app.services.db_tx.send(DbMsg::SaveNote {
-                        topic: title.clone(),
-                        body: clean_content.clone(),
-                        struggled: None,
-                    });
-                }
-                app.notes.active_note_title = title.clone();
-                app.editor.ed.set_text(&clean_content);
-                app.editor.ed.cur = 0;
-                app.editor.is_dirty = false;
-                app.editor.scroll_y = 0.0;
-                app.activity.pending_created += 1;
-                app.set_status(format!("Imported: \"{}\" (.{})", title, ext), now);
-            }
-            Err(e) => {
-                app.set_status(format!("Failed to import {}: {}", path.display(), e), now);
-            }
-        }
+        app.open_file_path(path, now);
     } else {
         app.set_status("Import cancelled", now);
     }
@@ -281,7 +250,9 @@ fn handle_sort(app: &mut App, cmd: &str, args: &str, now: f64) {
 
     let is_reverse = cmd.ends_with('!')
         || args.contains('!')
-        || args.split_whitespace().any(|a| a == "reverse" || a == "r" || a == "!r");
+        || args
+            .split_whitespace()
+            .any(|a| a == "reverse" || a == "r" || a == "!r");
     let is_unique = args.split_whitespace().any(|a| a.contains('u'));
     let is_numeric = args.split_whitespace().any(|a| a.contains('n'));
     let is_case_insensitive = args.split_whitespace().any(|a| a.contains('i'));

@@ -1,7 +1,7 @@
 //! Notes list and active note state for MINDFORGE's document management.
 //!
-//! Tracks the currently active note, the full notes list loaded from SQLite,
-//! and sidebar display limits. The notes list is reloaded from the database
+//! Tracks the currently active note, the full notes list,
+//! and sidebar display limits. The notes list is refreshed
 //! whenever changes occur (create, delete, rename, import).
 
 use core::Note;
@@ -13,11 +13,11 @@ pub struct NotesState {
     pub active_note_id: Option<i64>,
     /// Title of the currently active note
     pub active_note_title: String,
-    /// Full list of notes loaded from SQLite
+    /// Full list of notes
     pub notes_list: Vec<Note>,
     /// Maximum number of notes to display in the sidebar
     pub sidebar_notes_limit: usize,
-    /// Total number of notes in the database
+    /// Total number of notes
     pub total_notes_count: usize,
 }
 

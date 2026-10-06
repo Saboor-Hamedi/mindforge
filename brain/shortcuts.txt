@@ -10,7 +10,7 @@ off the home row.
 1. GLOBAL SHORTCUTS
 --------------------------------------------------------------------------------
   [Ctrl+N]          Create a new blank note
-  [Ctrl+S]          Quick save active note to local SQLite database
+  [Ctrl+S]          Quick save active note to disk
   [Ctrl+W]          Close active note or documentation tab
   [Ctrl+1 .. 9]     Switch directly to tab 1 through 9
   [Ctrl+Tab]        Switch to next open tab
@@ -29,7 +29,7 @@ off the home row.
   [Ctrl+,]          Open Settings & Preferences dialog
   [Ctrl+Shift+D]    Safely delete active note (with confirmation modal)
   [[                Open Wikilink Autocomplete popup in Insert mode
-  [Esc]             Dismiss popups, modals, or return to Normal mode
+  [Esc]             Dismiss popups, modals, clear search highlights, or return to Normal mode
 
 
 2. ZEN MODE & INTERFACE COMMANDS
@@ -51,15 +51,15 @@ MindForge provides granular control over every UI surface:
 
 3. TASK LISTS & CHECKLIST TOGGLES
 --------------------------------------------------------------------------------
-  [Ctrl+Shift+X]    Toggle task checkbox (- [ ] <-> - [x])
+  [Ctrl+Shift+X]    Toggle task checkbox (- [ ] <-> - [x], + [ ] <-> + [x])
   Normal Mode:      Toggles checkbox on the current line and saves immediately.
   Visual Mode:      Toggles every task checkbox within selection simultaneously.
 
 
 4. TEXT EDITING & LINE MANIPULATION
 --------------------------------------------------------------------------------
-  [Tab]             Indent 4 spaces (or advance to next table cell)
-  [Shift+Tab]       Dedent 4 spaces (or retreat to previous table cell)
+  [Tab]             Indent 4 spaces (or advance to next table cell / snippet tabstop)
+  [Shift+Tab]       Dedent 4 spaces (or retreat to previous table cell / snippet tabstop)
   [Ctrl+]]          Indent line or selected block 4 spaces right
   [Ctrl+[]          Dedent line or selected block 4 spaces left
   [Ctrl+D]          Duplicate current line or selection directly below
@@ -69,6 +69,9 @@ MindForge provides granular control over every UI surface:
   [Ctrl+A]          Select all text in active note
   [D] in Vim        Delete from cursor to end of current line (d$)
   [C] in Vim        Change from cursor to end of current line (c$)
+  Mouse Drag        Select text live with smooth moving selection highlight
+  Double-Click      Select word under cursor
+  Triple-Click      Select entire line under cursor
 
 
 5. WORD & CURSOR NAVIGATION
@@ -82,7 +85,22 @@ MindForge provides granular control over every UI surface:
   [Page Up/Down]    Scroll viewport by full page
 
 
-6. LINE NUMBERS & GUTTER CONTROLS
+6. LANGUAGE INTELLIGENCE & LSP (VIM MODE)
+--------------------------------------------------------------------------------
+  [K]               Hover documentation popup (:Hover) - Esc immediately closes it
+  [gd]              Go to definition (:Definition)
+  [gr]              Find references (:References)
+  [F2] / [<leader>rn] Rename symbol across project (:Rename) - notifies if unsupported
+  [Alt+Enter] / [<leader>ca] Trigger Code Actions / Quick-fixes (:CodeAction)
+  [Alt+Shift+F] / [<leader>f] Format Document with LSP (:Format)
+  [<leader>d]       Show line diagnostic popup
+  [[d] / []d]       Navigate to previous / next diagnostic
+  [Enter] / [Tab]   Accept completion item immediately (e.g. h1 -> <h1></h1>)
+  [Ctrl+Space]      Trigger autocomplete manually
+  [Esc] in Normal   Clear search highlights (:nohlsearch), active snippets, and hover floats
+
+
+7. LINE NUMBERS & GUTTER CONTROLS
 --------------------------------------------------------------------------------
   :nu               Show line numbers in the gutter (:set nu)
   :nonu             Hide line numbers in the gutter (:set nonu)

@@ -109,6 +109,12 @@ pub fn handle_editor_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64
 
     use Key::*;
     match key {
+        H if modifiers.ctrl && !modifiers.alt && !modifiers.shift => {
+            target_ed.backspace();
+            if !is_doc { app.editor.is_dirty = true; }
+            app.misc.sound.play();
+            return true;
+        }
         Enter if modifiers.ctrl || modifiers.command => {
             if !target_ed.exit_block_or_table() {
                 target_ed.insert_line_below();
@@ -221,4 +227,20 @@ pub fn handle_editor_key(app: &mut App, key: Key, modifiers: Modifiers, now: f64
     }
 
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ctrl_h_edits_the_hybrid_notes_buffer(){
+        let mut app=App::new();
+        app.services.editor_controller.mode=EditorInputMode::Hybrid;
+        app.editor.ed.set_text("abc");
+        app.editor.ed.cur=3;
+        assert!(handle_editor_key(&mut app,Key::H,Modifiers::CTRL,1.0));
+        assert_eq!(app.editor.ed.text(),"ab");
+        assert!(app.editor.is_dirty);
+    }
 }

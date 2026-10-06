@@ -109,7 +109,22 @@ pub fn render_confirm_modal(
     );
 
     // Confirm button
-    let (confirm_bg, confirm_stroke, confirm_fg) = if theme.is_light() {
+    let is_delete = confirm_label.to_lowercase().contains("delete");
+    let (confirm_bg, confirm_stroke, confirm_fg) = if is_delete {
+        if theme.is_light() {
+            if confirm_hover {
+                (Color32::from_rgb(220, 38, 38), Color32::from_rgb(185, 28, 28), Color32::WHITE)
+            } else {
+                (Color32::from_rgb(239, 68, 68), Color32::from_rgb(220, 38, 38), Color32::WHITE)
+            }
+        } else {
+            if confirm_hover {
+                (Color32::from_rgb(75, 22, 28), Color32::from_rgb(220, 60, 70), Color32::from_rgb(255, 140, 150))
+            } else {
+                (Color32::from_rgb(52, 16, 20), Color32::from_rgb(160, 45, 55), Color32::from_rgb(255, 140, 150))
+            }
+        }
+    } else if theme.is_light() {
         if confirm_hover {
             (theme.accent, theme.highlight, Color32::WHITE)
         } else {

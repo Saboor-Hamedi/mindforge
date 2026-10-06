@@ -13,7 +13,6 @@ pub enum EditorMouseEvent {
         column: usize,
         button: u8,
     },
-    #[allow(dead_code)]
     Drag {
         row: usize,
         column: usize,

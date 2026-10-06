@@ -55,6 +55,10 @@ fn collect_recursive(
                 if cancel_token.load(Ordering::Relaxed) {
                     return;
                 }
+                // Avoid infinite loops or cycle recursion on directory symlinks
+                if entry.file_type().map_or(false, |ft| ft.is_symlink()) {
+                    continue;
+                }
                 collect_recursive(&entry.path(), cancel_token, out, total_bytes);
             }
         }

@@ -59,7 +59,7 @@
 - **app/src/vim/lsp_panel.rs:7 / backend.rs:1519** — HARDCODE/duplication — `MAX_ROWS = 12` declared in two modules.
 - **app/src/vim/lsp_panel.rs:127-134 vs 201-209** — UGLY — panel geometry duplicated between `paint` and `contains`; can diverge.
 
-### Database / persistence
+### Database / persistence (REMOVED — Pure Filesystem Storage)
 - **core/src/db/connection.rs:83** — BUG — `reviews.card_id ... REFERENCES cards(id) ON DELETE CASCADE` is declared but `PRAGMA foreign_keys = ON;` is never issued (grep confirms no `foreign_keys` anywhere) → SQLite defaults FKs OFF, so deleting a card leaves orphaned reviews and CASCADE is inert.
 - **core/src/db/connection.rs:47-49** — BUG — backup filename `mindforge_backup_{%Y%m%d_%H%M%S}` has only second precision; `VACUUM INTO` fails if the target exists, so two backups within the same second error out.
 - **core/src/db/connection.rs:24** — HARDCODE/BUG — `Ok(PathBuf::from("mindforge.db"))` silently writes the DB into the CWD when `ProjectDirs` fails.
@@ -908,3 +908,4 @@ This section provides an exhaustive, production-grade audit of MindForge's Langu
 - **Improvement Suggestions**:
   - Implement a configurable diagnostic trace mode that logs IPC message timestamps, event names, buffer revisions, and cursor coordinates without spamming production logs.
   - Build automated integration test harnesses that simulate document switching, rapid typing with completions, backspace deletion at boundaries, and language server crashes to ensure no regressions occur.
+

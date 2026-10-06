@@ -68,7 +68,11 @@ EXAMPLE -- Ex commands:
     :set wrap               -- turn word-wrap on
     :set nowrap             -- turn word-wrap off
     :set spell              -- enable spell checking
-    :noh                    -- clear current search highlight
+    :noh                    -- clear current search highlight (or press <Esc> in Normal mode)
+    :Format                 -- format document using active LSP server
+    :Rename                 -- rename symbol under cursor
+    :Hover                  -- show hover documentation (or press K)
+    :CodeAction             -- trigger code action quick-fixes (or press Alt+Enter)
     :w                      -- write buffer (saves note in MindForge)
     :sort                   -- sort lines alphabetically
     :g/TODO/d               -- delete every line that contains TODO

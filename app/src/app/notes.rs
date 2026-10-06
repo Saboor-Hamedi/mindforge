@@ -1,9 +1,11 @@
 //! Active document state, tab management, and activity tracking.
 
 use super::{App, OpenNote};
-use crate::services::db_worker::DbMsg;
 use crate::mode::Mode;
-use crate::notes::{delete_active_note, quick_save_active_note, rename_active_note, update_search_results};
+use crate::notes::{
+    delete_active_note, quick_save_active_note, rename_active_note, update_search_results,
+};
+use crate::services::db_worker::DbMsg;
 use chrono::Local;
 
 impl App {
@@ -36,11 +38,14 @@ impl App {
             cur.is_dirty = self.editor.is_dirty;
             if let Some(cur_id) = self.notes.active_note_id {
                 cur.id = cur_id;
-                if let Some(ref db) = self.services.db {
-                    let _ = db.set_setting(&format!("note_caret_{}", cur_id), &self.editor.ed.cur.to_string());
-                    let _ = db.set_setting(&format!("note_scroll_{}", cur_id), &self.editor.scroll_y.to_string());
-                }
             }
+        }
+        if self
+            .open_notes
+            .get(self.tabs.active_tab)
+            .is_some_and(|tab| tab.file_path.is_none() && tab.id == 0 && tab.is_dirty)
+        {
+            let _ = self.persist_scratch_tab(self.tabs.active_tab, now);
         }
 
         // 2. Set new active tab index
@@ -65,10 +70,29 @@ impl App {
             self.misc.show_welcome = true;
             return;
         }
+        if self.open_notes.get(idx).is_some_and(|tab| {
+            tab.file_path.is_none()
+                && tab.id == 0
+                && (tab.is_dirty || (idx == self.tabs.active_tab && self.editor.is_dirty))
+        }) {
+            let _ = self.persist_scratch_tab(idx, now);
+        }
         if let Some(tab) = self.open_notes.get_mut(idx) {
             if let Some(path) = tab.file_path.clone() {
                 let is_active = idx == self.tabs.active_tab;
                 if tab.is_dirty || (is_active && self.editor.is_dirty) {
+                    if !path.exists()
+                        || self.file_versions.get(&path).is_some_and(|expected| {
+                            crate::workspace::file_fingerprint(&path)
+                                .is_ok_and(|actual| actual != *expected)
+                        })
+                    {
+                        self.set_status(
+                            "File changed or was removed outside MindForge; the tab remains open",
+                            now,
+                        );
+                        return;
+                    }
                     let content = if is_active {
                         self.editor.ed.text()
                     } else {
@@ -77,6 +101,9 @@ impl App {
                     if let Err(error) = std::fs::write(&path, content) {
                         self.set_status(format!("Could not save {}: {error}", path.display()), now);
                         return;
+                    }
+                    if let Ok(version) = crate::workspace::file_fingerprint(&path) {
+                        self.file_versions.insert(path.clone(), version);
                     }
                     tab.is_dirty = false;
                     if is_active {
@@ -163,11 +190,17 @@ impl App {
         if let Some(current) = self.open_notes.get_mut(self.tabs.active_tab) {
             current.editor = self.editor.ed.clone();
         }
+        if self
+            .open_notes
+            .get(self.tabs.active_tab)
+            .is_some_and(|tab| tab.file_path.is_none() && tab.id == 0 && tab.is_dirty)
+        {
+            let _ = self.persist_scratch_tab(self.tabs.active_tab, now);
+        }
 
         // 1. Check if note is already open in an existing tab
         if let Some(existing_tab_idx) = self.open_notes.iter().position(|n| {
-            n.file_path.is_none()
-                && ((id > 0 && n.id == id) || (id == 0 && n.title == topic))
+            (id > 0 && n.id == id) || (id == 0 && n.file_path.is_none() && n.title == topic)
         }) {
             self.switch_tab(existing_tab_idx, now);
             return;
@@ -182,34 +215,20 @@ impl App {
         self.notes.active_note_id = Some(id);
         self.save_active_note_id();
         self.notes.active_note_title = topic.clone();
-        self.editor.ed.clear();
-        self.editor.ed.insert_str(&body);
-        self.editor.ed.cur = 0;
+        self.editor.ed.set_text(&body);
         self.editor.ed.clear_history();
         self.editor.scroll_y = 0.0;
         self.editor.is_dirty = false;
         self.misc.mode = Mode::Normal;
 
-        if let Some(ref db) = self.services.db {
-            if let Ok(Some(c_str)) = db.get_setting(&format!("note_caret_{}", id)) {
-                if let Ok(c) = c_str.parse::<usize>() {
-                    self.editor.ed.cur = c.min(self.editor.ed.buf.len());
-                }
-            }
-            if let Ok(Some(s_str)) = db.get_setting(&format!("note_scroll_{}", id)) {
-                if let Ok(s) = s_str.parse::<f32>() {
-                    self.editor.scroll_y = s;
-                }
-            }
-        }
-
+        let file_path = None;
         let new_tab = OpenNote {
             id,
             title: topic.clone(),
             editor: self.editor.ed.clone(),
             scroll_y: self.editor.scroll_y,
             is_dirty: false,
-            file_path: None,
+            file_path,
             language_override: None,
         };
 
@@ -227,33 +246,22 @@ impl App {
     }
 
     pub fn reload_db_state(&mut self) {
-        if let Some(ref db) = self.services.db {
-            let limit = self.notes.sidebar_notes_limit;
-            if let Ok(notes) = db.get_recent_notes(limit) {
-                self.notes.notes_list = notes;
-            }
-            if let Ok(count) = db.get_notes_count() {
-                self.notes.total_notes_count = count;
-            }
-            let today_str = Local::now().date_naive().format("%Y-%m-%d").to_string();
-            if let Ok(recent) = db.get_recent_activity(14) {
-                if let Some(act) = recent.iter().find(|a| a.date == today_str) {
-                    self.activity.today_activity = act.clone();
-                }
-                self.activity.activity_history = recent;
-            }
-            if let Ok(life) = db.get_lifetime_activity() {
-                self.activity.lifetime_activity = life;
-            }
-            if let Ok(scans) = db.list_scans() {
-                self.scan.past_scans = scans;
-            }
+        let today_str = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        let recent = crate::services::db_worker::get_recent_activity(14);
+        if let Some(act) = recent.iter().find(|a| a.date == today_str) {
+            self.activity.today_activity = act.clone();
         }
+        self.activity.activity_history = recent;
+        self.activity.lifetime_activity = crate::services::db_worker::get_lifetime_activity();
+        self.scan.past_scans = crate::services::db_worker::list_stored_scans();
     }
 
     pub fn flush_activity(&mut self, now: f64) {
         self.activity.last_flush_time = now;
-        if self.activity.pending_secs < 0.1 && self.activity.pending_keys == 0 && self.activity.pending_words == 0 {
+        if self.activity.pending_secs < 0.1
+            && self.activity.pending_keys == 0
+            && self.activity.pending_words == 0
+        {
             return;
         }
 
@@ -302,9 +310,7 @@ impl App {
                 self.tabs.active_doc_tab = tab_pos;
             }
 
-            self.editor.doc_ed.clear();
-            self.editor.doc_ed.insert_str(doc.content);
-            self.editor.doc_ed.cur = 0;
+            self.editor.doc_ed.set_text(doc.content);
             self.editor.doc_ed.clear_history();
             self.editor.doc_scroll_y = 0.0;
             if self.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
@@ -312,7 +318,10 @@ impl App {
                     let _ = backend.set_document(doc.content, 0, 0);
                 }
             }
-            let msg = format!("{} — editable practice copy; source documentation stays unchanged", doc.title);
+            let msg = format!(
+                "{} — editable practice copy; source documentation stays unchanged",
+                doc.title
+            );
             self.set_status(&msg, now);
         }
     }
@@ -353,7 +362,12 @@ impl App {
     }
 
     pub fn create_new_note(&mut self, now: f64) {
-        if self.editor.is_dirty && self.misc.mode == Mode::Normal {
+        let has_persistent_document = self.notes.active_note_id.is_some()
+            || self
+                .open_notes
+                .get(self.tabs.active_tab)
+                .is_some_and(|tab| tab.file_path.is_some());
+        if has_persistent_document && self.editor.is_dirty && self.misc.mode == Mode::Normal {
             self.quick_save_active_note(now);
         }
         if !self.open_notes.is_empty() {
@@ -363,6 +377,13 @@ impl App {
                 cur.scroll_y = self.editor.scroll_y;
                 cur.is_dirty = self.editor.is_dirty;
             }
+        }
+        if self
+            .open_notes
+            .get(self.tabs.active_tab)
+            .is_some_and(|tab| tab.file_path.is_none() && tab.id == 0 && tab.is_dirty)
+        {
+            let _ = self.persist_scratch_tab(self.tabs.active_tab, now);
         }
         self.misc.show_welcome = false;
         self.notes.active_note_id = None;
@@ -397,15 +418,7 @@ impl App {
             return;
         }
 
-        // 2. Load note from SQLite database
-        if let Some(ref db) = self.services.db {
-            if let Ok(Some(note)) = db.get_note(id) {
-                self.load_note(note.id, note.topic, note.body, now);
-                return;
-            }
-        }
-
-        // 3. Fallback: check in self.notes.notes_list cache
+        // 2. Fallback: check in self.notes.notes_list cache
         if let Some(note) = self.notes.notes_list.iter().find(|n| n.id == id).cloned() {
             self.load_note(note.id, note.topic, note.body, now);
         }
@@ -427,8 +440,14 @@ mod tests {
 
         // Closing the only/last tab
         app.close_tab(0, 2.0);
-        assert!(app.open_notes.is_empty(), "open_notes must be empty when last tab is closed");
-        assert!(app.misc.show_welcome, "show_welcome must be true when all tabs are closed");
+        assert!(
+            app.open_notes.is_empty(),
+            "open_notes must be empty when last tab is closed"
+        );
+        assert!(
+            app.misc.show_welcome,
+            "show_welcome must be true when all tabs are closed"
+        );
         assert_eq!(app.notes.active_note_id, None);
         assert!(app.notes.active_note_title.is_empty());
     }
@@ -441,7 +460,10 @@ mod tests {
 
         app.create_new_note(1.0);
         assert_eq!(app.open_notes.len(), 1);
-        assert!(!app.misc.show_welcome, "Creating a note must dismiss welcome dashboard");
+        assert!(
+            !app.misc.show_welcome,
+            "Creating a note must dismiss welcome dashboard"
+        );
         assert_eq!(app.notes.active_note_title, "Untitled Note");
     }
 
@@ -451,9 +473,17 @@ mod tests {
         app.open_notes.clear();
         app.misc.show_welcome = true;
 
-        app.load_note(999, "Obsidian Import".to_string(), "# Hello".to_string(), 1.0);
+        app.load_note(
+            999,
+            "Obsidian Import".to_string(),
+            "# Hello".to_string(),
+            1.0,
+        );
         assert_eq!(app.open_notes.len(), 1);
-        assert!(!app.misc.show_welcome, "Loading a note must dismiss welcome dashboard");
+        assert!(
+            !app.misc.show_welcome,
+            "Loading a note must dismiss welcome dashboard"
+        );
         assert_eq!(app.notes.active_note_id, Some(999));
         assert_eq!(app.notes.active_note_title, "Obsidian Import");
     }
@@ -472,5 +502,131 @@ mod tests {
         assert_eq!(app.open_notes.len(), 1);
         assert!(!app.misc.show_welcome);
         assert_eq!(app.tabs.active_tab, 0);
+    }
+
+    #[test]
+    fn repeated_tab_switches_restore_text_cursor_and_scroll_once(){
+        let mut app=App::new();
+        app.open_notes.clear();
+        app.create_new_note(1.0);
+        app.editor.ed.set_text("one line");
+        if let Some(tab)=app.open_notes.get_mut(0){tab.id=1;}
+        app.editor.ed.cur=4;
+        app.editor.scroll_y=37.0;
+        app.editor.is_dirty=true;
+        app.sync_active_tab();
+        app.create_new_note(2.0);
+        app.switch_tab(0,3.0);
+        assert_eq!(app.editor.ed.text(),"one line");
+        assert_eq!(app.editor.ed.cur,4);
+        assert_eq!(app.editor.scroll_y,37.0);
+        app.switch_tab(1,4.0);
+        app.switch_tab(0,5.0);
+        assert_eq!(app.editor.ed.text(),"one line");
+        assert_eq!(app.editor.ed.text().matches("one line").count(),1);
+    }
+
+    #[test]
+    fn opening_the_same_filesystem_path_reuses_its_tab(){
+        let path=std::env::temp_dir().join(format!("mindforge-open-{}-{}.md",std::process::id(),fastrand::u64(..)));
+        std::fs::write(&path,"# one").unwrap();
+        let mut app=App::new();
+        app.open_notes.clear();
+        app.open_file_path(path.clone(),1.0);
+        app.open_file_path(path.clone(),2.0);
+        assert_eq!(app.open_notes.len(),1);
+        assert_eq!(app.editor.ed.text(),"# one");
+        let _=std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn common_workspace_file_formats_open_from_their_real_paths(){
+        let dir=std::env::temp_dir().join(format!("mindforge-formats-{}-{}",std::process::id(),fastrand::u64(..)));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut app=App::new();
+        app.open_notes.clear();
+        let samples=[
+            ("README.md",crate::language::FileLanguage::Markdown),
+            ("main.py",crate::language::FileLanguage::Python),
+            ("index.html",crate::language::FileLanguage::Html),
+            ("App.jsx",crate::language::FileLanguage::Jsx),
+            ("App.tsx",crate::language::FileLanguage::Tsx),
+            ("style.css",crate::language::FileLanguage::Css),
+            ("main.rs",crate::language::FileLanguage::Rust),
+            ("package.json",crate::language::FileLanguage::Json),
+        ];
+        for (index,(name,language)) in samples.iter().enumerate(){
+            let path=dir.join(name);
+            let text=format!("file {index}");
+            std::fs::write(&path,&text).unwrap();
+            app.open_file_path(path.clone(),index as f64+1.0);
+            assert_eq!(app.editor.ed.text(),text);
+            assert_eq!(app.active_language(),*language);
+            assert_eq!(app.open_notes.last().unwrap().file_path.as_deref(),Some(path.as_path()));
+        }
+        assert_eq!(app.open_notes.len(),samples.len());
+        let _=std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_deleted_file_tabs_close_cleanly() {
+        let dir = std::env::temp_dir().join(format!("mindforge-deltest-{}-{}", std::process::id(), fastrand::u64(..)));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_a = dir.join("file_a.txt");
+        let file_b = dir.join("file_b.txt");
+        std::fs::write(&file_a, "alpha").unwrap();
+        std::fs::write(&file_b, "beta").unwrap();
+
+        let mut app = App::new();
+        app.open_notes.clear();
+
+        app.open_file_path(file_a.clone(), 1.0);
+        app.open_file_path(file_b.clone(), 2.0);
+        assert_eq!(app.open_notes.len(), 2);
+        assert_eq!(app.tabs.active_tab, 1);
+        assert_eq!(app.editor.ed.text(), "beta");
+
+        // Close/delete file_b
+        let to_close: Vec<usize> = app
+            .open_notes
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, t)| {
+                if t.file_path.as_ref().is_some_and(|p| p.starts_with(&file_b)) {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for idx in to_close.into_iter().rev() {
+            app.close_tab(idx, 3.0);
+        }
+
+        assert_eq!(app.open_notes.len(), 1);
+        assert_eq!(app.tabs.active_tab, 0);
+        assert_eq!(app.editor.ed.text(), "alpha");
+
+        // Close/delete file_a
+        let to_close: Vec<usize> = app
+            .open_notes
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, t)| {
+                if t.file_path.as_ref().is_some_and(|p| p.starts_with(&file_a)) {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for idx in to_close.into_iter().rev() {
+            app.close_tab(idx, 4.0);
+        }
+
+        assert!(app.open_notes.is_empty());
+        assert!(app.misc.show_welcome);
+
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

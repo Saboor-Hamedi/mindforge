@@ -2,7 +2,7 @@
 //!
 //! These modules run independently of the UI thread or provide shared
 //! infrastructure used across multiple views:
-//! - `db_worker`: Async SQLite write queue (prevents UI blocking)
+//! - `db_worker`: Async background storage queue (prevents UI blocking)
 //! - `updater`: GitHub release checker and binary downloader
 //! - `font_manager`: Dynamic font discovery and egui typography loading
 //! - `sound`: Mechanical keyboard audio synthesizer (16-channel PCM)

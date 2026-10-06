@@ -9,14 +9,16 @@
 //! Scoring rewards: consecutive characters, word-boundary matches,
 //! exact matches, and shorter haystacks (more relevant).
 
-use crate::ui::theme::ThemeKind;
 use crate::services::sound::SoundProfile;
+use crate::ui::theme::ThemeKind;
 
 /// All actions that can be triggered from the Command Palette or fuzzy search.
 /// Each variant carries the data needed to execute the action.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PaletteAction {
     OpenNote(i64),
+    OpenWorkspaceFile(std::path::PathBuf),
+    OpenWorkspaceFolder(std::path::PathBuf),
     OpenThemePicker,
     ApplyTheme(ThemeKind),
     ShowSoundPicker,
@@ -50,6 +52,73 @@ pub enum PaletteAction {
     OpenHelp,
     SetLunaStyle(crate::lunaline::LunaStyle),
     SetLunaColor(crate::lunaline::LunaColorMode),
+}
+
+pub fn search_workspace(
+    query: &str,
+    root: Option<&std::path::Path>,
+    entries: &[crate::workspace::Entry],
+    excluded: &[std::path::PathBuf],
+) -> Vec<SearchItem> {
+    let needle = query.trim();
+    if needle.is_empty() || needle.starts_with('>') {
+        return Vec::new();
+    }
+    let excluded_keys: std::collections::HashSet<String> = excluded
+        .iter()
+        .map(|p| workspace_path_key(p))
+        .collect();
+    let mut results = Vec::new();
+    for entry in entries {
+        if excluded_keys.contains(&workspace_path_key(&entry.path)) {
+            continue;
+        }
+        let relative = root
+            .and_then(|root| {
+                entry
+                    .path
+                    .strip_prefix(root)
+                    .ok()
+                    .map(|path| path.to_string_lossy().replace('\\', "/"))
+            })
+            .unwrap_or_else(|| entry.path.to_string_lossy().into_owned());
+        let name = entry.path.file_name().unwrap_or_default().to_string_lossy();
+        let score = fuzzy_match(needle, &name).or_else(|| fuzzy_match(needle, &relative));
+        if let Some(score) = score {
+            results.push(SearchItem {
+                id: 0,
+                title: name.into_owned(),
+                snippet: relative,
+                score,
+                badge: if entry.directory {
+                    "Folder".into()
+                } else {
+                    "File".into()
+                },
+                icon: if entry.directory { "📁" } else { "📄" },
+                action: if entry.directory {
+                    PaletteAction::OpenWorkspaceFolder(entry.path.clone())
+                } else {
+                    PaletteAction::OpenWorkspaceFile(entry.path.clone())
+                },
+            });
+        }
+    }
+    results.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.title.cmp(&b.title)));
+    results.truncate(100);
+    results
+}
+
+fn workspace_path_key(path: &std::path::Path) -> String {
+    let value = path.to_string_lossy().replace('\\', "/");
+    #[cfg(windows)]
+    {
+        value.to_lowercase()
+    }
+    #[cfg(not(windows))]
+    {
+        value
+    }
 }
 
 /// A single search result item displayed in the palette or search modal.
@@ -151,7 +220,6 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         icon: "⚙",
         action: PaletteAction::OpenSetting(crate::setting::SettingTab::Theme),
     },
-
     // --- Carets & Typography Settings ---
     BuiltinCommand {
         title: "Carets & Cursor Styles",
@@ -167,7 +235,6 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         icon: "⚙",
         action: PaletteAction::OpenFontPicker,
     },
-
     // --- Audio, Keybindings & System Settings ---
     BuiltinCommand {
         title: "Mechanical Typing Audio & Switches",
@@ -185,7 +252,7 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
     },
     BuiltinCommand {
         title: "Vault Backup & Data Safety",
-        snippet: "Configure automated SQLite snapshots and export paths",
+        snippet: "Configure automated backup snapshots and export paths",
         badge: "Backup",
         icon: "⚙",
         action: PaletteAction::OpenSetting(crate::setting::SettingTab::Backup),
@@ -204,7 +271,6 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         icon: "⚙",
         action: PaletteAction::OpenSetting(crate::setting::SettingTab::Ai),
     },
-
     // --- LunaLine Statusline Settings ---
     BuiltinCommand {
         title: "LunaLine Statusline",
@@ -262,7 +328,6 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         icon: "🎨",
         action: PaletteAction::SetLunaColor(crate::lunaline::LunaColorMode::Monochrome),
     },
-
     // --- View Settings & Navigation Shortcuts ---
     BuiltinCommand {
         title: "Toggle Sidebar Explorer",
@@ -327,7 +392,6 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         icon: "👁",
         action: PaletteAction::ToggleTabs,
     },
-
     // --- Document & Action Settings Shortcuts ---
     BuiltinCommand {
         title: "New Note Document",
@@ -338,7 +402,7 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
     },
     BuiltinCommand {
         title: "Quick Save Active Note",
-        snippet: "Commit active note buffer immediately to SQLite",
+        snippet: "Commit active note buffer immediately to disk",
         badge: "Ctrl+S",
         icon: "📄",
         action: PaletteAction::QuickSave,
@@ -436,7 +500,12 @@ pub fn fuzzy_match(needle: &str, haystack: &str) -> Option<i64> {
             if consecutive > 0 {
                 score += consecutive * 5; // bonus for consecutive letters
             }
-            if h_idx == 0 || haystack_chars[h_idx - 1].is_whitespace() || haystack_chars[h_idx - 1] == '_' || haystack_chars[h_idx - 1] == '-' || haystack_chars[h_idx - 1] == ':' {
+            if h_idx == 0
+                || haystack_chars[h_idx - 1].is_whitespace()
+                || haystack_chars[h_idx - 1] == '_'
+                || haystack_chars[h_idx - 1] == '-'
+                || haystack_chars[h_idx - 1] == ':'
+            {
                 score += 15; // word boundary bonus
             }
             consecutive += 1;
@@ -603,53 +672,149 @@ mod tests {
     }
 
     #[test]
+    fn workspace_search_finds_nested_files_and_returns_filesystem_actions() {
+        let root = std::path::PathBuf::from("C:/sample-project");
+        let file = root.join("src/components/App.tsx");
+        let folder = root.join("src/components");
+        let entries = vec![
+            crate::workspace::Entry {
+                path: file.clone(),
+                depth: 2,
+                directory: false,
+            },
+            crate::workspace::Entry {
+                path: folder.clone(),
+                depth: 1,
+                directory: true,
+            },
+        ];
+        let results = search_workspace("app", Some(&root), &entries, &[]);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].snippet, "src/components/App.tsx");
+        assert_eq!(results[0].action, PaletteAction::OpenWorkspaceFile(file));
+        assert_eq!(
+            search_workspace(">theme", Some(&root), &entries, &[]).len(),
+            0
+        );
+    }
+
+    #[test]
     fn test_command_palette_matching() {
         let def_font = "JetBrains Mono";
         let def_mode = crate::app::EditorInputMode::Vim;
         let def_luna = crate::lunaline::LunaStyle::Pill;
 
-        let items = search_palette(">", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
+        let items = search_palette(
+            ">",
+            &[],
+            ThemeKind::TokyoNight,
+            crate::services::sound::SoundProfile::Off,
+            crate::caret::CaretKind::Beam,
+            def_font,
+            def_mode,
+            def_luna,
+        );
         assert!(!items.is_empty());
         // Verify commands have NO "Settings: " prefix as requested
         assert!(items.iter().all(|i| !i.title.starts_with("Settings: ")));
         assert!(items.iter().any(|i| i.title.contains("Color Theme")));
         assert!(items.iter().any(|i| i.title.contains("Keyboard Shortcuts")));
-        assert!(items.iter().any(|i| i.title.contains("Caret Style & Cursor FX")));
+        assert!(items
+            .iter()
+            .any(|i| i.title.contains("Caret Style & Cursor FX")));
 
-        let theme_filter = search_palette(">theme", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
+        let theme_filter = search_palette(
+            ">theme",
+            &[],
+            ThemeKind::TokyoNight,
+            crate::services::sound::SoundProfile::Off,
+            crate::caret::CaretKind::Beam,
+            def_font,
+            def_mode,
+            def_luna,
+        );
         assert_eq!(theme_filter.len(), ThemeKind::ALL.len());
         let active = theme_filter.iter().find(|i| i.badge.contains("Active"));
         assert!(active.is_some());
         // Inactive themes must have empty badges
-        let inactive_with_badge = theme_filter.iter().filter(|i| !i.badge.is_empty() && !i.badge.contains("Active")).count();
+        let inactive_with_badge = theme_filter
+            .iter()
+            .filter(|i| !i.badge.is_empty() && !i.badge.contains("Active"))
+            .count();
         assert_eq!(inactive_with_badge, 0);
 
         // Sound picker: >sound shows all profiles
-        let sound_filter = search_palette(">sound", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Thocky, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
-        assert_eq!(sound_filter.len(), crate::services::sound::SoundProfile::ALL.len());
+        let sound_filter = search_palette(
+            ">sound",
+            &[],
+            ThemeKind::TokyoNight,
+            crate::services::sound::SoundProfile::Thocky,
+            crate::caret::CaretKind::Beam,
+            def_font,
+            def_mode,
+            def_luna,
+        );
+        assert_eq!(
+            sound_filter.len(),
+            crate::services::sound::SoundProfile::ALL.len()
+        );
         let active_sound = sound_filter.iter().find(|i| i.badge.contains("Active"));
         assert!(active_sound.is_some());
         assert_eq!(active_sound.unwrap().title, "Thocky");
         // Inactive sound profiles must have empty badges
-        let inactive_sound_with_badge = sound_filter.iter().filter(|i| !i.badge.is_empty() && !i.badge.contains("Active")).count();
+        let inactive_sound_with_badge = sound_filter
+            .iter()
+            .filter(|i| !i.badge.is_empty() && !i.badge.contains("Active"))
+            .count();
         assert_eq!(inactive_sound_with_badge, 0);
 
         // Caret picker: >caret shows all curated carets
-        let caret_filter = search_palette(">caret", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Fire, def_font, def_mode, def_luna);
+        let caret_filter = search_palette(
+            ">caret",
+            &[],
+            ThemeKind::TokyoNight,
+            crate::services::sound::SoundProfile::Off,
+            crate::caret::CaretKind::Fire,
+            def_font,
+            def_mode,
+            def_luna,
+        );
         assert_eq!(caret_filter.len(), crate::caret::CaretKind::ALL.len());
         let active_caret = caret_filter.iter().find(|i| i.badge.contains("Active"));
         assert!(active_caret.is_some());
         assert!(active_caret.unwrap().title.contains("Fire"));
 
         // Font picker: >font shows supported fonts
-        let font_filter = search_palette(">font", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, "JetBrains Mono", def_mode, def_luna);
+        let font_filter = search_palette(
+            ">font",
+            &[],
+            ThemeKind::TokyoNight,
+            crate::services::sound::SoundProfile::Off,
+            crate::caret::CaretKind::Beam,
+            "JetBrains Mono",
+            def_mode,
+            def_luna,
+        );
         assert!(!font_filter.is_empty());
-        assert!(font_filter.iter().any(|i| i.title == "JetBrains Mono" && i.badge.contains("Active")));
+        assert!(font_filter
+            .iter()
+            .any(|i| i.title == "JetBrains Mono" && i.badge.contains("Active")));
 
         // Mode picker: >mode shows modes
-        let mode_filter = search_palette(">mode", &[], ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, crate::app::EditorInputMode::Vim, def_luna);
+        let mode_filter = search_palette(
+            ">mode",
+            &[],
+            ThemeKind::TokyoNight,
+            crate::services::sound::SoundProfile::Off,
+            crate::caret::CaretKind::Beam,
+            def_font,
+            crate::app::EditorInputMode::Vim,
+            def_luna,
+        );
         assert_eq!(mode_filter.len(), 2);
-        assert!(mode_filter.iter().any(|i| i.title.contains("Vim") && i.badge.contains("Active")));
+        assert!(mode_filter
+            .iter()
+            .any(|i| i.title.contains("Vim") && i.badge.contains("Active")));
 
         // Note search items must have empty badges
         let sample_notes = vec![core::Note {
@@ -659,7 +824,16 @@ mod tests {
             struggled_with: None,
             created_at: chrono::NaiveDateTime::default(),
         }];
-        let note_results = search_palette("Arch", &sample_notes, ThemeKind::TokyoNight, crate::services::sound::SoundProfile::Off, crate::caret::CaretKind::Beam, def_font, def_mode, def_luna);
+        let note_results = search_palette(
+            "Arch",
+            &sample_notes,
+            ThemeKind::TokyoNight,
+            crate::services::sound::SoundProfile::Off,
+            crate::caret::CaretKind::Beam,
+            def_font,
+            def_mode,
+            def_luna,
+        );
         assert!(!note_results.is_empty());
         assert_eq!(note_results[0].badge, "");
     }
@@ -667,7 +841,8 @@ mod tests {
     #[test]
     fn test_extract_snippet_multibyte_safety() {
         // Multi-byte em-dash and unicode characters exactly like the user's crashing note
-        let body = "prefix text before — em-dash and some unicode: 🚀 — and even more text following";
+        let body =
+            "prefix text before — em-dash and some unicode: 🚀 — and even more text following";
         let snippet = extract_snippet(body, "unicode");
         assert!(snippet.contains("unicode"));
         assert!(!snippet.is_empty());
@@ -678,4 +853,3 @@ mod tests {
         assert!(snip2.contains("action"));
     }
 }
-

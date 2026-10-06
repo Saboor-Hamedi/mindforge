@@ -2,21 +2,23 @@
 
 use super::{App, EditorInputMode, OpenNote};
 
-/// One restorable tab, stored in order so notes and code files reopen together.
+/// One restorable tab, stored in order so notes, code files, and untitled tabs reopen together.
 #[derive(serde::Serialize, serde::Deserialize)]
 enum SavedTab {
     Note(i64),
     File(String),
+    Untitled {
+        title: String,
+        #[serde(default)]
+        content: String,
+    },
 }
 use crate::caret::CaretKind;
-use crate::services::db_worker::{spawn_db_worker, DbMsg};
 use crate::editor::Editor;
+use crate::services::db_worker::{spawn_db_worker, DbMsg};
 use crate::services::sound::SoundProfile;
 use crate::setting::SettingTab;
 use crate::ui::theme::{Theme, ThemeKind};
-
-use chrono::Local;
-use core::Database;
 
 pub fn default_backup_dir() -> std::path::PathBuf {
     if let Some(proj) = directories::ProjectDirs::from("com", "mindforge", "mindforge") {
@@ -28,11 +30,11 @@ pub fn default_backup_dir() -> std::path::PathBuf {
 
 impl App {
     pub fn new() -> Self {
-        // Open SQLite connection on the main thread first to safely apply any pending migrations
-        let _db = Database::open_default().ok();
         let tx = spawn_db_worker();
 
         let mut app = Self {
+            workspace: crate::workspace::WorkspaceState::default(),
+            file_versions: std::collections::HashMap::new(),
             editor: crate::state::editor::EditorState::new(),
             command_bar: crate::state::command_bar::CommandBarState::new(),
             misc: crate::state::misc::MiscState::new(),
@@ -65,6 +67,7 @@ impl App {
                 delete_confirm_open: false,
                 delete_just_opened: false,
                 pending_delete_note_id: None,
+                pending_delete_path: None,
                 help_open: false,
                 help_tab: 0,
                 help_scroll_y: 0.0,
@@ -98,236 +101,98 @@ impl App {
             last_ed_font_size: None,
         };
 
-        app.services.init_db();
         app.load_settings();
+        let stored_settings = crate::services::db_worker::get_all_stored_settings();
+        if let Some(path) = stored_settings.get("workspace_root") {
+            app.open_workspace(std::path::PathBuf::from(path), 0.0);
+        }
 
-        // Restore active document and open tabs from SQLite
-        if let Some(ref db) = app.services.db {
-            let limit = app.notes.sidebar_notes_limit;
-            if let Ok(notes) = db.get_recent_notes(limit) {
-                app.notes.notes_list = notes;
-            }
-            if let Ok(count) = db.get_notes_count() {
-                app.notes.total_notes_count = count;
-            }
-
-            let mut tabs_setting_present = false;
-            let mut tabs_restored = false;
-            let saved_tabs = db
-                .get_setting("open_tabs_v2")
-                .ok()
-                .flatten()
-                .and_then(|json| serde_json::from_str::<Vec<SavedTab>>(&json).ok());
-            if let Some(entries) = saved_tabs {
-                tabs_setting_present = true;
-                for entry in entries {
-                    match entry {
-                        SavedTab::Note(id) => {
-                            let Ok(Some(note)) = db.get_note(id) else { continue };
-                            let mut note_ed = Editor::new();
-                            note_ed.insert_str(&note.body);
-                            note_ed.clear_history();
-                            let scroll_y = db
-                                .get_setting(&format!("note_scroll_{}", id))
-                                .ok()
-                                .flatten()
-                                .and_then(|s| s.parse::<f32>().ok())
-                                .unwrap_or(0.0);
-                            let caret = db
-                                .get_setting(&format!("note_caret_{}", id))
-                                .ok()
-                                .flatten()
-                                .and_then(|s| s.parse::<usize>().ok())
-                                .unwrap_or(0);
-                            note_ed.cur = caret.min(note_ed.buf.len());
-                            app.open_notes.push(OpenNote {
-                                id: note.id,
-                                title: note.topic.clone(),
-                                editor: note_ed,
-                                scroll_y,
-                                is_dirty: false,
-                                file_path: None,
-                                language_override: None,
-                            });
+        // Restore active document and open tabs from settings.json
+        let saved_tabs = stored_settings
+            .get("open_tabs_v2")
+            .and_then(|json| serde_json::from_str::<Vec<SavedTab>>(json).ok());
+        if let Some(entries) = saved_tabs {
+            for entry in entries {
+                match entry {
+                    SavedTab::Note(_id) => {}
+                    SavedTab::File(path) => {
+                        let path = std::path::PathBuf::from(path);
+                        let Ok(content) = std::fs::read_to_string(&path) else {
+                            continue;
+                        };
+                        if let Ok(version) = crate::workspace::file_fingerprint(&path) {
+                            app.file_versions.insert(path.clone(), version);
                         }
-                        SavedTab::File(path) => {
-                            let path = std::path::PathBuf::from(path);
-                            let Ok(content) = std::fs::read_to_string(&path) else { continue };
-                            let mut file_ed = Editor::new();
-                            file_ed.insert_str(&content.replace("\r\n", "\n").replace('\r', "\n"));
-                            file_ed.clear_history();
-                            app.open_notes.push(OpenNote {
-                                id: 0,
-                                title: path
-                                    .file_name()
-                                    .and_then(|name| name.to_str())
-                                    .unwrap_or("Untitled")
-                                    .to_string(),
-                                editor: file_ed,
-                                scroll_y: 0.0,
-                                is_dirty: false,
-                                file_path: Some(path),
-                                language_override: None,
-                            });
-                        }
+                        let mut file_ed = Editor::new();
+                        file_ed.set_text(&content.replace("\r\n", "\n").replace('\r', "\n"));
+                        file_ed.clear_history();
+                        app.open_notes.push(OpenNote {
+                            id: 0,
+                            title: path
+                                .file_name()
+                                .and_then(|name| name.to_str())
+                                .unwrap_or("Untitled")
+                                .to_string(),
+                            editor: file_ed,
+                            scroll_y: 0.0,
+                            is_dirty: false,
+                            file_path: Some(path),
+                            language_override: None,
+                        });
                     }
-                }
-                if app.open_notes.is_empty() {
-                    app.misc.show_welcome = true;
-                } else {
-                    tabs_restored = true;
-                    app.misc.show_welcome = false;
-                    let saved_active = db
-                        .get_setting("open_tabs_v2_active")
-                        .ok()
-                        .flatten()
-                        .and_then(|s| s.parse::<usize>().ok())
-                        .unwrap_or(0);
-                    app.tabs.active_tab = saved_active.min(app.open_notes.len() - 1);
-                    app.tabs.last_active_tab = app.tabs.active_tab;
-                    let target = &app.open_notes[app.tabs.active_tab];
-                    app.notes.active_note_id = (target.id > 0).then_some(target.id);
-                    app.notes.active_note_title = target.title.clone();
-                    app.editor.ed = target.editor.clone();
-                    app.editor.scroll_y = target.scroll_y;
-                }
-            }
-            if let (false, Ok(Some(json))) = (tabs_setting_present, db.get_setting("open_note_tab_ids")) {
-                tabs_setting_present = true;
-                if let Ok(ids) = serde_json::from_str::<Vec<i64>>(&json) {
-                    for id in ids {
-                        if let Ok(Some(note)) = db.get_note(id) {
-                            let mut note_ed = Editor::new();
-                            note_ed.insert_str(&note.body);
-                            note_ed.clear_history();
-                            let s_y = db.get_setting(&format!("note_scroll_{}", id))
-                                .ok()
-                                .flatten()
-                                .and_then(|s| s.parse::<f32>().ok())
-                                .unwrap_or(0.0);
-                            let c_pos = db.get_setting(&format!("note_caret_{}", id))
-                                .ok()
-                                .flatten()
-                                .and_then(|s| s.parse::<usize>().ok())
-                                .or_else(|| {
-                                    db.get_setting("last_caret_pos")
-                                        .ok()
-                                        .flatten()
-                                        .and_then(|s| s.parse::<usize>().ok())
-                                })
-                                .unwrap_or(0);
-                            note_ed.cur = c_pos.min(note_ed.buf.len());
-                            app.open_notes.push(OpenNote {
-                                id: note.id,
-                                title: note.topic.clone(),
-                                editor: note_ed,
-                                scroll_y: s_y,
-                                is_dirty: false,
-                                file_path: None,
-                                language_override: None,
-                            });
-                        }
-                    }
-                    if !app.open_notes.is_empty() {
-                        tabs_restored = true;
-                        app.misc.show_welcome = false;
-                        let saved_active = db.get_setting("open_note_active_tab")
-                            .ok()
-                            .flatten()
-                            .and_then(|s| s.parse::<usize>().ok())
-                            .unwrap_or(0);
-                        app.tabs.active_tab = saved_active.min(app.open_notes.len() - 1);
-                        app.tabs.last_active_tab = app.tabs.active_tab;
-                        let target = &app.open_notes[app.tabs.active_tab];
-                        app.notes.active_note_id = Some(target.id);
-                        app.notes.active_note_title = target.title.clone();
-                        app.editor.ed = target.editor.clone();
-                        app.editor.scroll_y = target.scroll_y;
-                        if let Ok(Some(c_str)) = db.get_setting(&format!("note_caret_{}", target.id)) {
-                            if let Ok(c) = c_str.parse::<usize>() {
-                                app.editor.ed.cur = c.min(app.editor.ed.buf.len());
-                            }
-                        } else if let Ok(Some(c_str)) = db.get_setting("last_caret_pos") {
-                            if let Ok(c) = c_str.parse::<usize>() {
-                                app.editor.ed.cur = c.min(app.editor.ed.buf.len());
-                            }
-                        }
-                        if let Some(tab) = app.open_notes.get_mut(app.tabs.active_tab) {
-                            tab.editor.cur = app.editor.ed.cur;
-                        }
-                    } else {
-                        // User explicitly closed all tabs in previous session
-                        app.misc.show_welcome = true;
+                    SavedTab::Untitled { title, content } => {
+                        let mut ed = Editor::new();
+                        ed.set_text(&content.replace("\r\n", "\n").replace('\r', "\n"));
+                        ed.clear_history();
+                        app.open_notes.push(OpenNote {
+                            id: 0,
+                            title,
+                            editor: ed,
+                            scroll_y: 0.0,
+                            is_dirty: false,
+                            file_path: None,
+                            language_override: None,
+                        });
                     }
                 }
             }
-
-            if !tabs_setting_present && !tabs_restored {
-                let last_id = db.get_setting("last_active_note_id").ok().flatten().and_then(|s| s.parse::<i64>().ok());
-                let note = match last_id {
-                    Some(id) => db.get_note(id).ok().flatten(),
-                    None => db.get_all_notes().ok().and_then(|l| l.into_iter().next()),
-                };
-
-                if let Some(n) = note {
-                    app.notes.active_note_id = Some(n.id);
-                    app.notes.active_note_title = n.topic.clone();
-                    app.editor.ed.insert_str(&n.body);
-                    app.editor.ed.cur = 0;
-                    app.editor.ed.clear_history();
-
-                    if let Ok(Some(c_str)) = db.get_setting(&format!("note_caret_{}", n.id)) {
-                        if let Ok(c) = c_str.parse::<usize>() {
-                            app.editor.ed.cur = c.min(app.editor.ed.buf.len());
-                        }
-                    } else if let Ok(Some(c_str)) = db.get_setting("last_caret_pos") {
-                        if let Ok(c) = c_str.parse::<usize>() {
-                            app.editor.ed.cur = c.min(app.editor.ed.buf.len());
-                        }
-                    }
-                    if let Ok(Some(s_str)) = db.get_setting(&format!("note_scroll_{}", n.id)) {
-                        if let Ok(s) = s_str.parse::<f32>() {
-                            app.editor.scroll_y = s;
-                        }
-                    }
-
-                    app.open_notes.push(OpenNote {
-                        id: n.id,
-                        title: n.topic,
-                        editor: app.editor.ed.clone(),
-                        scroll_y: app.editor.scroll_y,
-                        is_dirty: false,
-                        file_path: None,
-                        language_override: None,
-                    });
-                    app.tabs.active_tab = 0;
-                    app.tabs.last_active_tab = 0;
-                    app.misc.show_welcome = false;
-                } else {
-                    app.misc.show_welcome = true;
-                }
-            }
-
-            // Restore daily activity
-            let today_str = Local::now().date_naive().format("%Y-%m-%d").to_string();
-            if let Ok(recent) = db.get_recent_activity(14) {
-                if let Some(act) = recent.iter().find(|a| a.date == today_str) {
-                    app.activity.today_activity = act.clone();
-                }
-                app.activity.activity_history = recent;
-            }
-            if let Ok(life) = db.get_lifetime_activity() {
-                app.activity.lifetime_activity = life;
-            }
-            if let Ok(scans) = db.list_scans() {
-                app.scan.past_scans = scans;
-            }
-            if let Ok(Some(json)) = db.get_setting("command_history") {
-                if let Ok(hist) = serde_json::from_str::<Vec<String>>(&json) {
-                    app.command_bar.history = hist;
-                }
+            if app.open_notes.is_empty() {
+                app.misc.show_welcome = true;
+            } else {
+                app.misc.show_welcome = false;
+                app.misc.show_tabs = true;
+                let saved_active = stored_settings
+                    .get("open_tabs_v2_active")
+                    .and_then(|s| s.parse::<usize>().ok())
+                    .unwrap_or(0);
+                app.tabs.active_tab = saved_active.min(app.open_notes.len() - 1);
+                app.tabs.last_active_tab = app.tabs.active_tab;
+                let target = &app.open_notes[app.tabs.active_tab];
+                app.notes.active_note_id = (target.id > 0).then_some(target.id);
+                app.notes.active_note_title = target.title.clone();
+                app.editor.ed = target.editor.clone();
+                app.editor.scroll_y = target.scroll_y;
             }
         } else {
+            app.misc.show_welcome = true;
+        }
+
+        // Restore daily activity and scan history
+        let today_str = chrono::Local::now().date_naive().format("%Y-%m-%d").to_string();
+        let recent = crate::services::db_worker::get_recent_activity(14);
+        if let Some(act) = recent.iter().find(|a| a.date == today_str) {
+            app.activity.today_activity = act.clone();
+        }
+        app.activity.activity_history = recent;
+        app.activity.lifetime_activity = crate::services::db_worker::get_lifetime_activity();
+        app.scan.past_scans = crate::services::db_worker::list_stored_scans();
+        if let Some(json) = stored_settings.get("command_history") {
+            if let Ok(hist) = serde_json::from_str::<Vec<String>>(json) {
+                app.command_bar.history = hist;
+            }
+        }
+
+        if app.open_notes.is_empty() {
             app.open_notes.push(OpenNote {
                 id: 0,
                 title: "Untitled Note".to_string(),
@@ -345,152 +210,126 @@ impl App {
     }
 
     pub fn load_settings(&mut self) {
-        if let Some(db) = &self.services.db {
-            if let Ok(Some(c)) = db.get_setting("caret") {
-                if let Some(kind) = CaretKind::parse(&c) {
-                    self.misc.caret.kind = kind;
-                }
-            }
-            if let Ok(Some(t)) = db.get_setting("theme") {
-                if let Some(kind) = ThemeKind::parse(&t) {
-                    self.misc.theme = Theme::from_kind(kind);
-                }
-            }
-            self.misc.accent_overrides = crate::accent::AccentOverrides::load_from_db(db);
-            self.misc.accent_overrides.apply(&mut self.misc.theme);
-            if let Ok(Some(s)) = db.get_setting("sound") {
-                if let Some(profile) = SoundProfile::parse(&s) {
-                    self.misc.sound.profile = profile;
-                }
-            }
-            if let Ok(Some(w)) = db.get_setting("caret_width") {
-                if let Ok(val) = w.parse::<f32>() {
-                    self.misc.caret.width = val.clamp(1.0, 10.0);
-                }
-            }
-            if let Ok(Some(anim)) = db.get_setting("caret_animations") {
-                self.misc.caret.animations_enabled = anim != "off" && anim != "false";
-            }
-            if let Ok(Some(blink)) = db.get_setting("caret_blinking") {
-                self.misc.caret.blink_enabled = blink != "off" && blink != "false";
-            }
-            if let Ok(Some(op)) = db.get_setting("opacity") {
-                if let Ok(val) = op.parse::<f32>() {
-                    self.misc.opacity = val.clamp(0.2, 1.0);
-                }
-            }
-            if let Ok(Some(sf)) = db.get_setting("selected_font") {
-                self.misc.selected_font = sf;
-            }
-            if let Ok(Some(bl)) = db.get_setting("blur") {
-                self.misc.blur_effect = match bl.as_str() {
-                    "acrylic" => crate::services::blur::BlurEffect::Acrylic,
-                    "mica" => crate::services::blur::BlurEffect::Mica,
-                    "none" | "off" => crate::services::blur::BlurEffect::None,
-                    _ => crate::services::blur::BlurEffect::Acrylic,
-                };
-            }
-            if let Ok(Some(zen)) = db.get_setting("zen_mode") {
-                self.misc.zen_mode = zen == "true" || zen == "on" || zen == "1";
-                if self.misc.zen_mode {
-                    self.misc.show_titlebar = false;
-                    self.misc.show_tabs = false;
-                    self.sidebar.open = false;
-                    self.editor.preview_open = false;
-                }
-            }
-            if let Ok(Some(tb)) = db.get_setting("show_titlebar") {
-                self.misc.show_titlebar = tb == "true" || tb == "1" || tb == "on";
-            }
-            if let Ok(Some(tabs)) = db.get_setting("show_tabs") {
-                self.misc.show_tabs = tabs == "true" || tabs == "1" || tabs == "on";
-            }
-            if let Ok(Some(f)) = db.get_setting("font") {
-                if let Ok(val) = f.parse::<f32>() {
-                    self.misc.font_size = val.clamp(12.0, 48.0);
-                    self.editor.cell = None;
-                }
-            }
-            if let Ok(Some(sw)) = db.get_setting("sidebar_w") {
-                if let Ok(val) = sw.parse::<f32>() {
-                    self.sidebar.width = val.clamp(crate::layout::MIN_SIDEBAR_W, crate::layout::MAX_SIDEBAR_W);
-                }
-            }
-            if let Ok(Some(b)) = db.get_setting("backup_dir") {
-                self.modal.backup_dir = b;
-            }
-            if let Ok(Some(m)) = db.get_setting("editor_mode") {
-                if m == "vim" {
-                    self.services.editor_controller.mode = EditorInputMode::Vim;
-                } else {
-                    self.services.editor_controller.mode = EditorInputMode::Hybrid;
-                }
-            }
-            if let Ok(Some(s)) = db.get_setting("showcmd") {
-                self.misc.showcmd.enabled = s != "off" && s != "false";
-            }
-            if let Ok(Some(ln)) = db.get_setting("line_numbers") {
-                self.editor.show_line_numbers = ln != "off" && ln != "false";
-            }
-            if let Ok(Some(p)) = db.get_setting("preview") {
-                self.editor.preview_open = p == "on" || p == "true";
-            }
-            // Live inline Markdown is disabled: its whole-document layout pass
-            // was running on the UI thread and is not needed for raw editing.
-            self.editor.inline_mode = false;
-            let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-                key: "inline_mode".into(),
-                val: "false".into(),
-            });
-            if let Ok(Some(sb)) = db.get_setting("sidebar") {
-                self.sidebar.open = sb == "on" || sb == "true";
-            }
-            if let Ok(Some(k)) = db.get_setting("deepseek_api_key_enc") {
-                self.services.agent_state.deepseek_api_key_enc = k;
-            }
-            if let Ok(Some(m)) = db.get_setting("deepseek_model") {
-                self.services.agent_state.deepseek_model = m;
-            }
-            if let Ok(Some(json)) = db.get_setting("lunaline_config") {
-                if let Ok(cfg) = serde_json::from_str::<crate::lunaline::LunaLineConfig>(&json) {
-                    self.services.lunaline_config = cfg;
-                }
+        let settings = crate::services::db_worker::get_all_stored_settings();
+        let map: std::collections::BTreeMap<String, String> = settings.into_iter().collect();
+
+        if let Some(c) = map.get("caret") {
+            if let Some(kind) = CaretKind::parse(c) {
+                self.misc.caret.kind = kind;
             }
         }
-
-        // Check settings.json fallback and ensure settings.json file is populated
-        if let Ok(path) = core::Database::get_db_path() {
-            if let Some(parent) = path.parent() {
-                let json_path = parent.join("settings.json");
-                let mut map: std::collections::BTreeMap<String, String> = std::fs::read_to_string(&json_path)
-                    .ok()
-                    .and_then(|s| serde_json::from_str(&s).ok())
-                    .unwrap_or_default();
-
-                if self.services.agent_state.deepseek_api_key_enc.is_empty() {
-                    if let Some(key) = map.get("deepseek_api_key_enc") {
-                        self.services.agent_state.deepseek_api_key_enc = key.clone();
-                    }
-                }
-                if let Some(model) = map.get("deepseek_model") {
-                    if self.services.agent_state.deepseek_model.is_empty() {
-                        self.services.agent_state.deepseek_model = model.clone();
-                    }
-                }
-
-                if !self.services.agent_state.deepseek_api_key_enc.is_empty() {
-                    map.insert("deepseek_api_key_enc".into(), self.services.agent_state.deepseek_api_key_enc.clone());
-                }
-                map.insert("deepseek_model".into(), self.services.agent_state.deepseek_model.clone());
-                if let Ok(s) = serde_json::to_string_pretty(&map) {
-                    let _ = std::fs::write(json_path, s);
-                }
+        if let Some(t) = map.get("theme") {
+            if let Some(kind) = ThemeKind::parse(t) {
+                self.misc.theme = Theme::from_kind(kind);
+            }
+        }
+        self.misc.accent_overrides = crate::accent::AccentOverrides::load_from_settings(&map);
+        self.misc.accent_overrides.apply(&mut self.misc.theme);
+        if let Some(s) = map.get("sound") {
+            if let Some(profile) = SoundProfile::parse(s) {
+                self.misc.sound.profile = profile;
+            }
+        }
+        if let Some(w) = map.get("caret_width") {
+            if let Ok(val) = w.parse::<f32>() {
+                self.misc.caret.width = val.clamp(1.0, 10.0);
+            }
+        }
+        if let Some(anim) = map.get("caret_animations") {
+            self.misc.caret.animations_enabled = anim != "off" && anim != "false";
+        }
+        if let Some(blink) = map.get("caret_blinking") {
+            self.misc.caret.blink_enabled = blink != "off" && blink != "false";
+        }
+        if let Some(op) = map.get("opacity") {
+            if let Ok(val) = op.parse::<f32>() {
+                self.misc.opacity = val.clamp(0.2, 1.0);
+            }
+        }
+        if let Some(sf) = map.get("selected_font") {
+            self.misc.selected_font = sf.clone();
+        }
+        if let Some(bl) = map.get("blur") {
+            self.misc.blur_effect = match bl.as_str() {
+                "acrylic" => crate::services::blur::BlurEffect::Acrylic,
+                "mica" => crate::services::blur::BlurEffect::Mica,
+                "none" | "off" => crate::services::blur::BlurEffect::None,
+                _ => crate::services::blur::BlurEffect::Acrylic,
+            };
+        }
+        if let Some(zen) = map.get("zen_mode") {
+            self.misc.zen_mode = zen == "true" || zen == "on" || zen == "1";
+            if self.misc.zen_mode {
+                self.misc.show_titlebar = false;
+                self.misc.show_tabs = false;
+                self.sidebar.open = false;
+                self.editor.preview_open = false;
+            }
+        }
+        if let Some(tb) = map.get("show_titlebar") {
+            self.misc.show_titlebar = tb == "true" || tb == "1" || tb == "on";
+        }
+        if let Some(tabs) = map.get("show_tabs") {
+            self.misc.show_tabs = tabs == "true" || tabs == "1" || tabs == "on";
+        }
+        if let Some(f) = map.get("font") {
+            if let Ok(val) = f.parse::<f32>() {
+                self.misc.font_size = val.clamp(12.0, 48.0);
+                self.editor.cell = None;
+            }
+        }
+        if let Some(sw) = map.get("sidebar_w") {
+            if let Ok(val) = sw.parse::<f32>() {
+                self.sidebar.width =
+                    val.clamp(crate::layout::MIN_SIDEBAR_W, crate::layout::MAX_SIDEBAR_W);
+            }
+        }
+        if let Some(b) = map.get("backup_dir") {
+            self.modal.backup_dir = b.clone();
+        }
+        if let Some(m) = map.get("editor_mode") {
+            if m == "vim" {
+                self.services.editor_controller.mode = EditorInputMode::Vim;
+            } else {
+                self.services.editor_controller.mode = EditorInputMode::Hybrid;
+            }
+        }
+        if let Some(s) = map.get("showcmd") {
+            self.misc.showcmd.enabled = s != "off" && s != "false";
+        }
+        if let Some(ln) = map.get("line_numbers") {
+            self.editor.show_line_numbers = ln != "off" && ln != "false";
+        }
+        if let Some(p) = map.get("preview") {
+            self.editor.preview_open = p == "on" || p == "true";
+        }
+        self.editor.inline_mode = false;
+        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
+            key: "inline_mode".into(),
+            val: "false".into(),
+        });
+        if let Some(sb) = map.get("sidebar") {
+            self.sidebar.open = sb == "on" || sb == "true";
+        }
+        if let Some(k) = map.get("deepseek_api_key_enc") {
+            self.services.agent_state.deepseek_api_key_enc = k.clone();
+        }
+        if let Some(m) = map.get("deepseek_model") {
+            self.services.agent_state.deepseek_model = m.clone();
+        }
+        if let Some(json) = map.get("lunaline_config") {
+            if let Ok(cfg) = serde_json::from_str::<crate::lunaline::LunaLineConfig>(json) {
+                self.services.lunaline_config = cfg;
             }
         }
     }
 
     pub fn save_active_note_id(&self) {
-        let val = self.notes.active_note_id.map(|id| id.to_string()).unwrap_or_default();
+        let val = self
+            .notes
+            .active_note_id
+            .map(|id| id.to_string())
+            .unwrap_or_default();
         let _ = self.services.db_tx.send(DbMsg::SaveSetting {
             key: "last_active_note_id".to_string(),
             val,
@@ -520,46 +359,73 @@ impl App {
     }
 
     pub fn save_open_tabs(&self) {
-        if let Some(ref db) = self.services.db {
-            let tab_ids: Vec<i64> = self.open_notes.iter()
-                .filter_map(|n| if n.id > 0 { Some(n.id) } else { None })
-                .collect();
-            if let Ok(json) = serde_json::to_string(&tab_ids) {
-                let _ = db.set_setting("open_note_tab_ids", &json);
+        let mut saved = Vec::new();
+        let mut active = 0;
+        for (index, tab) in self.open_notes.iter().enumerate() {
+            let is_active = index == self.tabs.active_tab;
+            let entry = match &tab.file_path {
+                Some(path) => SavedTab::File(path.to_string_lossy().into_owned()),
+                None => SavedTab::Untitled {
+                    title: tab.title.clone(),
+                    content: if is_active {
+                        self.editor.ed.text()
+                    } else {
+                        tab.editor.text()
+                    },
+                },
+            };
+            if is_active {
+                active = saved.len();
             }
-            let _ = db.set_setting("open_note_active_tab", &self.tabs.active_tab.to_string());
-
-            // Ordered list of notes and code files; untitled scratch tabs are not restorable.
-            let mut saved = Vec::new();
-            let mut active = 0;
-            for (index, tab) in self.open_notes.iter().enumerate() {
-                let entry = match &tab.file_path {
-                    Some(path) => SavedTab::File(path.to_string_lossy().into_owned()),
-                    None if tab.id > 0 => SavedTab::Note(tab.id),
-                    None => continue,
-                };
-                if index == self.tabs.active_tab {
-                    active = saved.len();
-                }
-                saved.push(entry);
-            }
-            if let Ok(json) = serde_json::to_string(&saved) {
-                let _ = db.set_setting("open_tabs_v2", &json);
-            }
-            let _ = db.set_setting("open_tabs_v2_active", &active.to_string());
+            saved.push(entry);
         }
+        if let Ok(json) = serde_json::to_string(&saved) {
+            let _ = self.services.db_tx.send(DbMsg::SaveSetting {
+                key: "open_tabs_v2".into(),
+                val: json,
+            });
+        }
+        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
+            key: "open_tabs_v2_active".into(),
+            val: active.to_string(),
+        });
     }
 
     pub fn sync_save_session(&mut self) {
-        let mut created_id = None;
-        let active_file_path = self
-            .open_notes
-            .get(self.tabs.active_tab)
-            .and_then(|tab| tab.file_path.clone());
+        if let Some(tab) = self.open_notes.get_mut(self.tabs.active_tab) {
+            tab.editor = self.editor.ed.clone();
+            tab.title = self.notes.active_note_title.clone();
+            tab.scroll_y = self.editor.scroll_y;
+            tab.is_dirty = self.editor.is_dirty;
+        }
+        for index in 0..self.open_notes.len() {
+            let scratch = self
+                .open_notes
+                .get(index)
+                .is_some_and(|tab| tab.file_path.is_none() && tab.id == 0 && tab.is_dirty);
+            if scratch {
+                if let Err(error) = self.persist_scratch_tab(index, 0.0) {
+                    eprintln!("Failed to persist scratch tab: {error}");
+                }
+            }
+        }
         for (index, tab) in self.open_notes.iter_mut().enumerate() {
             if let Some(path) = &tab.file_path {
                 let is_active = index == self.tabs.active_tab;
                 if tab.is_dirty || (is_active && self.editor.is_dirty) {
+                    let expected = self.file_versions.get(path).copied();
+                    if !path.exists()
+                        || expected.is_some_and(|version| {
+                            crate::workspace::file_fingerprint(path)
+                                .is_ok_and(|actual| actual != version)
+                        })
+                    {
+                        eprintln!(
+                            "Skipped shutdown save for externally changed or deleted file {}",
+                            path.display()
+                        );
+                        continue;
+                    }
                     let content = if is_active {
                         self.editor.ed.text()
                     } else {
@@ -567,69 +433,47 @@ impl App {
                     };
                     match std::fs::write(path, content) {
                         Ok(()) => {
+                            if let Ok(version) = crate::workspace::file_fingerprint(path) {
+                                self.file_versions.insert(path.clone(), version);
+                            }
                             tab.is_dirty = false;
                             if is_active {
                                 self.editor.is_dirty = false;
                             }
                         }
-                        Err(error) => eprintln!(
-                            "Failed to save {} during shutdown: {error}",
-                            path.display()
-                        ),
+                        Err(error) => {
+                            eprintln!("Failed to save {} during shutdown: {error}", path.display())
+                        }
                     }
                 }
             }
         }
-        if let Some(ref db) = self.services.db {
-            for (index, tab) in self.open_notes.iter_mut().enumerate() {
-                if index != self.tabs.active_tab && tab.is_dirty && tab.file_path.is_none() && tab.id > 0 {
-                    if db.update_note(tab.id, &tab.editor.text()).is_ok() {
-                        tab.is_dirty = false;
-                    }
-                }
-            }
-            let _ = db.set_setting("last_caret_pos", &self.editor.ed.cur.to_string());
-            let _ = db.set_setting("last_scroll_y", &self.editor.scroll_y.to_string());
-            let _ = db.set_setting("opacity", &format!("{:.2}", self.misc.opacity));
-            let blur_str = match self.misc.blur_effect {
-                crate::services::blur::BlurEffect::Acrylic => "acrylic",
-                crate::services::blur::BlurEffect::Mica => "mica",
-                crate::services::blur::BlurEffect::None => "none",
-            };
-            let _ = db.set_setting("blur", blur_str);
-            if let Ok(json) = serde_json::to_string(&self.command_bar.history) {
-                let _ = db.set_setting("command_history", &json);
-            }
-            if let Some(id) = self.notes.active_note_id {
-                let _ = db.set_setting("last_active_note_id", &id.to_string());
-                let _ = db.set_setting(&format!("note_caret_{}", id), &self.editor.ed.cur.to_string());
-                let _ = db.set_setting(&format!("note_scroll_{}", id), &self.editor.scroll_y.to_string());
-                if self.editor.is_dirty {
-                    let _ = db.update_note(id, &self.editor.ed.text());
-                    self.editor.is_dirty = false;
-                }
-            } else if active_file_path.is_none()
-                && (self.editor.is_dirty || !self.editor.ed.text().trim().is_empty())
-            {
-                let topic = if self.notes.active_note_title.trim().is_empty() {
-                    "Untitled Note".to_string()
-                } else {
-                    self.notes.active_note_title.clone()
-                };
-                let dt = Local::now().naive_local();
-                let content = self.editor.ed.text();
-                if let Ok(new_id) = db.add_note(&topic, &content, None, dt) {
-                    created_id = Some(new_id);
-                    let _ = db.set_setting("last_active_note_id", &new_id.to_string());
-                }
-            } else if active_file_path.is_none() {
-                let _ = db.set_setting("last_active_note_id", "");
-            }
-        }
-        if let Some(new_id) = created_id {
-            self.notes.active_note_id = Some(new_id);
-            self.editor.is_dirty = false;
-            self.sync_active_tab();
+        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
+            key: "last_caret_pos".into(),
+            val: self.editor.ed.cur.to_string(),
+        });
+        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
+            key: "last_scroll_y".into(),
+            val: self.editor.scroll_y.to_string(),
+        });
+        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
+            key: "opacity".into(),
+            val: format!("{:.2}", self.misc.opacity),
+        });
+        let blur_str = match self.misc.blur_effect {
+            crate::services::blur::BlurEffect::Acrylic => "acrylic",
+            crate::services::blur::BlurEffect::Mica => "mica",
+            crate::services::blur::BlurEffect::None => "none",
+        };
+        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
+            key: "blur".into(),
+            val: blur_str.into(),
+        });
+        if let Ok(json) = serde_json::to_string(&self.command_bar.history) {
+            let _ = self.services.db_tx.send(DbMsg::SaveSetting {
+                key: "command_history".into(),
+                val: json,
+            });
         }
         self.save_open_tabs();
     }
@@ -645,22 +489,20 @@ impl App {
         } else {
             default_backup_dir()
         };
-        if let Some(ref db) = self.services.db {
-            match db.backup(&target) {
-                Ok(p) => {
-                    self.modal.last_backup_status = Some(format!(
-                        "Success ({})",
-                        chrono::Local::now().format("%H:%M:%S")
-                    ));
-                    self.set_status(format!("Backup saved: {}", p.display()), now);
-                }
-                Err(e) => {
-                    self.modal.last_backup_status = Some(format!("Failed: {}", e));
-                    self.set_status(format!("Backup failed: {}", e), now);
-                }
+        let _ = std::fs::create_dir_all(&target);
+        let mf_dir = crate::workspace::default_workspace_dir().join(".mindforge");
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+        let backup_dest = target.join(format!("mindforge_settings_{}", timestamp));
+        let _ = std::fs::create_dir_all(&backup_dest);
+        if let Ok(entries) = std::fs::read_dir(&mf_dir) {
+            for entry in entries.flatten() {
+                let _ = std::fs::copy(entry.path(), backup_dest.join(entry.file_name()));
             }
-        } else {
-            self.set_status("Database not available for backup", now);
         }
+        self.modal.last_backup_status = Some(format!(
+            "Success ({})",
+            chrono::Local::now().format("%H:%M:%S")
+        ));
+        self.set_status(format!("Backup saved: {}", backup_dest.display()), now);
     }
 }

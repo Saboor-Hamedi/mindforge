@@ -41,8 +41,8 @@ impl AccentOverrides {
         self.highlight = None;
     }
 
-    pub fn load_from_db(db: &core::Database) -> Self {
-        let get = |key: &str| db.get_setting(key).ok().flatten().and_then(|s| color_from_hex(&s));
+    pub fn load_from_settings(settings: &std::collections::BTreeMap<String, String>) -> Self {
+        let get = |key: &str| settings.get(key).and_then(|s| color_from_hex(s));
         Self {
             accent: get("override_accent"),
             text: get("override_text"),
@@ -50,9 +50,12 @@ impl AccentOverrides {
         }
     }
 
-    pub fn save_to_db(&self, db: &core::Database) {
+    pub fn save_to_settings(&self, tx: &std::sync::mpsc::Sender<crate::services::db_worker::DbMsg>) {
         let put = |key: &str, c: Option<Color32>| {
-            let _ = db.set_setting(key, &c.map(hex_from_color).unwrap_or_default());
+            let _ = tx.send(crate::services::db_worker::DbMsg::SaveSetting {
+                key: key.to_string(),
+                val: c.map(hex_from_color).unwrap_or_default(),
+            });
         };
         put("override_accent", self.accent);
         put("override_text", self.text);

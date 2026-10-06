@@ -148,7 +148,7 @@ pub fn render_ai_pane(
 
                         let starters = [
                             "When did I add my last note?",
-                            "What topics are in my database?",
+                            "What topics are in my notes?",
                             "Summarize what I have written so far",
                         ];
 

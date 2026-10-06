@@ -1,33 +1,34 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod app;
 pub mod accent;
+pub mod agent;
+mod app;
 mod caret;
-pub mod state;
 pub mod command;
 mod editor;
+pub mod hybrid;
 mod input;
-pub mod layout;
 mod language;
+pub mod layout;
 mod lunaline;
 mod modals;
 mod mode;
 mod notes;
 pub mod services;
+pub mod setting;
+pub mod state;
 mod statusbar;
 mod types;
-mod view_editor;
-pub mod hybrid;
-pub mod vim;
 pub mod ui;
 pub mod ui_components;
-pub mod agent;
-pub mod setting;
+mod view_editor;
+pub mod vim;
 pub use setting as settings;
-pub mod views;
-pub mod workspace_import;
-pub mod wikilink;
 pub mod rightsidebar;
+pub mod views;
+pub mod wikilink;
+pub mod workspace;
+pub mod workspace_import;
 
 #[path = "sidebar/sidebar.rs"]
 mod sidebar;

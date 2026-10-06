@@ -18,12 +18,11 @@ impl Editor {
             self.delete_selection();
         }
         self.save_undo_snapshot();
-        for c in s.chars() {
-            if c != '\r' {
-                self.buf.insert(self.cur, c);
-                self.cur += 1;
-            }
-        }
+        let chars: Vec<char> = s.chars().filter(|&c| c != '\r').collect();
+        let count = chars.len();
+        let cur = self.cur.min(self.buf.len());
+        self.buf.splice(cur..cur, chars);
+        self.cur = cur + count;
         self.selection = None;
     }
 
@@ -72,7 +71,8 @@ impl Editor {
             // 2. If line_to_cur is an empty blockquote prefix (e.g. ">>> ", ">> ", "> "):
             // Dedent quote depth by one level or clear it completely
             let trimmed_quote = line_to_cur.trim_start();
-            if trimmed_quote.starts_with('>') && trimmed_quote.trim_end().chars().all(|c| c == '>') {
+            if trimmed_quote.starts_with('>') && trimmed_quote.trim_end().chars().all(|c| c == '>')
+            {
                 let quote_chars_count = trimmed_quote.chars().filter(|&c| c == '>').count();
                 if quote_chars_count <= 1 {
                     while self.cur > line_start {
@@ -85,7 +85,10 @@ impl Editor {
                         self.cur -= 1;
                         self.buf.remove(self.cur);
                     }
-                    let indent_len = line_to_cur.chars().take_while(|&c| c == ' ' || c == '\t').count();
+                    let indent_len = line_to_cur
+                        .chars()
+                        .take_while(|&c| c == ' ' || c == '\t')
+                        .count();
                     let new_prefix = format!(
                         "{}{}{}",
                         &line_to_cur[..indent_len],
@@ -104,11 +107,21 @@ impl Editor {
             // 3. If line_to_cur is an empty list or task item prefix:
             // Clear the prefix completely
             let trimmed = line_to_cur.trim_start();
-            if trimmed == "- " || trimmed == "* " || trimmed == "+ "
-                || trimmed == "- [ ] " || trimmed == "- [x] " || trimmed == "- [X] "
-                || trimmed == "- [ ]" || trimmed == "- [x]" || trimmed == "- [X]"
-                || trimmed == "* [ ] " || trimmed == "* [x] " || trimmed == "* [X] "
-                || trimmed == "* [ ]" || trimmed == "* [x]" || trimmed == "* [X]"
+            if trimmed == "- "
+                || trimmed == "* "
+                || trimmed == "+ "
+                || trimmed == "- [ ] "
+                || trimmed == "- [x] "
+                || trimmed == "- [X] "
+                || trimmed == "- [ ]"
+                || trimmed == "- [x]"
+                || trimmed == "- [X]"
+                || trimmed == "* [ ] "
+                || trimmed == "* [x] "
+                || trimmed == "* [X] "
+                || trimmed == "* [ ]"
+                || trimmed == "* [x]"
+                || trimmed == "* [X]"
             {
                 while self.cur > line_start {
                     self.cur -= 1;
@@ -126,7 +139,8 @@ impl Editor {
             }
             let full_line: String = self.buf[line_start..line_end].iter().collect();
             let trimmed_full = full_line.trim();
-            if trimmed_full.starts_with('|') && trimmed_full.ends_with('|')
+            if trimmed_full.starts_with('|')
+                && trimmed_full.ends_with('|')
                 && trimmed_full.len() >= 2
                 && trimmed_full.chars().all(|c| c == '|' || c == ' ')
             {
@@ -135,11 +149,12 @@ impl Editor {
                 } else {
                     line_start
                 };
-                let del_end = if line_start == 0 && line_end < self.buf.len() && self.buf[line_end] == '\n' {
-                    line_end + 1
-                } else {
-                    line_end
-                };
+                let del_end =
+                    if line_start == 0 && line_end < self.buf.len() && self.buf[line_end] == '\n' {
+                        line_end + 1
+                    } else {
+                        line_end
+                    };
                 self.buf.drain(del_start..del_end);
                 self.cur = del_start;
                 self.selection = None;
@@ -342,7 +357,10 @@ impl Editor {
                 line_start -= 1;
             }
             let mut spaces = 0;
-            while spaces < 4 && line_start + spaces < self.buf.len() && self.buf[line_start + spaces] == ' ' {
+            while spaces < 4
+                && line_start + spaces < self.buf.len()
+                && self.buf[line_start + spaces] == ' '
+            {
                 spaces += 1;
             }
             if spaces > 0 {
@@ -409,14 +427,26 @@ impl Editor {
         let mut line_states = Vec::new();
         for &(ls, le) in &lines {
             let line_chars: Vec<char> = self.buf[ls..le].to_vec();
-            let indent_len = line_chars.iter().take_while(|c| **c == ' ' || **c == '\t').count();
+            let indent_len = line_chars
+                .iter()
+                .take_while(|c| **c == ' ' || **c == '\t')
+                .count();
             let rest: String = line_chars[indent_len..].iter().collect();
 
             if rest.is_empty() {
                 line_states.push(LineTaskState::Empty);
-            } else if rest.starts_with("- [x] ") || rest.starts_with("- [X] ") || rest.starts_with("* [x] ") || rest.starts_with("* [X] ") {
+            } else if rest.starts_with("- [x] ")
+                || rest.starts_with("- [X] ")
+                || rest.starts_with("* [x] ")
+                || rest.starts_with("* [X] ")
+                || rest.starts_with("+ [x] ")
+                || rest.starts_with("+ [X] ")
+            {
                 line_states.push(LineTaskState::CheckedTask(indent_len + 6));
-            } else if rest.starts_with("- [ ] ") || rest.starts_with("* [ ] ") {
+            } else if rest.starts_with("- [ ] ")
+                || rest.starts_with("* [ ] ")
+                || rest.starts_with("+ [ ] ")
+            {
                 line_states.push(LineTaskState::UncheckedTask(indent_len + 6));
             } else if rest.starts_with("- ") || rest.starts_with("* ") || rest.starts_with("+ ") {
                 line_states.push(LineTaskState::Bullet(indent_len + 2));
@@ -427,9 +457,18 @@ impl Editor {
             }
         }
 
-        let non_empty_states: Vec<&LineTaskState> = line_states.iter().filter(|s| **s != LineTaskState::Empty).collect();
-        let all_checked = !non_empty_states.is_empty() && non_empty_states.iter().all(|s| matches!(s, LineTaskState::CheckedTask(_)));
-        let all_unchecked = !non_empty_states.is_empty() && non_empty_states.iter().all(|s| matches!(s, LineTaskState::UncheckedTask(_)));
+        let non_empty_states: Vec<&LineTaskState> = line_states
+            .iter()
+            .filter(|s| **s != LineTaskState::Empty)
+            .collect();
+        let all_checked = !non_empty_states.is_empty()
+            && non_empty_states
+                .iter()
+                .all(|s| matches!(s, LineTaskState::CheckedTask(_)));
+        let all_unchecked = !non_empty_states.is_empty()
+            && non_empty_states
+                .iter()
+                .all(|s| matches!(s, LineTaskState::UncheckedTask(_)));
 
         let mut anchor = self.selection.unwrap_or(self.cur);
         let mut cur = self.cur;
@@ -438,7 +477,10 @@ impl Editor {
         for (idx, &(ls, le)) in lines.iter().enumerate().rev() {
             let state = &line_states[idx];
             let line_chars: Vec<char> = self.buf[ls..le].to_vec();
-            let indent_len = line_chars.iter().take_while(|c| **c == ' ' || **c == '\t').count();
+            let indent_len = line_chars
+                .iter()
+                .take_while(|c| **c == ' ' || **c == '\t')
+                .count();
             let indent: Vec<char> = line_chars[..indent_len].to_vec();
 
             let new_line: Vec<char> = if all_checked {
@@ -549,8 +591,15 @@ impl Editor {
             }
             let prev_str: String = self.buf[prev_start..curr_start - 1].iter().collect();
             let pt = prev_str.trim();
-            if pt.contains('|') && (pt.starts_with('|') || pt.ends_with('|') || pt.split('|').filter(|p| !p.trim().is_empty()).count() >= 2) {
-                let is_sep_line = pt.contains('-') && pt.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
+            if pt.contains('|')
+                && (pt.starts_with('|')
+                    || pt.ends_with('|')
+                    || pt.split('|').filter(|p| !p.trim().is_empty()).count() >= 2)
+            {
+                let is_sep_line = pt.contains('-')
+                    && pt
+                        .chars()
+                        .all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
                 if is_sep_line {
                     has_sep = true;
                 } else if !has_sep {
@@ -566,7 +615,11 @@ impl Editor {
         // Check if current line is separator
         let cur_str: String = self.buf[line_start..line_end].iter().collect();
         let cur_trim = cur_str.trim();
-        if cur_trim.contains('-') && cur_trim.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ') {
+        if cur_trim.contains('-')
+            && cur_trim
+                .chars()
+                .all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
+        {
             has_sep = true;
         }
 
@@ -578,13 +631,20 @@ impl Editor {
             }
             let next_str: String = self.buf[line_end + 1..next_end].iter().collect();
             let nt = next_str.trim();
-            if nt.contains('-') && nt.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ') {
+            if nt.contains('-')
+                && nt
+                    .chars()
+                    .all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
+            {
                 has_sep = true;
             }
         }
 
         let header_str: String = self.buf[header_start..header_end].iter().collect();
-        let indent: String = header_str.chars().take_while(|&c| c == ' ' || c == '\t').collect();
+        let indent: String = header_str
+            .chars()
+            .take_while(|&c| c == ' ' || c == '\t')
+            .collect();
         let h_trim = header_str.trim();
         let col_count = h_trim.trim_matches('|').split('|').count().max(1);
 
@@ -610,7 +670,10 @@ impl Editor {
         let line_str: String = self.buf[line_start..line_end].iter().collect();
 
         // 1. Extract leading whitespace (spaces and tabs)
-        let indent_len = line_str.chars().take_while(|&c| c == ' ' || c == '\t').count();
+        let indent_len = line_str
+            .chars()
+            .take_while(|&c| c == ' ' || c == '\t')
+            .count();
         let indent = &line_str[..indent_len];
         let rest = &line_str[indent_len..];
 
@@ -639,8 +702,12 @@ impl Editor {
             }
         };
 
-        let is_task = rest.starts_with("- [ ] ") || rest.starts_with("- [x] ") || rest.starts_with("- [X] ")
-            || rest.starts_with("* [ ] ") || rest.starts_with("* [x] ") || rest.starts_with("* [X] ");
+        let is_task = rest.starts_with("- [ ] ")
+            || rest.starts_with("- [x] ")
+            || rest.starts_with("- [X] ")
+            || rest.starts_with("* [ ] ")
+            || rest.starts_with("* [x] ")
+            || rest.starts_with("* [X] ");
         let is_empty_task = is_task && rest[6..].trim().is_empty();
 
         let is_empty_bullet = {
@@ -660,17 +727,30 @@ impl Editor {
 
         let rest_trim = rest.trim();
         let is_table_row = rest_trim.contains('|')
-            && (rest_trim.starts_with('|') || rest_trim.ends_with('|') || rest_trim.split('|').filter(|p| !p.trim().is_empty()).count() >= 2);
+            && (rest_trim.starts_with('|')
+                || rest_trim.ends_with('|')
+                || rest_trim
+                    .split('|')
+                    .filter(|p| !p.trim().is_empty())
+                    .count()
+                    >= 2);
         let is_table_sep = is_table_row
             && rest_trim.contains('-')
-            && rest_trim.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
+            && rest_trim
+                .chars()
+                .all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
 
         let is_empty_table_row = is_table_row && !is_table_sep && {
             let parts: Vec<&str> = rest_trim.trim_matches('|').split('|').collect();
             !parts.is_empty() && parts.iter().all(|p| p.trim().is_empty())
         };
 
-        if is_empty_numbered || is_empty_task || (!is_task && is_empty_bullet) || is_empty_quote || is_empty_table_row {
+        if is_empty_numbered
+            || is_empty_task
+            || (!is_task && is_empty_bullet)
+            || is_empty_quote
+            || is_empty_table_row
+        {
             self.buf.drain(line_start..line_end);
             self.buf.insert(line_start, '\n');
             self.cur = line_start + 1;
@@ -688,12 +768,20 @@ impl Editor {
                 (format!("\n{}{} ", indent, qp), None, false)
             }
         } else if let Some(num) = parse_numbered_list(rest) {
-            (format!("\n{}{}. ", indent, num.saturating_add(1)), None, false)
+            (
+                format!("\n{}{}. ", indent, num.saturating_add(1)),
+                None,
+                false,
+            )
         } else if let Some(bullet) = parse_bullet_list(rest) {
             (format!("\n{}{} ", indent, bullet), None, false)
         } else if is_table_row {
             let (canonical_cols, tbl_indent, _) = self.table_canonical_info(self.cur);
-            let row_indent = if !tbl_indent.is_empty() { &tbl_indent } else { indent };
+            let row_indent = if !tbl_indent.is_empty() {
+                &tbl_indent
+            } else {
+                indent
+            };
 
             let has_sep_above = {
                 let mut prev_line_start = line_start;
@@ -706,7 +794,11 @@ impl Editor {
                     let p_str: String = self.buf[p_start..prev_line_start - 1].iter().collect();
                     let pt = p_str.trim();
                     if pt.contains('|') {
-                        if pt.contains('-') && pt.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ') {
+                        if pt.contains('-')
+                            && pt
+                                .chars()
+                                .all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
+                        {
                             found_sep = true;
                             break;
                         }
@@ -726,7 +818,11 @@ impl Editor {
                     }
                     let next_str: String = self.buf[line_end + 1..next_end].iter().collect();
                     let nt = next_str.trim();
-                    nt.starts_with('|') && nt.contains('-') && nt.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
+                    nt.starts_with('|')
+                        && nt.contains('-')
+                        && nt
+                            .chars()
+                            .all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
                 } else {
                     false
                 }
@@ -790,7 +886,9 @@ impl Editor {
         let cur_line: String = self.buf[cur_line_start..cur_line_end].iter().collect();
         let cur_trim = cur_line.trim();
         let is_cur_table = cur_trim.contains('|')
-            && (cur_trim.starts_with('|') || cur_trim.ends_with('|') || cur_trim.split('|').filter(|p| !p.trim().is_empty()).count() >= 2);
+            && (cur_trim.starts_with('|')
+                || cur_trim.ends_with('|')
+                || cur_trim.split('|').filter(|p| !p.trim().is_empty()).count() >= 2);
 
         if is_cur_table {
             // Find the end of this table block by scanning forward
@@ -804,7 +902,10 @@ impl Editor {
                 }
                 let line_str: String = self.buf[scan_start..scan_end].iter().collect();
                 let lt = line_str.trim();
-                let is_tbl = lt.contains('|') && (lt.starts_with('|') || lt.ends_with('|') || lt.split('|').filter(|p| !p.trim().is_empty()).count() >= 2);
+                let is_tbl = lt.contains('|')
+                    && (lt.starts_with('|')
+                        || lt.ends_with('|')
+                        || lt.split('|').filter(|p| !p.trim().is_empty()).count() >= 2);
                 if is_tbl {
                     last_table_end = scan_end;
                     if scan_end < self.buf.len() {
@@ -846,8 +947,10 @@ impl Editor {
                 line_e += 1;
             }
             let line_chars: Vec<char> = self.buf[line_s..line_e].to_vec();
-            let is_fence = line_chars.starts_with(&['`', '`', '`']) || line_chars.starts_with(&['~', '~', '~']);
-            let line_contains_cur = self.cur >= line_s && (self.cur <= line_e || (line_e == self.buf.len() && self.cur == line_e));
+            let is_fence = line_chars.starts_with(&['`', '`', '`'])
+                || line_chars.starts_with(&['~', '~', '~']);
+            let line_contains_cur = self.cur >= line_s
+                && (self.cur <= line_e || (line_e == self.buf.len() && self.cur == line_e));
 
             if is_fence {
                 if !in_code {
@@ -886,7 +989,8 @@ impl Editor {
                     e += 1;
                 }
                 let line_chars: Vec<char> = self.buf[s..e].to_vec();
-                let is_fence = line_chars.starts_with(&['`', '`', '`']) || line_chars.starts_with(&['~', '~', '~']);
+                let is_fence = line_chars.starts_with(&['`', '`', '`'])
+                    || line_chars.starts_with(&['~', '~', '~']);
 
                 if is_fence {
                     if !first_fence_skipped {
@@ -965,8 +1069,6 @@ impl Editor {
             return false;
         }
 
-        self.save_undo_snapshot();
-
         if forward {
             // Find next pipe after self.cur
             let next_pipe_idx = pipes.iter().position(|&p| p > self.cur);
@@ -974,11 +1076,12 @@ impl Editor {
                 // If there is another cell after this pipe on the same line
                 if p_idx + 1 < pipes.len() {
                     let cell_start = pipes[p_idx];
-                    let target = if cell_start + 1 < self.buf.len() && self.buf[cell_start + 1] == ' ' {
-                        (cell_start + 2).min(pipes[p_idx + 1])
-                    } else {
-                        (cell_start + 1).min(pipes[p_idx + 1])
-                    };
+                    let target =
+                        if cell_start + 1 < self.buf.len() && self.buf[cell_start + 1] == ' ' {
+                            (cell_start + 2).min(pipes[p_idx + 1])
+                        } else {
+                            (cell_start + 1).min(pipes[p_idx + 1])
+                        };
                     self.cur = target;
                     self.selection = None;
                     return true;
@@ -995,8 +1098,19 @@ impl Editor {
                 let next_str: String = self.buf[next_start..next_end].iter().collect();
                 let next_trim = next_str.trim();
 
-                if next_trim.contains('|') && (next_trim.starts_with('|') || next_trim.ends_with('|') || next_trim.split('|').filter(|p| !p.trim().is_empty()).count() >= 2) {
-                    let is_sep = next_trim.contains('-') && next_trim.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
+                if next_trim.contains('|')
+                    && (next_trim.starts_with('|')
+                        || next_trim.ends_with('|')
+                        || next_trim
+                            .split('|')
+                            .filter(|p| !p.trim().is_empty())
+                            .count()
+                            >= 2)
+                {
+                    let is_sep = next_trim.contains('-')
+                        && next_trim
+                            .chars()
+                            .all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
                     if is_sep {
                         // Skip separator row to the data row beneath it
                         if next_end < self.buf.len() {
@@ -1008,9 +1122,14 @@ impl Editor {
                             let data_str: String = self.buf[data_start..data_end].iter().collect();
                             let data_trim = data_str.trim();
                             if data_trim.contains('|') {
-                                if let Some(first_pipe) = self.buf[data_start..data_end].iter().position(|&c| c == '|') {
+                                if let Some(first_pipe) = self.buf[data_start..data_end]
+                                    .iter()
+                                    .position(|&c| c == '|')
+                                {
                                     let abs_pipe = data_start + first_pipe;
-                                    let target = if abs_pipe + 1 < self.buf.len() && self.buf[abs_pipe + 1] == ' ' {
+                                    let target = if abs_pipe + 1 < self.buf.len()
+                                        && self.buf[abs_pipe + 1] == ' '
+                                    {
                                         abs_pipe + 2
                                     } else {
                                         abs_pipe + 1
@@ -1023,13 +1142,17 @@ impl Editor {
                         }
                     } else {
                         // Regular next row
-                        if let Some(first_pipe) = self.buf[next_start..next_end].iter().position(|&c| c == '|') {
+                        if let Some(first_pipe) = self.buf[next_start..next_end]
+                            .iter()
+                            .position(|&c| c == '|')
+                        {
                             let abs_pipe = next_start + first_pipe;
-                            let target = if abs_pipe + 1 < self.buf.len() && self.buf[abs_pipe + 1] == ' ' {
-                                abs_pipe + 2
-                            } else {
-                                abs_pipe + 1
-                            };
+                            let target =
+                                if abs_pipe + 1 < self.buf.len() && self.buf[abs_pipe + 1] == ' ' {
+                                    abs_pipe + 2
+                                } else {
+                                    abs_pipe + 1
+                                };
                             self.cur = target.min(next_end);
                             self.selection = None;
                             return true;
@@ -1040,8 +1163,15 @@ impl Editor {
 
             // At the end of the table (or on header without separator):
             let (canonical_cols, tbl_indent, has_sep) = self.table_canonical_info(self.cur);
-            let row_indent = if !tbl_indent.is_empty() { &tbl_indent } else { &indent };
-            let is_sep_line = trimmed.contains('-') && trimmed.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
+            let row_indent = if !tbl_indent.is_empty() {
+                &tbl_indent
+            } else {
+                &indent
+            };
+            let is_sep_line = trimmed.contains('-')
+                && trimmed
+                    .chars()
+                    .all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
 
             if !is_sep_line && !has_sep {
                 // If pressing Tab on header row without a separator, auto-generate separator and first row!
@@ -1053,6 +1183,7 @@ impl Editor {
                 for _ in 0..canonical_cols {
                     new_block.push_str("  |");
                 }
+                self.save_undo_snapshot();
                 for (i, ch) in new_block.chars().enumerate() {
                     self.buf.insert(line_end + i, ch);
                 }
@@ -1069,6 +1200,7 @@ impl Editor {
                 for _ in 0..canonical_cols {
                     new_row.push_str("  |");
                 }
+                self.save_undo_snapshot();
                 for (i, ch) in new_row.chars().enumerate() {
                     self.buf.insert(line_end + i, ch);
                 }
@@ -1088,17 +1220,23 @@ impl Editor {
                 if p_idx > 1 {
                     // Jump to previous cell on the same line
                     let target_pipe = pipes[p_idx - 1];
-                    let target = if target_pipe + 1 < self.buf.len() && self.buf[target_pipe + 1] == ' ' {
-                        target_pipe + 2
-                    } else {
-                        target_pipe + 1
-                    };
+                    let target =
+                        if target_pipe + 1 < self.buf.len() && self.buf[target_pipe + 1] == ' ' {
+                            target_pipe + 2
+                        } else {
+                            target_pipe + 1
+                        };
                     self.cur = target.min(pipes[p_idx]);
                     self.selection = None;
                     return true;
                 } else if p_idx == 1 && self.cur > pipes[0] + 2 {
                     // Jump to start of first cell
-                    self.cur = pipes[0] + if pipes[0] + 1 < self.buf.len() && self.buf[pipes[0] + 1] == ' ' { 2 } else { 1 };
+                    self.cur = pipes[0]
+                        + if pipes[0] + 1 < self.buf.len() && self.buf[pipes[0] + 1] == ' ' {
+                            2
+                        } else {
+                            1
+                        };
                     self.selection = None;
                     return true;
                 }
@@ -1115,7 +1253,10 @@ impl Editor {
                 let prev_trim = prev_str.trim();
 
                 if prev_trim.contains('|') {
-                    let is_sep = prev_trim.contains('-') && prev_trim.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
+                    let is_sep = prev_trim.contains('-')
+                        && prev_trim
+                            .chars()
+                            .all(|c| c == '|' || c == '-' || c == ':' || c == ' ');
                     let (target_start, target_end) = if is_sep && prev_start > 0 {
                         // Skip separator to header row above it
                         let mut h_start = prev_start - 1;
@@ -1137,7 +1278,9 @@ impl Editor {
 
                     if prev_pipes.len() >= 2 {
                         let last_cell_pipe = prev_pipes[prev_pipes.len() - 2];
-                        let target = if last_cell_pipe + 1 < self.buf.len() && self.buf[last_cell_pipe + 1] == ' ' {
+                        let target = if last_cell_pipe + 1 < self.buf.len()
+                            && self.buf[last_cell_pipe + 1] == ' '
+                        {
                             last_cell_pipe + 2
                         } else {
                             last_cell_pipe + 1

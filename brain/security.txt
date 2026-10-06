@@ -28,7 +28,7 @@ remains completely responsive. When finished, MindForge opens the report view.
                       (default: 200ms) to respect rate limits.
   --timeout <secs>    Network timeout in seconds per HTTP request (default: 10s).
   --note "<text>"     Audit note, client name, or ticket reference saved with
-                      the report in your SQLite database.
+                      the report in your scan history.
 
 
 3. COMMAND EXAMPLES

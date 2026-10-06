@@ -1,14 +1,13 @@
 //! Drag-and-drop event listener and visual drop-target overlay.
 
-use super::state::WorkspaceImporter;
-use super::worker::spawn_import_worker;
 use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, Align2, Color32, FontId, Rect, Stroke};
-use std::path::PathBuf;
 
-/// Inspects egui raw input for dropped files and folders.
-/// When files are dropped, starts the background import and displays the progress modal.
-pub fn handle_drag_and_drop(ctx: &egui::Context, importer: &mut WorkspaceImporter) -> bool {
+/// Opens the dropped directory, or the containing directory of dropped files, as a workspace.
+pub fn handle_drag_and_drop(
+    ctx: &egui::Context,
+    workspace: &mut crate::workspace::WorkspaceState,
+) -> bool {
     let dropped = ctx.input(|i| i.raw.dropped_files.clone());
     if dropped.is_empty() {
         return false;
@@ -23,29 +22,18 @@ pub fn handle_drag_and_drop(ctx: &egui::Context, importer: &mut WorkspaceImporte
         }
     }
 
-    if !valid_paths.is_empty() {
-        start_workspace_import(valid_paths, importer, ctx.clone());
-        true
-    } else {
-        false
+    if valid_paths.is_empty() {
+        return false;
     }
-}
-
-/// Initiates background import and opens the modal.
-pub fn start_workspace_import(
-    paths: Vec<PathBuf>,
-    importer: &mut WorkspaceImporter,
-    ctx: egui::Context,
-) {
-    importer.is_modal_open = true;
-    spawn_import_worker(
-        paths,
-        importer.stats.clone(),
-        importer.status.clone(),
-        importer.cancel_token.clone(),
-        importer.is_running.clone(),
-        ctx,
-    );
+    let candidate = if valid_paths.len() == 1 && valid_paths[0].is_dir() {
+        valid_paths[0].clone()
+    } else {
+        valid_paths[0]
+            .parent()
+            .unwrap_or(&valid_paths[0])
+            .to_path_buf()
+    };
+    workspace.open(candidate).is_ok()
 }
 
 /// Renders a sleek floating drop indicator when files are being hovered over the application window.
@@ -78,7 +66,7 @@ pub fn render_hover_indicator(
     painter.text(
         pos2(center.x, center.y - 18.0),
         Align2::CENTER_CENTER,
-        "📥 DROP TO IMPORT VAULT",
+        "📂 DROP TO OPEN WORKSPACE",
         FontId::proportional(20.0),
         theme.accent,
     );
@@ -86,7 +74,7 @@ pub fn render_hover_indicator(
     painter.text(
         pos2(center.x, center.y + 16.0),
         Align2::CENTER_CENTER,
-        "Folders & notes will be embedded smoothly into MindForge (.md, .txt)",
+        "MindForge will read and edit the files directly on disk",
         FontId::monospace(12.0),
         theme.muted,
     );

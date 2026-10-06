@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 
-/// Obfuscate API key with XOR + base64 so it is not stored as plain text in settings JSON / SQLite.
+/// Obfuscate API key with XOR + base64 so it is not stored as plain text in settings JSON.
 pub fn obfuscate_key(raw: &str) -> String {
     if raw.is_empty() {
         return String::new();

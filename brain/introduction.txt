@@ -5,8 +5,8 @@ MINDFORGE: MINIMALIST KEYBOARD NOTEBOOK
 MindForge is a lightweight, distraction-free notebook engineered for capturing
 your thoughts, code, and ideas with fluid responsiveness and zero friction.
 
-All notes are stored locally and securely on your computer in an embedded
-SQLite database. Your thoughts and files remain 100% private and yours.
+All notes are stored locally and securely on your computer on the
+local filesystem. Your thoughts and files remain 100% private and yours.
 
 
 1. CORE PRINCIPLES
@@ -37,7 +37,7 @@ SQLite database. Your thoughts and files remain 100% private and yours.
 Browse the files in /brain to master every MindForge subsystem:
 
   * introduction.txt       Quick start, core principles, and chapter guide.
-  * architecture.txt       Purpose, mission, SQLite storage, and dual-engine design.
+  * architecture.txt       Purpose, mission, filesystem storage, and dual-engine design.
   * notes.txt              Creating notes, checklists, auto-saving, and search.
   * shortcuts.txt          Complete cheat-sheet for all keyboard shortcuts.
   * vim_editor.txt         Vim modal editing, modes, operators, and HUD.

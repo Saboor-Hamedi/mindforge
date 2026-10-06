@@ -4,7 +4,7 @@
 //! - Initiating a scan (spawns background thread)
 //! - Polling for results via channel
 //! - Storing the active scan result/error
-//! - Browsing scan history from SQLite
+//! - Browsing scan history from disk
 //! - Scroll positions for both report and history views
 
 /// State for web security scanning and scan history.
@@ -21,7 +21,7 @@ pub struct ScanState {
     pub active_scan_error: Option<(String, String)>,
     /// Scroll position for the scan report view
     pub scan_report_scroll_y: f32,
-    /// Past scans loaded from SQLite
+    /// Past scans loaded from storage
     pub past_scans: Vec<core::ScanRecord>,
     /// Selected index in the scan history list
     pub scan_history_selected: usize,

@@ -46,7 +46,9 @@ impl App {
 
         // 2. Invisible top-edge grab strip (top 7px) whenever titlebar is hidden
         if !is_titlebar_visible {
-            if let Some(pos) = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos())) {
+            if let Some(pos) =
+                ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+            {
                 if pos.y <= bounds.min.y + 7.0 && ui.input(|i| i.pointer.primary_down()) {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
                 }
@@ -76,13 +78,7 @@ impl App {
                         .unwrap_or("Documentation");
                     (format!("📖 {}", doc_title), false)
                 }
-                Mode::Normal => {
-                    if self.open_notes.is_empty() || self.misc.show_welcome {
-                        ("MindForge".to_string(), false)
-                    } else {
-                        (self.notes.active_note_title.clone(), self.editor.is_dirty)
-                    }
-                }
+                Mode::Normal => ("MindForge".to_string(), self.editor.is_dirty),
                 Mode::Help => ("✦ Quick Start Guide".to_string(), false),
                 Mode::Stats => ("📊 Daily Story & Statistics".to_string(), false),
                 Mode::ScanReport | Mode::ScanHistory => ("🌐 Security Scanner".to_string(), false),
@@ -109,9 +105,12 @@ impl App {
         }
 
         let pointer_pos = ui.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.interact_pos()));
-        let is_pointer_over_ai = self.services.agent_state.is_open && self.services.agent_state.window_rect.map_or(false, |r| {
-            pointer_pos.map_or(false, |p| r.contains(p))
-        });
+        let is_pointer_over_ai = self.services.agent_state.is_open
+            && self
+                .services
+                .agent_state
+                .window_rect
+                .map_or(false, |r| pointer_pos.map_or(false, |p| r.contains(p)));
 
         // Sidebar Splitter Divider & Knob
         let any_modal_open = self.modal.settings_open
@@ -120,7 +119,6 @@ impl App {
             || self.modal.rename_open
             || self.modal.delete_confirm_open
             || self.misc.accent_dropdown_open
-            || self.services.workspace_importer.is_modal_open
             || is_pointer_over_ai;
 
         if let Some(center_x) = layout.splitter_center_x {
@@ -136,7 +134,10 @@ impl App {
 
             let is_knob_hovered = !any_modal_open && ui.rect_contains_pointer(knob_hit_rect);
             let primary_down = ui.input(|i| i.pointer.primary_down());
-            let primary_pressed = ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary));
+            let primary_pressed = ui.input(|i| {
+                i.pointer.primary_clicked()
+                    || i.pointer.button_pressed(egui::PointerButton::Primary)
+            });
 
             if is_knob_hovered && primary_pressed {
                 self.sidebar.dragging_splitter = true;
@@ -145,23 +146,29 @@ impl App {
             if self.sidebar.dragging_splitter {
                 if primary_down {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeColumn);
-                    if let Some(pos) = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos())) {
+                    if let Some(pos) =
+                        ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+                    {
                         let drag_x = pos.x - bounds.min.x - crate::layout::GAP;
                         if drag_x < 70.0 {
                             self.sidebar.open = false;
                             self.sidebar.dragging_splitter = false;
                         } else {
-                            let max_sb = (bounds.width() - 200.0).clamp(crate::layout::MIN_SIDEBAR_W, crate::layout::MAX_SIDEBAR_W);
+                            let max_sb = (bounds.width() - 200.0)
+                                .clamp(crate::layout::MIN_SIDEBAR_W, crate::layout::MAX_SIDEBAR_W);
                             let new_w = drag_x.clamp(crate::layout::MIN_SIDEBAR_W, max_sb);
                             self.sidebar.width = new_w;
                         }
                     }
                 } else {
                     self.sidebar.dragging_splitter = false;
-                    let _ = self.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
-                        key: "sidebar_w".into(),
-                        val: self.sidebar.width.to_string(),
-                    });
+                    let _ =
+                        self.services
+                            .db_tx
+                            .send(crate::services::db_worker::DbMsg::SaveSetting {
+                                key: "sidebar_w".into(),
+                                val: self.sidebar.width.to_string(),
+                            });
                 }
             } else if is_knob_hovered {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeColumn);
@@ -181,14 +188,22 @@ impl App {
                 if is_active {
                     self.misc.theme.accent
                 } else {
-                    Color32::from_rgba_unmultiplied(self.misc.theme.muted.r(), self.misc.theme.muted.g(), self.misc.theme.muted.b(), 100)
+                    Color32::from_rgba_unmultiplied(
+                        self.misc.theme.muted.r(),
+                        self.misc.theme.muted.g(),
+                        self.misc.theme.muted.b(),
+                        100,
+                    )
                 },
             );
 
             let grip_color = self.misc.theme.bg;
             for dy in [-5.0, 0.0, 5.0] {
                 painter.line_segment(
-                    [pos2(knob_mid.x - 1.2, knob_mid.y + dy), pos2(knob_mid.x + 1.2, knob_mid.y + dy)],
+                    [
+                        pos2(knob_mid.x - 1.2, knob_mid.y + dy),
+                        pos2(knob_mid.x + 1.2, knob_mid.y + dy),
+                    ],
                     Stroke::new(1.0_f32, grip_color),
                 );
             }
@@ -251,7 +266,18 @@ impl App {
             typed,
         );
 
-
+        let editor_drop = ui.interact(editor_panel_rect, egui::Id::new("workspace_editor_drop"), egui::Sense::hover());
+        if editor_drop.dnd_hover_payload::<Vec<std::path::PathBuf>>().is_some() {
+            painter.rect_stroke(editor_panel_rect.shrink(2.0), 4.0, Stroke::new(2.0, self.misc.theme.accent), egui::StrokeKind::Inside);
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Copy);
+        }
+        if let Some(paths) = editor_drop.dnd_release_payload::<Vec<std::path::PathBuf>>() {
+            for path in paths.iter() {
+                if path.is_file() {
+                    self.open_file_path(path.clone(), now);
+                }
+            }
+        }
 
         // Update ShowCmd card timeout
         if self.services.editor_controller.mode == EditorInputMode::Vim {
@@ -262,7 +288,8 @@ impl App {
         let (row, col) = if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
             && self.services.editor_controller.mode == EditorInputMode::Vim
         {
-            self.services.vim_runtime
+            self.services
+                .vim_runtime
                 .backend
                 .as_ref()
                 .map(|backend| (backend.grid.cursor.row, backend.grid.cursor.column))
@@ -272,30 +299,49 @@ impl App {
         } else {
             self.editor.ed.visual_row_col(&self.editor.visual_lines)
         };
-        let (total_rows, word_count, total_chars) = if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
-            && self.services.editor_controller.mode == EditorInputMode::Vim
-        {
-            self.services.vim_runtime
+        let (total_rows, word_count, total_chars) =
+            if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
+                && self.services.editor_controller.mode == EditorInputMode::Vim
+            {
+                self.services
+                    .vim_runtime
+                    .backend
+                    .as_ref()
+                    .map(crate::vim::VimBackend::document_stats)
+                    .unwrap_or((0, 0, 0))
+            } else if self.misc.mode == Mode::Doc {
+                let text = self.editor.doc_ed.text();
+                (
+                    text.lines().count(),
+                    text.split_whitespace().count(),
+                    text.len(),
+                )
+            } else {
+                let text = self.editor.ed.text();
+                (
+                    text.lines().count(),
+                    text.split_whitespace().count(),
+                    text.len(),
+                )
+            };
+        let mode_badge_str = match self.services.editor_controller.mode {
+            EditorInputMode::Vim => self
+                .services
+                .vim_runtime
                 .backend
                 .as_ref()
-                .map(crate::vim::VimBackend::document_stats)
-                .unwrap_or((0, 0, 0))
-        } else if self.misc.mode == Mode::Doc {
-            let text = self.editor.doc_ed.text();
-            (text.lines().count(), text.split_whitespace().count(), text.len())
-        } else {
-            let text = self.editor.ed.text();
-            (text.lines().count(), text.split_whitespace().count(), text.len())
-        };
-        let mode_badge_str = match self.services.editor_controller.mode {
-            EditorInputMode::Vim => self.services.vim_runtime.backend.as_ref().map(|backend| backend.grid.mode.to_uppercase()).unwrap_or_else(|| "NORMAL".into()),
+                .map(|backend| backend.grid.mode.to_uppercase())
+                .unwrap_or_else(|| "NORMAL".into()),
             EditorInputMode::Hybrid => "NORMAL".to_string(),
         };
 
         let search_prompt: Option<(&str, &str, usize)> = None;
 
         let active_title = if self.misc.mode == Mode::Doc {
-            crate::ui::docs::BRAIN_DOCS.get(self.tabs.active_doc_idx).map(|d| d.title).unwrap_or("Documentation")
+            crate::ui::docs::BRAIN_DOCS
+                .get(self.tabs.active_doc_idx)
+                .map(|d| d.title)
+                .unwrap_or("Documentation")
         } else {
             self.notes.active_note_title.as_str()
         };
@@ -318,39 +364,54 @@ impl App {
         let language = language_override.unwrap_or(detected_language);
 
         let is_ai_active = self.editor.preview_open && self.right_pane.tab == RightPaneTab::AiAgent;
-        let status_action = crate::lunaline::render_lunaline(crate::lunaline::LunaLineRenderParams {
-            ui,
-            painter: &painter,
-            dock_rect: cmd_bar_rect,
-            in_command: self.command_bar.in_command,
-            cmd_prefix: self.command_bar.prefix,
-            cmd_text: &self.editor.cmd_ed.text(),
-            cmd_cur: self.editor.cmd_ed.cur,
-            cmd_selection: self.editor.cmd_ed.selected_range(),
-            status_msg: &self.misc.status_msg,
-            status_time: self.misc.status_time,
-            busy: self.services.vim_runtime.backend.as_ref().and_then(|b| b.busy_label()),
-            lsp: self.services.vim_runtime.backend.as_ref().map_or(("none", ""), |b| b.lsp_status()),
-            now,
-            cursor_row: row + 1,
-            cursor_col: col + 1,
-            total_rows,
-            total_words: word_count,
-            total_chars,
-            active_note_title: active_title,
-            is_dirty: if self.misc.mode == Mode::Doc { false } else { self.editor.is_dirty },
-            is_doc: self.misc.mode == Mode::Doc,
-            mode_badge: Some(mode_badge_str.as_str()),
-            search_prompt,
-            theme: &self.misc.theme,
-            opacity: self.misc.opacity,
-            is_ai_open: is_ai_active,
-            config: &self.services.lunaline_config,
-            language,
-            detected_language,
-            language_override,
-            language_selector: &mut self.editor.language_selector,
-        });
+        let status_action =
+            crate::lunaline::render_lunaline(crate::lunaline::LunaLineRenderParams {
+                ui,
+                painter: &painter,
+                dock_rect: cmd_bar_rect,
+                in_command: self.command_bar.in_command,
+                cmd_prefix: self.command_bar.prefix,
+                cmd_text: &self.editor.cmd_ed.text(),
+                cmd_cur: self.editor.cmd_ed.cur,
+                cmd_selection: self.editor.cmd_ed.selected_range(),
+                status_msg: &self.misc.status_msg,
+                status_time: self.misc.status_time,
+                busy: self
+                    .services
+                    .vim_runtime
+                    .backend
+                    .as_ref()
+                    .and_then(|b| b.busy_label()),
+                lsp: self
+                    .services
+                    .vim_runtime
+                    .backend
+                    .as_ref()
+                    .map_or(("none", ""), |b| b.lsp_status()),
+                now,
+                cursor_row: row + 1,
+                cursor_col: col + 1,
+                total_rows,
+                total_words: word_count,
+                total_chars,
+                active_note_title: active_title,
+                is_dirty: if self.misc.mode == Mode::Doc {
+                    false
+                } else {
+                    self.editor.is_dirty
+                },
+                is_doc: self.misc.mode == Mode::Doc,
+                mode_badge: Some(mode_badge_str.as_str()),
+                search_prompt,
+                theme: &self.misc.theme,
+                opacity: self.misc.opacity,
+                is_ai_open: is_ai_active,
+                config: &self.services.lunaline_config,
+                language,
+                detected_language,
+                language_override,
+                language_selector: &mut self.editor.language_selector,
+            });
         if let Some(selection) = status_action.language_selection {
             self.set_language_override(
                 match selection {
@@ -376,14 +437,17 @@ impl App {
             }
         }
 
-
         // Sleek Sidebar (Ctrl+B)
         if self.sidebar.open && self.misc.mode != Mode::Doc {
             if let Some(sb_rect) = layout.sidebar_rect {
                 let active_mode_idx = match self.misc.mode {
                     Mode::Normal => 0,
                     Mode::Stats => 1,
-                    Mode::Doc | Mode::Help | Mode::ScanReport | Mode::ScanHistory | Mode::Terminal => 0,
+                    Mode::Doc
+                    | Mode::Help
+                    | Mode::ScanReport
+                    | Mode::ScanHistory
+                    | Mode::Terminal => 0,
                 };
                 let action = render_sidebar(
                     ui,
@@ -401,6 +465,8 @@ impl App {
                     self.misc.opacity,
                     self.sidebar.needs_scroll,
                     any_modal_open,
+                    &mut self.workspace,
+                    self.open_notes.get(self.tabs.active_tab).and_then(|tab| tab.file_path.as_deref()),
                 );
                 self.sidebar.needs_scroll = false;
 
@@ -410,6 +476,7 @@ impl App {
                             self.sidebar.focused = true;
                         } else if editor_panel_rect.contains(pos) {
                             self.sidebar.focused = false;
+                            self.misc.caret.gliding = false;
                         }
                     }
                 }
@@ -417,68 +484,155 @@ impl App {
                 if let Some(act) = action {
                     if !any_modal_open {
                         match act {
-                        SidebarAction::SwitchMode(idx) => {
-                            match idx {
+                            SidebarAction::OpenWorkspace => {
+                                if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                                    self.open_workspace(path, now);
+                                }
+                            }
+                            SidebarAction::OpenWorkspaceFile(path) => {
+                                self.open_file_path(path, now)
+                            }
+                            SidebarAction::ToggleWorkspaceFolder(path) => {
+                                self.toggle_workspace_folder(&path)
+                            }
+                            SidebarAction::WorkspaceCreate(parent, kind) => {
+                                self.workspace.dialog_parent = parent;
+                                self.workspace.dialog_name.clear();
+                                self.workspace.dialog_error=None;
+                                self.workspace.dialog_focus_requested=true;
+                                self.workspace.selected_path = None;
+                                self.workspace.dialog = Some(kind);
+                            }
+                            SidebarAction::WorkspaceRename(path) => {
+                                self.workspace.dialog_name = path
+                                    .file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .into_owned();
+                                self.workspace.dialog_error=None;
+                                self.workspace.dialog_focus_requested=true;
+                                self.workspace.selected_path = Some(path.clone());
+                                self.workspace.dialog_parent = path
+                                    .parent()
+                                    .unwrap_or(std::path::Path::new(""))
+                                    .to_path_buf();
+                                self.workspace.dialog =
+                                    Some(crate::workspace::WorkspaceDialog::Rename);
+                            }
+                            SidebarAction::WorkspaceDelete(path) => {
+                                self.modal.pending_delete_path = Some(path);
+                                self.modal.delete_confirm_open = true;
+                                self.modal.delete_just_opened = true;
+                            }
+                            SidebarAction::WorkspaceMove(sources, destination) => {
+                                self.move_workspace_items(&sources, &destination, now)
+                            }
+                            SidebarAction::WorkspaceReveal(path) => {
+                                crate::workspace::reveal_in_file_manager(&path);
+                            }
+                            SidebarAction::WorkspaceCommit => self.perform_workspace_dialog(now),
+                            SidebarAction::WorkspaceCancel => {self.workspace.dialog=None;self.workspace.dialog_error=None;}
+                            SidebarAction::WorkspaceRefresh => {
+                                let _ = self.workspace.refresh();
+                                self.set_status("Workspace refreshed", now);
+                            }
+                            SidebarAction::SwitchMode(idx) => match idx {
                                 0 => self.misc.mode = Mode::Normal,
                                 1 => {
                                     self.reload_db_state();
                                     self.misc.mode = Mode::Stats;
                                 }
                                 _ => {}
+                            },
+                            SidebarAction::LoadNote {
+                                id,
+                                topic,
+                                body,
+                                index,
+                            } => {
+                                self.load_note(id, topic, body, now);
+                                self.sidebar.selected_idx = index;
+                                self.sidebar.focused = true;
+                            }
+                            SidebarAction::NewNote => {
+                                if let Some(cur) = self.open_notes.get_mut(self.tabs.active_tab) {
+                                    cur.editor = self.editor.ed.clone();
+                                    cur.title = self.notes.active_note_title.clone();
+                                    cur.scroll_y = self.editor.scroll_y;
+                                    cur.is_dirty = self.editor.is_dirty;
+                                }
+                                self.notes.active_note_id = None;
+                                self.save_active_note_id();
+                                self.notes.active_note_title = "Untitled Note".to_string();
+                                self.editor.ed.clear();
+                                self.misc.mode = Mode::Normal;
+                                self.editor.is_dirty = false;
+                                self.editor.scroll_y = 0.0;
+                                self.open_notes.push(OpenNote {
+                                    id: 0,
+                                    title: "Untitled Note".to_string(),
+                                    editor: self.editor.ed.clone(),
+                                    scroll_y: 0.0,
+                                    is_dirty: false,
+                                    file_path: None,
+                                    language_override: None,
+                                });
+                                self.tabs.active_tab = self.open_notes.len() - 1;
+                                self.save_open_tabs();
+                                self.set_status("Created new note", now);
+                            }
+                            SidebarAction::DeleteNote(id) => {
+                                self.modal.pending_delete_note_id = Some(id);
+                                self.modal.delete_confirm_open = true;
+                                self.modal.delete_just_opened = true;
+                            }
+                            SidebarAction::ToggleNotesLimit => {
+                                self.notes.sidebar_notes_limit =
+                                    if self.notes.sidebar_notes_limit >= 100 {
+                                        50
+                                    } else {
+                                        100
+                                    };
+                                self.reload_db_state();
+                            }
+                            SidebarAction::OpenSettings => {
+                                self.modal.settings_open = true;
+                                self.modal.settings_just_opened = true;
+                                self.modal.settings_opened_at = now;
                             }
                         }
-                        SidebarAction::LoadNote { id, topic, body, index } => {
-                            self.load_note(id, topic, body, now);
-                            self.sidebar.selected_idx = index;
-                            self.sidebar.focused = true;
-                        }
-                        SidebarAction::NewNote => {
-                            if let Some(cur) = self.open_notes.get_mut(self.tabs.active_tab) {
-                                cur.editor = self.editor.ed.clone();
-                                cur.title = self.notes.active_note_title.clone();
-                                cur.scroll_y = self.editor.scroll_y;
-                                cur.is_dirty = self.editor.is_dirty;
-                            }
-                            self.notes.active_note_id = None;
-                            self.save_active_note_id();
-                            self.notes.active_note_title = "Untitled Note".to_string();
-                            self.editor.ed.clear();
-                            self.misc.mode = Mode::Normal;
-                            self.editor.is_dirty = false;
-                            self.editor.scroll_y = 0.0;
-                            self.open_notes.push(OpenNote {
-                                id: 0,
-                                title: "Untitled Note".to_string(),
-                                editor: self.editor.ed.clone(),
-                                scroll_y: 0.0,
-                                is_dirty: false,
-                                file_path: None,
-                                language_override: None,
-                            });
-                            self.tabs.active_tab = self.open_notes.len() - 1;
-                            self.save_open_tabs();
-                            self.set_status("Created new note", now);
-                        }
-                        SidebarAction::DeleteNote(id) => {
-                            self.modal.pending_delete_note_id = Some(id);
-                            self.modal.delete_confirm_open = true;
-                            self.modal.delete_just_opened = true;
-                        }
-                        SidebarAction::ToggleNotesLimit => {
-                            self.notes.sidebar_notes_limit = if self.notes.sidebar_notes_limit >= 100 { 50 } else { 100 };
-                            self.reload_db_state();
-                        }
-                        SidebarAction::OpenSettings => {
-                            self.modal.settings_open = true;
-                            self.modal.settings_just_opened = true;
-                            self.modal.settings_opened_at = now;
-                        }
-                    }
                     }
                 }
             }
         }
 
+        if self.workspace.dialog==Some(crate::workspace::WorkspaceDialog::Delete) {
+            let title = "Delete item?";
+            let mut open = true;
+            egui::Window::new(title)
+                .collapsible(false)
+                .resizable(false)
+                .open(&mut open)
+                .show(ui.ctx(), |ui| {
+                    ui.label(format!(
+                        "Permanently delete {}?",
+                        self.workspace.selected_path.as_deref().unwrap_or(std::path::Path::new("")).display()
+                    ));
+                    ui.label("Folder deletion removes all nested files and folders.");
+                    ui.horizontal(|ui| {
+                        if ui.button("Delete").clicked() {
+                            self.perform_workspace_dialog(now);
+                        }
+                        if ui.button("Cancel").clicked() {
+                            self.workspace.dialog = None;
+                            self.workspace.dialog_error=None;
+                        }
+                    });
+                });
+            if !open {
+                self.workspace.dialog = None;
+            }
+        }
 
         // Command Autocomplete Popup (Pops above bottom dock, rendered on top of sidebar)
         crate::command::command_suggestion::render_command_suggestions_overlay(
@@ -490,7 +644,12 @@ impl App {
         );
 
         // Drag-and-drop hover indicator overlay
-        crate::workspace_import::render_hover_indicator(ui.ctx(), &painter, bounds, &self.misc.theme);
+        crate::workspace_import::render_hover_indicator(
+            ui.ctx(),
+            &painter,
+            bounds,
+            &self.misc.theme,
+        );
 
         // Wikilink Autocomplete & Hover Preview Popups
         if self.misc.mode == Mode::Normal && !any_modal_open {
@@ -520,7 +679,10 @@ impl App {
                     let min_right_w = 150.0f32;
                     let max_w = (available_w - min_right_w).max(min_w);
                     let left_w = (available_w * self.editor.split_ratio).clamp(min_w, max_w);
-                    Rect::from_min_max(body_rect.min, pos2(editor_panel_rect.min.x + left_w, body_rect.max.y))
+                    Rect::from_min_max(
+                        body_rect.min,
+                        pos2(editor_panel_rect.min.x + left_w, body_rect.max.y),
+                    )
                 } else {
                     body_rect
                 }
@@ -528,17 +690,32 @@ impl App {
 
             let effective_font_size = self.editor.last_ed_font_size.unwrap_or(self.misc.font_size);
             let gutter_w = if self.editor.show_line_numbers {
-                let total_lines = (self.editor.ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
+                let total_lines =
+                    (self.editor.ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
                 let digits = total_lines.to_string().len().max(2);
                 (digits as f32 * (effective_font_size * 0.55) + 14.0).max(28.0)
             } else {
                 0.0
             };
-            let pad_x = if self.editor.show_line_numbers { 16.0 } else { 24.0 };
+            let pad_x = if self.editor.show_line_numbers {
+                16.0
+            } else {
+                24.0
+            };
             let pad_y = 10.0;
-            let effective_gutter_w = if actual_editor_rect.width() > gutter_w + 40.0 { gutter_w } else { 0.0 };
-            let text_left = (actual_editor_rect.min.x + effective_gutter_w + pad_x).min(actual_editor_rect.max.x);
-            let ed_origin = self.editor.last_ed_origin.unwrap_or_else(|| pos2(text_left, actual_editor_rect.min.y - self.editor.scroll_y + pad_y));
+            let effective_gutter_w = if actual_editor_rect.width() > gutter_w + 40.0 {
+                gutter_w
+            } else {
+                0.0
+            };
+            let text_left = (actual_editor_rect.min.x + effective_gutter_w + pad_x)
+                .min(actual_editor_rect.max.x);
+            let ed_origin = self.editor.last_ed_origin.unwrap_or_else(|| {
+                pos2(
+                    text_left,
+                    actual_editor_rect.min.y - self.editor.scroll_y + pad_y,
+                )
+            });
             // Wiki link interaction uses the same raw monospace grid as the
             // editor. Do not build an inline Markdown layout in this per-frame
             // input path.
@@ -554,50 +731,75 @@ impl App {
             let (_, _, line_h) = self.misc.zoom.editor_metrics(self.misc.font_size, ui.ctx());
 
             let is_inserting = match self.services.editor_controller.mode {
-                EditorInputMode::Vim => self.services.vim_runtime.backend.as_ref().is_some_and(|backend| backend.is_insert_mode()),
+                EditorInputMode::Vim => self
+                    .services
+                    .vim_runtime
+                    .backend
+                    .as_ref()
+                    .is_some_and(|backend| backend.is_insert_mode()),
                 EditorInputMode::Hybrid => true,
             };
             // Wikilinks belong to Markdown. In code files their overlays can
             // cover HTML/LSP completion and turn a click into opening a note.
-            let wikilinks_allowed = self.active_language() == crate::language::FileLanguage::Markdown;
+            let wikilinks_allowed =
+                self.active_language() == crate::language::FileLanguage::Markdown;
 
             if is_inserting && wikilinks_allowed {
-                self.services.wikilink_autocomplete.check_trigger(&self.editor.ed, &self.notes.notes_list);
+                self.services
+                    .wikilink_autocomplete
+                    .check_trigger(&self.editor.ed, &self.notes.notes_list);
 
                 if self.services.wikilink_autocomplete.is_active {
                     let idx = self.services.wikilink_autocomplete.trigger_start;
-                        let trigger_pos = if self.services.editor_controller.mode == EditorInputMode::Vim {
-                            self.services.vim_runtime.backend.as_ref().map(|backend| {
-                                // Vim's app-side visual_lines intentionally stays compact; use
-                                // Neovim's rendered grid to locate the opening `[[`, not the
-                                // caret at the end of the typed query.
-                                let cursor = backend.grid.cursor;
-                                let number_columns = if self.editor.show_line_numbers { 4 } else { 0 };
-                                let text_column = cursor.column.saturating_sub(number_columns);
-                                let trigger_offset = self.editor.ed.cur.saturating_sub(idx);
-                                let grid_text_width = backend.grid.width.saturating_sub(number_columns).max(1);
-                                let (trigger_row, trigger_column) = if trigger_offset <= text_column {
-                                    (cursor.row, text_column - trigger_offset)
-                                } else {
-                                    let columns_back = trigger_offset - text_column;
-                                    let rows_back = columns_back.div_ceil(grid_text_width);
-                                    let column = (text_column + grid_text_width - trigger_offset % grid_text_width) % grid_text_width;
-                                    (cursor.row.saturating_sub(rows_back), column)
-                                };
-                                pos2(
-                                    text_left + trigger_column as f32 * cell_w,
-                                    actual_editor_rect.min.y + pad_y + (trigger_row as f32 + 1.0) * line_h + 4.0,
-                                )
-                            })
-                    } else {
-                        self.editor.visual_lines.iter().find(|line| idx >= line.char_start && idx <= line.char_end).map(|line| {
-                            let row = self.editor.visual_lines.iter().position(|candidate| std::ptr::eq(candidate, line)).unwrap_or(0);
-                            let col = idx.saturating_sub(line.char_start);
+                    let trigger_pos = if self.services.editor_controller.mode
+                        == EditorInputMode::Vim
+                    {
+                        self.services.vim_runtime.backend.as_ref().map(|backend| {
+                            // Vim's app-side visual_lines intentionally stays compact; use
+                            // Neovim's rendered grid to locate the opening `[[`, not the
+                            // caret at the end of the typed query.
+                            let cursor = backend.grid.cursor;
+                            let number_columns = if self.editor.show_line_numbers { 4 } else { 0 };
+                            let text_column = cursor.column.saturating_sub(number_columns);
+                            let trigger_offset = self.editor.ed.cur.saturating_sub(idx);
+                            let grid_text_width =
+                                backend.grid.width.saturating_sub(number_columns).max(1);
+                            let (trigger_row, trigger_column) = if trigger_offset <= text_column {
+                                (cursor.row, text_column - trigger_offset)
+                            } else {
+                                let columns_back = trigger_offset - text_column;
+                                let rows_back = columns_back.div_ceil(grid_text_width);
+                                let column = (text_column + grid_text_width
+                                    - trigger_offset % grid_text_width)
+                                    % grid_text_width;
+                                (cursor.row.saturating_sub(rows_back), column)
+                            };
                             pos2(
-                                ed_origin.x + col as f32 * cell_w,
-                                ed_origin.y + row as f32 * line_h + line_h + 6.0,
+                                text_left + trigger_column as f32 * cell_w,
+                                actual_editor_rect.min.y
+                                    + pad_y
+                                    + (trigger_row as f32 + 1.0) * line_h
+                                    + 4.0,
                             )
                         })
+                    } else {
+                        self.editor
+                            .visual_lines
+                            .iter()
+                            .find(|line| idx >= line.char_start && idx <= line.char_end)
+                            .map(|line| {
+                                let row = self
+                                    .editor
+                                    .visual_lines
+                                    .iter()
+                                    .position(|candidate| std::ptr::eq(candidate, line))
+                                    .unwrap_or(0);
+                                let col = idx.saturating_sub(line.char_start);
+                                pos2(
+                                    ed_origin.x + col as f32 * cell_w,
+                                    ed_origin.y + row as f32 * line_h + line_h + 6.0,
+                                )
+                            })
                     };
                     if let Some(trigger_pos) = trigger_pos {
                         self.services.wikilink_autocomplete.trigger_screen_pos = trigger_pos;
@@ -605,24 +807,31 @@ impl App {
                     }
                 }
 
-                if let Some(crate::wikilink::wikilink_autocompletion::AutocompleteAction::Inserted { inserted_text: _ }) =
-                    crate::wikilink::wikilink_autocompletion::render_wikilink_autocomplete(
-                        ui,
-                        &painter,
-                        &mut self.services.wikilink_autocomplete,
-                        &mut self.editor.ed,
-                        &self.misc.theme,
-                        bounds,
-                    )
-                {
+                if let Some(
+                    crate::wikilink::wikilink_autocompletion::AutocompleteAction::Inserted {
+                        inserted_text: _,
+                    },
+                ) = crate::wikilink::wikilink_autocompletion::render_wikilink_autocomplete(
+                    ui,
+                    &painter,
+                    &mut self.services.wikilink_autocomplete,
+                    &mut self.editor.ed,
+                    &self.misc.theme,
+                    bounds,
+                ) {
                     // Autocomplete is an application feature. Commit its edit to
                     // Neovim at this explicit boundary so the Vim buffer remains
                     // the single editing source of truth.
                     if self.services.editor_controller.mode == EditorInputMode::Vim {
                         let (row, column) = self.editor.ed.row_col();
                         if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
-                            if let Err(error) = backend.set_document(&self.editor.ed.text(), row, column) {
-                                self.set_status(&format!("Could not sync autocomplete to Neovim: {error}"), now);
+                            if let Err(error) =
+                                backend.set_document(&self.editor.ed.text(), row, column)
+                            {
+                                self.set_status(
+                                    &format!("Could not sync autocomplete to Neovim: {error}"),
+                                    now,
+                                );
                             }
                         }
                     }
@@ -633,13 +842,25 @@ impl App {
                 self.services.wikilink_autocomplete.clear();
             }
 
-            let vim_completion_visible = self.services.editor_controller.mode == EditorInputMode::Vim
-                && self.services.vim_runtime.backend.as_ref().is_some_and(|backend| backend.popup_visible());
+            let vim_completion_visible = self.services.editor_controller.mode
+                == EditorInputMode::Vim
+                && self
+                    .services
+                    .vim_runtime
+                    .backend
+                    .as_ref()
+                    .is_some_and(|backend| backend.popup_visible());
             if !wikilinks_allowed || vim_completion_visible {
                 self.services.hover_wikilink.clear();
             } else if let Some(pos) = pointer_pos {
                 let pointer_changed = self.services.hover_wikilink.last_pointer_pos != Some(pos);
-                if actual_editor_rect.contains(pos) && (pointer_changed || ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary))) {
+                if actual_editor_rect.contains(pos)
+                    && (pointer_changed
+                        || ui.input(|i| {
+                            i.pointer.primary_clicked()
+                                || i.pointer.button_pressed(egui::PointerButton::Primary)
+                        }))
+                {
                     self.services.hover_wikilink.last_pointer_pos = Some(pos);
                     let text = self.editor.ed.text();
                     let links = crate::wikilink::extract_wikilinks(&text);
@@ -648,20 +869,39 @@ impl App {
                     let clicked_row = ((pos.y - ed_origin.y) / line_h).floor().max(0.0) as usize;
                     let clicked_col = ((pos.x - ed_origin.x).max(0.0) / cell_w).floor() as usize;
                     let visual_line = self.editor.visual_lines.get(clicked_row);
-                    let char_idx = visual_line.map(|line| line.char_start + clicked_col).unwrap_or(self.editor.ed.buf.len());
+                    let char_idx = visual_line
+                        .map(|line| line.char_start + clicked_col)
+                        .unwrap_or(self.editor.ed.buf.len());
 
                     for link in &links {
                         let is_hit = char_idx >= link.start && char_idx <= link.end;
 
                         if is_hit {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-                            let row = self.editor.visual_lines.iter().position(|line| link.start >= line.char_start && link.start <= line.char_end).unwrap_or(0);
+                            let row = self
+                                .editor
+                                .visual_lines
+                                .iter()
+                                .position(|line| {
+                                    link.start >= line.char_start && link.start <= line.char_end
+                                })
+                                .unwrap_or(0);
                             let line = &self.editor.visual_lines[row];
-                            let anchor = pos2(ed_origin.x + link.start.saturating_sub(line.char_start) as f32 * cell_w, ed_origin.y + (row + 1) as f32 * line_h);
+                            let anchor = pos2(
+                                ed_origin.x
+                                    + link.start.saturating_sub(line.char_start) as f32 * cell_w,
+                                ed_origin.y + (row + 1) as f32 * line_h,
+                            );
                             found_hover = Some((link.target.clone(), anchor));
 
-                            if ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary)) {
-                                if let Some(note) = crate::wikilink::resolve_wikilink(&link.target, &self.notes.notes_list) {
+                            if ui.input(|i| {
+                                i.pointer.primary_clicked()
+                                    || i.pointer.button_pressed(egui::PointerButton::Primary)
+                            }) {
+                                if let Some(note) = crate::wikilink::resolve_wikilink(
+                                    &link.target,
+                                    &self.notes.notes_list,
+                                ) {
                                     self.open_note_by_id(note.id, now);
                                 } else {
                                     self.create_new_note(now);
@@ -673,21 +913,39 @@ impl App {
                     }
 
                     if let Some((target, anchor)) = found_hover {
-                        self.services.hover_wikilink.update_hover(&target, anchor, &self.notes.notes_list, now);
+                        self.services.hover_wikilink.update_hover(
+                            &target,
+                            anchor,
+                            &self.notes.notes_list,
+                            now,
+                        );
                     } else {
                         self.services.hover_wikilink.pending_target = None;
                         self.services.hover_wikilink.dismissed_target = None;
 
                         // Safe bridge corridor between link anchor and popup card
-                        let in_bridge = if let Some(popup) = self.services.hover_wikilink.popup_rect {
-                            let bridge = Rect::from_min_max(
-                                pos2(popup.min.x.min(self.services.hover_wikilink.anchor_pos.x - 24.0), (self.services.hover_wikilink.anchor_pos.y - 24.0).min(popup.min.y)),
-                                pos2(popup.max.x.max(self.services.hover_wikilink.anchor_pos.x + 80.0), popup.max.y + 10.0),
-                            );
-                            bridge.contains(pos)
-                        } else {
-                            false
-                        };
+                        let in_bridge =
+                            if let Some(popup) = self.services.hover_wikilink.popup_rect {
+                                let bridge =
+                                    Rect::from_min_max(
+                                        pos2(
+                                            popup.min.x.min(
+                                                self.services.hover_wikilink.anchor_pos.x - 24.0,
+                                            ),
+                                            (self.services.hover_wikilink.anchor_pos.y - 24.0)
+                                                .min(popup.min.y),
+                                        ),
+                                        pos2(
+                                            popup.max.x.max(
+                                                self.services.hover_wikilink.anchor_pos.x + 80.0,
+                                            ),
+                                            popup.max.y + 10.0,
+                                        ),
+                                    );
+                                bridge.contains(pos)
+                            } else {
+                                false
+                            };
 
                         if in_bridge || self.services.hover_wikilink.is_mouse_inside_popup {
                             self.services.hover_wikilink.last_hover_time = now;
@@ -720,10 +978,14 @@ impl App {
             }
 
             // Keyboard navigation / typing in editor dismisses hover preview
-            if self.services.hover_wikilink.is_active() && !self.services.hover_wikilink.is_mouse_inside_popup {
+            if self.services.hover_wikilink.is_active()
+                && !self.services.hover_wikilink.is_mouse_inside_popup
+            {
                 let key_active = ui.input(|i| {
                     !i.events.is_empty()
-                        && i.events.iter().any(|e| matches!(e, egui::Event::Key { .. } | egui::Event::Text(_)))
+                        && i.events
+                            .iter()
+                            .any(|e| matches!(e, egui::Event::Key { .. } | egui::Event::Text(_)))
                 });
                 if key_active {
                     self.services.hover_wikilink.dismiss();

@@ -6,9 +6,12 @@ use eframe::egui;
 
 pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Option<bool> {
     // Undo (Ctrl+Z)
-    let ctrl_z = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::Z));
+    let ctrl_z =
+        ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::Z));
     if ctrl_z {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.command_bar.in_command {
+        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
+            && !app.command_bar.in_command
+        {
             return None;
         }
         if app.command_bar.in_command {
@@ -18,7 +21,11 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
                 return Some(true);
             }
         } else {
-            let changed = if app.misc.mode == Mode::Doc { app.editor.doc_ed.undo() } else { app.editor.ed.undo() };
+            let changed = if app.misc.mode == Mode::Doc {
+                app.editor.doc_ed.undo()
+            } else {
+                app.editor.ed.undo()
+            };
             if changed {
                 if app.misc.mode != Mode::Doc {
                     app.editor.is_dirty = true;
@@ -37,7 +44,9 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
             || (i.modifiers.ctrl && i.modifiers.shift && i.key_pressed(egui::Key::Z))
     });
     if ctrl_y {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.command_bar.in_command {
+        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
+            && !app.command_bar.in_command
+        {
             return None;
         }
         if app.command_bar.in_command {
@@ -47,7 +56,11 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
                 return Some(true);
             }
         } else {
-            let changed = if app.misc.mode == Mode::Doc { app.editor.doc_ed.redo() } else { app.editor.ed.redo() };
+            let changed = if app.misc.mode == Mode::Doc {
+                app.editor.doc_ed.redo()
+            } else {
+                app.editor.ed.redo()
+            };
             if changed {
                 if app.misc.mode != Mode::Doc {
                     app.editor.is_dirty = true;
@@ -61,8 +74,11 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
     }
 
     // Indent / Dedent (Ctrl+] / Ctrl+[)
-    let ctrl_indent = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::CloseBracket));
-    let ctrl_dedent = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::OpenBracket));
+    let ctrl_indent = ctx.input(|i| {
+        i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::CloseBracket)
+    });
+    let ctrl_dedent = ctx
+        .input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::OpenBracket));
     if ctrl_indent {
         if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
             && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
@@ -102,9 +118,64 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
         }
     }
 
+    // Move lines up / down (Alt+Up / Alt+Down)
+    let alt_up = ctx.input(|i| {
+        i.modifiers.alt
+            && !i.modifiers.ctrl
+            && !i.modifiers.command
+            && !i.modifiers.shift
+            && i.key_pressed(egui::Key::ArrowUp)
+    });
+    let alt_down = ctx.input(|i| {
+        i.modifiers.alt
+            && !i.modifiers.ctrl
+            && !i.modifiers.command
+            && !i.modifiers.shift
+            && i.key_pressed(egui::Key::ArrowDown)
+    });
+    if alt_up {
+        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
+            && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
+            && !app.command_bar.in_command
+        {
+            return None;
+        }
+        if !app.command_bar.in_command {
+            if app.misc.mode == Mode::Doc {
+                app.editor.doc_ed.move_line_up();
+            } else {
+                app.editor.ed.move_line_up();
+                app.editor.is_dirty = true;
+            }
+            app.misc.sound.play();
+            return Some(true);
+        }
+    }
+    if alt_down {
+        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
+            && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
+            && !app.command_bar.in_command
+        {
+            return None;
+        }
+        if !app.command_bar.in_command {
+            if app.misc.mode == Mode::Doc {
+                app.editor.doc_ed.move_line_down();
+            } else {
+                app.editor.ed.move_line_down();
+                app.editor.is_dirty = true;
+            }
+            app.misc.sound.play();
+            return Some(true);
+        }
+    }
+
     // Toggle Checklist Item (Ctrl+Shift+X)
     let ctrl_shift_x = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::X)
+        (i.modifiers.ctrl || i.modifiers.command)
+            && i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(egui::Key::X)
     });
     if ctrl_shift_x && !app.command_bar.in_command {
         let (target_ed_mut, _) = if app.misc.mode == Mode::Doc {
@@ -123,7 +194,12 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
     }
 
     // Mode Toggle (Ctrl+E) between Vim and Hybrid
-    let ctrl_e = ctx.input(|i| (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.alt && !i.modifiers.shift && i.key_pressed(egui::Key::E));
+    let ctrl_e = ctx.input(|i| {
+        (i.modifiers.ctrl || i.modifiers.command)
+            && !i.modifiers.alt
+            && !i.modifiers.shift
+            && i.key_pressed(egui::Key::E)
+    });
     if ctrl_e {
         let new_mode = match app.services.editor_controller.mode {
             crate::app::EditorInputMode::Vim => crate::app::EditorInputMode::Hybrid,
@@ -140,11 +216,17 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
 
     // Quick Save (Ctrl+S)
     let ctrl_s = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::S)
+        (i.modifiers.ctrl || i.modifiers.command)
+            && !i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(egui::Key::S)
     });
     if ctrl_s {
         if app.misc.mode == Mode::Doc {
-            app.set_status("Practice edits are temporary and never change the source documentation.", now);
+            app.set_status(
+                "Practice edits are temporary and never change the source documentation.",
+                now,
+            );
             return Some(false);
         }
         app.quick_save_active_note(now);
@@ -153,7 +235,10 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
 
     // Zen Mode Toggle: Ctrl+Shift+F
     let toggle_zen = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::F)
+        (i.modifiers.ctrl || i.modifiers.command)
+            && i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(egui::Key::F)
     });
     if toggle_zen {
         let is_zen = !app.sidebar.open && !app.editor.preview_open && !app.misc.show_titlebar;
@@ -165,7 +250,10 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
             app.sidebar.open = false;
             app.editor.preview_open = false;
             app.misc.show_titlebar = false;
-            app.set_status("Zen Mode: distraction-free writing (Ctrl+Shift+F to exit)", now);
+            app.set_status(
+                "Zen Mode: distraction-free writing (Ctrl+Shift+F to exit)",
+                now,
+            );
         }
         return Some(false);
     }

@@ -169,21 +169,6 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
         return Some(false);
     }
 
-    // Panel Navigation: Ctrl+H (Focus Sidebar)
-    let ctrl_h = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::H));
-    if ctrl_h && !app.command_bar.in_command {
-        if app.sidebar.open {
-            if app.misc.mode == Mode::Doc {
-                app.tabs.doc_sidebar_focused = true;
-                app.set_status("Doc sidebar focused (j/k to select, Enter to open, Ctrl+L for reader)", now);
-            } else {
-                app.sidebar.focused = true;
-                app.set_status("Sidebar focused (j/k to select, Enter to open, Ctrl+L for editor)", now);
-            }
-        }
-        return Some(false);
-    }
-
     // Panel Navigation: Ctrl+L (Focus Editor / Right Pane)
     let ctrl_l = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::L));
     if ctrl_l && !app.command_bar.in_command {
@@ -208,4 +193,19 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ctrl_h_is_not_consumed_as_a_sidebar_shortcut(){
+        let mut app=App::new();
+        let ctx=egui::Context::default();
+        let mut result=None;
+        let raw=egui::RawInput{events:vec![egui::Event::Key{key:egui::Key::H,physical_key:Some(egui::Key::H),pressed:true,repeat:false,modifiers:egui::Modifiers::CTRL}],..Default::default()};
+        let _=ctx.run(raw,|ctx|{result=handle_panel_shortcuts(&mut app,ctx,1.0);});
+        assert_eq!(result,None);
+    }
 }

@@ -22,9 +22,9 @@ Welcome to **MindForge**, an ultra-fast, local-first markdown notebook with livi
 
 ## 1. Writing & Managing Notes
 
-- **Auto-Save**: Notes are continuously saved to high-speed SQLite storage without manual effort.
+- **Auto-Save**: Notes are continuously saved to disk without manual effort.
 - `Ctrl + N`: Instantly creates a new blank document ready for typing.
-- `Ctrl + S`: Executes an immediate manual database sync and resets dirty status.
+- `Ctrl + S`: Executes an immediate manual save to disk and resets dirty status.
 - `Ctrl + R`: Opens the modal to rename the active document.
 - `Ctrl + B`: Toggles the left-hand navigation sidebar showing your notes list.
 - `Ctrl + \`: Toggles the real-time Markdown Live Preview side-by-side.
@@ -94,7 +94,7 @@ Type `:` in Normal mode to open the command bar at the bottom of the screen:
 
 | Command | Action |
 | :--- | :--- |
-| `:w` / `:save` | Save active document immediately to SQLite database |
+| `:w` / `:save` | Save active document immediately to disk |
 | `:r <title>` | Rename the active document to a new title |
 | `:d` / `:delete` | Open delete confirmation modal to remove active note |
 | `:doc` / `:docs` | Open built-in documentation and guide reader |
@@ -108,7 +108,7 @@ Type `:` in Normal mode to open the command bar at the bottom of the screen:
 | `:theme <name>` | Switch theme: `green`, `amber`, `blue`, `monokai`, `rose`, `purple` |
 | `:sound <type>` | Change switch sounds: `thocky`, `clacky`, `creamy`, `marbly`, `poppy`, `clicky`, `off` |
 | `:caret <kind>` | Set caret style: `candle`, `fire`, `water`, `snow`, `neon`, `rainbow`, `beam`, `block` |
-| `:backup` | Trigger instant atomic backup snapshot of the SQLite database |
+| `:backup` | Trigger instant atomic backup snapshot of settings and workspace |
 | `:export` / `:import` | Export note to markdown file, or import external `.md` / `.txt` file |
 
 ---

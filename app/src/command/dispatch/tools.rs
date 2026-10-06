@@ -9,7 +9,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             app.misc.mode = Mode::Help;
             app.modal.help_tab = 0;
             app.modal.help_scroll_y = 0.0;
-            app.set_status("Help & Guidance opened as tab (Esc to return to notes)", now);
+            app.set_status(
+                "Help & Guidance opened as tab (Esc to return to notes)",
+                now,
+            );
             true
         }
         "settings" | "setting" | "preferences" | "pref" | "config" => {
@@ -30,7 +33,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             app.terminal.open = !app.terminal.open;
             if app.terminal.open {
                 app.terminal.focused = true;
-                app.set_status("Terminal opened (Ctrl+\\ to toggle, click editor to edit)", now);
+                app.set_status(
+                    "Terminal opened (Ctrl+\\ to toggle, click editor to edit)",
+                    now,
+                );
             } else {
                 app.terminal.focused = false;
                 app.set_status("Terminal closed", now);
@@ -74,19 +80,19 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             true
         }
         "scans" | "scanhistory" | "securityhistory" => {
-            if let Some(ref db) = app.services.db {
-                if let Ok(scans) = db.list_scans() {
-                    app.scan.past_scans = scans;
-                }
-            }
+            app.scan.past_scans = crate::services::db_worker::list_stored_scans();
             app.scan.prev_mode_before_scan = app.misc.mode;
             app.scan.scan_history_selected = 0;
             app.scan.scan_history_scroll_y = 0.0;
             app.misc.mode = Mode::ScanHistory;
-            app.set_status("Webscan History (↑/↓ to navigate, Enter to view report, Esc to exit)", now);
+            app.set_status(
+                "Webscan History (↑/↓ to navigate, Enter to view report, Esc to exit)",
+                now,
+            );
             true
         }
-        "doc" | "docs" | "tutorial" | "tutorials" | "document" | "documents" | "documentation" | "documentations" => {
+        "doc" | "docs" | "tutorial" | "tutorials" | "document" | "documents" | "documentation"
+        | "documentations" => {
             app.open_docs_mode(now);
             true
         }
@@ -113,6 +119,11 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 app.close_tab(app.tabs.active_tab, now);
                 return true;
             }
+            app.sync_save_session();
+            std::process::exit(0);
+        }
+        "qa" | "wqa" | "quitall" | "qall" => {
+            app.sync_save_session();
             std::process::exit(0);
         }
         _ => false,

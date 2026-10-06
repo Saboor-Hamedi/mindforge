@@ -210,7 +210,15 @@ local function start_server(dispatchers)
       return false
     end
     if method == 'initialize' then
-      callback(nil, { capabilities = { completionProvider = { resolveProvider = false, triggerCharacters = {} } } })
+      callback(nil, {
+        capabilities = {
+          textDocumentSync = {
+            openClose = true,
+            change = 0,
+          },
+          completionProvider = { resolveProvider = false, triggerCharacters = {} },
+        },
+      })
     elseif method == 'textDocument/completion' then
       local result = { isIncomplete = false, items = {} }
       local ok, err = pcall(function()

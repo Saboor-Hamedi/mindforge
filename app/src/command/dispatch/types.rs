@@ -7,43 +7,160 @@ pub struct CommandInfo {
 }
 
 pub const COMMAND_CATALOG: &[CommandInfo] = &[
-    CommandInfo { name: "w", desc: "Save active note" },
-    CommandInfo { name: "help", desc: "Open documentation & shortcuts" },
-    CommandInfo { name: "set", desc: "Change settings (:set nu, :set preview)" },
-    CommandInfo { name: "nu", desc: "Toggle line numbers" },
-    CommandInfo { name: "nonu", desc: "Hide line numbers" },
-    CommandInfo { name: "preview", desc: "Toggle Markdown live preview" },
-    CommandInfo { name: "nopreview", desc: "Close Markdown live preview" },
-    CommandInfo { name: "live", desc: "Switch to inline WYSIWYG editor" },
-    CommandInfo { name: "raw", desc: "Switch to raw markdown editor" },
-    CommandInfo { name: "noh", desc: "Clear search highlight matches" },
-    CommandInfo { name: "vim", desc: "Toggle Vim modal engine" },
-    CommandInfo { name: "mode", desc: "Switch mode (:mode vim / hybrid)" },
-    CommandInfo { name: "lua", desc: "Execute Lua code via Neovim MessagePack-RPC (:lua <expr>)" },
-    CommandInfo { name: "r", desc: "Rename the active note" },
-    CommandInfo { name: "d", desc: "Delete the active note" },
-    CommandInfo { name: "export", desc: "Export note to Markdown file" },
-    CommandInfo { name: "import", desc: "Import text or markdown file" },
-    CommandInfo { name: "sound", desc: "Configure typing sound effects" },
-    CommandInfo { name: "caret", desc: "Change cursor animation style" },
-    CommandInfo { name: "theme", desc: "Switch color theme" },
-    CommandInfo { name: "stats", desc: "Open productivity statistics" },
-    CommandInfo { name: "term", desc: "Toggle embedded terminal" },
-    CommandInfo { name: "clear", desc: "Clear active editor buffer" },
-    CommandInfo { name: "backup", desc: "Create a SQLite backup" },
-    CommandInfo { name: "doc", desc: "Open reference documentation" },
-    CommandInfo { name: "edit", desc: "Return to note editor" },
-    CommandInfo { name: "scan", desc: "Run web security scan" },
-    CommandInfo { name: "scans", desc: "View web security scan history" },
-    CommandInfo { name: "titlebar", desc: "Toggle window titlebar (:titlebar)" },
-    CommandInfo { name: "sidebar", desc: "Toggle notes sidebar (:sidebar)" },
-    CommandInfo { name: "backlinks", desc: "Toggle backlinks reference panel (:backlinks, :bl)" },
-    CommandInfo { name: "outline", desc: "Toggle outline headings panel (:outline, :ol)" },
-    CommandInfo { name: "settings", desc: "Open preferences & settings (:settings)" },
-    CommandInfo { name: "zen", desc: "Toggle Zen mode (:zen)" },
-    CommandInfo { name: "ai", desc: "Toggle DeepSeek AI Assistant (:ai)" },
-    CommandInfo { name: "tabs", desc: "Toggle document tabs bar (:tabs)" },
-    CommandInfo { name: "sort", desc: "Sort lines alphabetically (:sort, :sort!, :sort u, :sort n)" },
-    CommandInfo { name: "syntax", desc: "Toggle syntax highlighting (:syntax on, :syntax off, :syntax enable)" },
-    CommandInfo { name: "quit", desc: "Quit or close view" },
+    CommandInfo {
+        name: "w",
+        desc: "Save active note",
+    },
+    CommandInfo {
+        name: "help",
+        desc: "Open documentation & shortcuts",
+    },
+    CommandInfo {
+        name: "set",
+        desc: "Change settings (:set nu, :set preview)",
+    },
+    CommandInfo {
+        name: "nu",
+        desc: "Toggle line numbers",
+    },
+    CommandInfo {
+        name: "nonu",
+        desc: "Hide line numbers",
+    },
+    CommandInfo {
+        name: "preview",
+        desc: "Toggle Markdown live preview",
+    },
+    CommandInfo {
+        name: "nopreview",
+        desc: "Close Markdown live preview",
+    },
+    CommandInfo {
+        name: "live",
+        desc: "Switch to inline WYSIWYG editor",
+    },
+    CommandInfo {
+        name: "raw",
+        desc: "Switch to raw markdown editor",
+    },
+    CommandInfo {
+        name: "noh",
+        desc: "Clear search highlight matches",
+    },
+    CommandInfo {
+        name: "vim",
+        desc: "Toggle Vim modal engine",
+    },
+    CommandInfo {
+        name: "mode",
+        desc: "Switch mode (:mode vim / hybrid)",
+    },
+    CommandInfo {
+        name: "lua",
+        desc: "Execute Lua code via Neovim MessagePack-RPC (:lua <expr>)",
+    },
+    CommandInfo {
+        name: "r",
+        desc: "Rename the active note",
+    },
+    CommandInfo {
+        name: "d",
+        desc: "Delete the active note",
+    },
+    CommandInfo {
+        name: "export",
+        desc: "Export note to Markdown file",
+    },
+    CommandInfo {
+        name: "import",
+        desc: "Open a file directly from disk",
+    },
+    CommandInfo {
+        name: "sound",
+        desc: "Configure typing sound effects",
+    },
+    CommandInfo {
+        name: "caret",
+        desc: "Change cursor animation style",
+    },
+    CommandInfo {
+        name: "theme",
+        desc: "Switch color theme",
+    },
+    CommandInfo {
+        name: "stats",
+        desc: "Open productivity statistics",
+    },
+    CommandInfo {
+        name: "term",
+        desc: "Toggle embedded terminal",
+    },
+    CommandInfo {
+        name: "clear",
+        desc: "Clear active editor buffer",
+    },
+    CommandInfo {
+        name: "backup",
+        desc: "Create a backup snapshot",
+    },
+    CommandInfo {
+        name: "doc",
+        desc: "Open reference documentation",
+    },
+    CommandInfo {
+        name: "edit",
+        desc: "Return to note editor",
+    },
+    CommandInfo {
+        name: "scan",
+        desc: "Run web security scan",
+    },
+    CommandInfo {
+        name: "scans",
+        desc: "View web security scan history",
+    },
+    CommandInfo {
+        name: "titlebar",
+        desc: "Toggle window titlebar (:titlebar)",
+    },
+    CommandInfo {
+        name: "sidebar",
+        desc: "Toggle notes sidebar (:sidebar)",
+    },
+    CommandInfo {
+        name: "backlinks",
+        desc: "Toggle backlinks reference panel (:backlinks, :bl)",
+    },
+    CommandInfo {
+        name: "outline",
+        desc: "Toggle outline headings panel (:outline, :ol)",
+    },
+    CommandInfo {
+        name: "settings",
+        desc: "Open preferences & settings (:settings)",
+    },
+    CommandInfo {
+        name: "zen",
+        desc: "Toggle Zen mode (:zen)",
+    },
+    CommandInfo {
+        name: "ai",
+        desc: "Toggle DeepSeek AI Assistant (:ai)",
+    },
+    CommandInfo {
+        name: "tabs",
+        desc: "Toggle document tabs bar (:tabs)",
+    },
+    CommandInfo {
+        name: "sort",
+        desc: "Sort lines alphabetically (:sort, :sort!, :sort u, :sort n)",
+    },
+    CommandInfo {
+        name: "syntax",
+        desc: "Toggle syntax highlighting (:syntax on, :syntax off, :syntax enable)",
+    },
+    CommandInfo {
+        name: "quit",
+        desc: "Quit or close view",
+    },
 ];

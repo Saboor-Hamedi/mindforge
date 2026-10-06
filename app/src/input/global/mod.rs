@@ -16,6 +16,14 @@ use eframe::egui;
 /// Processes global shortcuts (saving, note creation, modals, clipboard, undo/redo).
 /// Returns `Some(typed)` if a global shortcut fully handled the frame, or `None` to continue to typing.
 pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Option<bool> {
+    if app.workspace.dialog.is_some() {
+        if ctx.input(|i|i.key_pressed(egui::Key::Escape)) {
+            app.workspace.dialog=None;
+            app.workspace.dialog_error=None;
+            app.workspace.dialog_focus_requested=false;
+        }
+        return Some(false);
+    }
     if app.editor.language_selector.open {
         if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
             app.editor.language_selector.open = false;

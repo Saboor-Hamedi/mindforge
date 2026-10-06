@@ -3,11 +3,13 @@
 use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
+#[allow(dead_code)]
 pub struct DeleteModalAction {
     pub confirmed: bool,
     pub should_close: bool,
 }
 
+#[allow(dead_code)]
 pub fn render_delete_confirm_modal(
     ui: &egui::Ui,
     painter: &egui::Painter,

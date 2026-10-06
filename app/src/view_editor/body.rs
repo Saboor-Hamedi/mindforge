@@ -59,8 +59,7 @@ pub fn render_editor_body(
     }
 
     let gutter_w = if show_line_numbers {
-        // Calculate digits needed for total lines
-        let total_lines = (ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
+        let total_lines = visual_lines.len().max(1);
         let digits = total_lines.to_string().len().max(2);
         (digits as f32 * (font_size * 0.55) + 14.0).max(28.0)
     } else {
@@ -200,11 +199,22 @@ pub fn render_editor_body(
     let is_block = caret.kind == crate::caret::CaretKind::Block;
 
     // Frustum culling: render only lines intersecting the visible viewport
-    for (r, line) in visual_lines.iter().enumerate() {
+    let start_row = if lh > 0.0 {
+        ((editor_rect.min.y - ed_origin.y) / lh).floor().max(0.0) as usize
+    } else {
+        0
+    };
+    let end_row = if lh > 0.0 {
+        (((editor_rect.max.y - ed_origin.y) / lh).ceil() as usize + 1).min(visual_lines.len())
+    } else {
+        visual_lines.len()
+    };
+    let start_row = start_row.min(visual_lines.len());
+    let end_row = end_row.max(start_row).min(visual_lines.len());
+
+    for r in start_row..end_row {
+        let line = &visual_lines[r];
         let line_y = ed_origin.y + r as f32 * lh;
-        if line_y + lh < editor_rect.min.y || line_y > editor_rect.max.y {
-            continue;
-        }
 
         // Render selection highlight background behind text on this line
         if let Some((sel_start, sel_end)) = sel_range {

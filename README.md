@@ -10,7 +10,7 @@
 [![Language: Rust](https://img.shields.io/badge/Language-Rust_2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![GUI: egui](https://img.shields.io/badge/Built_with-egui-8A2BE2?style=for-the-badge&logo=rust&logoColor=white)](https://github.com/emilk/egui)
 [![Modal: Vim](https://img.shields.io/badge/Modal_Engine-Vim_Keymap-019733?style=for-the-badge&logo=vim&logoColor=white)](https://www.vim.org/)
-[![Storage: SQLite](https://img.shields.io/badge/Storage-Local_SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Storage: Filesystem](https://img.shields.io/badge/Storage-Pure_Filesystem-003B57?style=for-the-badge)](https://github.com/Saboor-Hamedi/mindforge)
 [![Tests](https://img.shields.io/badge/Tests-187_Passing-brightgreen?style=for-the-badge)](https://github.com/Saboor-Hamedi/mindforge)
 [![Release](https://img.shields.io/badge/Release-v0.1.14-orange?style=for-the-badge)](https://github.com/Saboor-Hamedi/mindforge/releases)
 [![Discussions](https://img.shields.io/badge/Discussions-Community_Q%26A-blueviolet?style=for-the-badge&logo=github)](https://github.com/Saboor-Hamedi/mindforge/discussions)
@@ -35,7 +35,7 @@ Modern note-taking tools and knowledge bases are bogged down by sluggish web run
 
 **MINDFORGE** is an uncompromising, pitch-black developer environment engineered from the ground up in **100% native Rust**. Powered by the blazing-fast immediate-mode GUI library [**egui**](https://github.com/emilk/egui), MINDFORGE launches instantaneously, uses less than 30MB of RAM, and paints every frame directly onto your GPU at 120+ FPS.
 
-No Chromium. No Electron. Zero telemetry. Just your thoughts, your code, and your knowledge — strictly offline in local SQLite.
+No Chromium. No Electron. Zero telemetry. Just your thoughts, your code, and your knowledge — strictly offline on your local filesystem.
 
 ---
 
@@ -176,7 +176,7 @@ Check out the upstream [egui repository](https://github.com/emilk/egui) to learn
 | `Ctrl + P` | Instant Subsequence Fuzzy Note & File Search |
 | `Ctrl + Shift + P` | Command Palette (Fuzzy Search Commands & Settings via `>`) |
 | `Ctrl + ,` | Open Settings & Preferences Modal |
-| `Ctrl + S` | Force Save Document to SQLite |
+| `Ctrl + S` | Force Save Document to Disk |
 | `Ctrl + N` | Create New Note |
 | `Ctrl + R` / `F2` | Rename Active Note |
 | `Ctrl + Shift + D` | Delete Active Note |
@@ -217,7 +217,7 @@ As you type after `:`, MINDFORGE instantly opens a floating autocomplete window 
 
 | Category | Command | Description |
 |:---|:---|:---|
-| **Files & Storage** | `:w` / `:write` | Save active note to SQLite |
+| **Files & Storage** | `:w` / `:write` | Save active note to disk |
 | | `:q` / `:quit` | Close active tab or view |
 | | `:wq` / `:x` | Save note and close tab |
 | | `:r [title]` | Rename the active note |
@@ -225,7 +225,7 @@ As you type after `:`, MINDFORGE instantly opens a floating autocomplete window 
 | | `:clear` | Clear active buffer |
 | | `:export` | Export note to Markdown (`.md`) file |
 | | `:import` | Import an external text or markdown file |
-| | `:backup` | Create an immediate SQLite point-in-time snapshot |
+| | `:backup` | Create an immediate backup snapshot |
 | **Themes & Customization** | `:theme [name]` | Live switch between 19 themes (`tokyo_night`, `catppuccin`, `dracula`, `nord`, etc.) |
 | | `:font [name]` | Switch typography (`jetbrains_mono`, `fira_code`, `cascadia_code`, `victor_mono`, `iosevka`) |
 | | `:caret [style]` | Switch animated cursors (`fire`, `water`, `electric`, `matrix`, `ice`, `glitch`, `neon`, etc.) |
@@ -282,11 +282,12 @@ cargo test --workspace
 
 ## 🔒 Local-First Data Privacy
 
-All notes, spaced repetition decks, settings, and decisions are stored locally in an embedded SQLite database.
-- **Windows Path:** `%LOCALAPPDATA%\mindforge\mindforge\data\mindforge.db`
-- **Linux / macOS:** `~/.local/share/mindforge/mindforge.db`
+All notes, files, settings, and decisions are stored locally as pure filesystem files.
+- **Settings & Config:** `.mindforge/settings.json`
+- **Activity & Stats:** `.mindforge/activity.json`
+- **Security Scans:** `.mindforge/scans.json`
 
-Backing up your entire knowledge graph is as simple as copying `mindforge.db`.
+Backing up your entire knowledge graph is as simple as copying your workspace folder.
 
 ---
 
