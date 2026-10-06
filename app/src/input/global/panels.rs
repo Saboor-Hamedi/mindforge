@@ -165,7 +165,7 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
         let _ = app
             .services
             .db_tx
-            .send(crate::services::db_worker::DbMsg::SaveSetting {
+            .send(crate::services::settings_store::StorageMsg::SaveSetting {
                 key: "sidebar".into(),
                 val: if app.sidebar.open {
                     "true".into()

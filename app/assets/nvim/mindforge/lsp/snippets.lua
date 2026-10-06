@@ -199,7 +199,8 @@ local function items_for(filetype, params, bufnr)
   return items
 end
 local function start_server(dispatchers)
-  local closing = false
+  local closing = false
+  local next_req_id = 0
   local server = {}
 
   function server.request(method, params, callback)
@@ -248,7 +249,8 @@ local function start_server(dispatchers)
     else
       callback(nil, nil)
     end
-    return true, 1
+    next_req_id = (next_req_id % 1000000) + 1
+    return true, next_req_id
   end
 
   function server.notify(method)

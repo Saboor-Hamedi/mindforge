@@ -5,7 +5,7 @@ use crate::mode::Mode;
 use crate::notes::{
     delete_active_note, quick_save_active_note, rename_active_note, update_search_results,
 };
-use crate::services::db_worker::DbMsg;
+use crate::services::settings_store::StorageMsg;
 use chrono::Local;
 
 impl App {
@@ -245,15 +245,20 @@ impl App {
         self.set_status(&msg, now);
     }
 
-    pub fn reload_db_state(&mut self) {
+    pub fn reload_activity_state(&mut self) {
         let today_str = Local::now().date_naive().format("%Y-%m-%d").to_string();
-        let recent = crate::services::db_worker::get_recent_activity(14);
+        let recent = crate::services::settings_store::get_recent_activity(14);
         if let Some(act) = recent.iter().find(|a| a.date == today_str) {
             self.activity.today_activity = act.clone();
         }
         self.activity.activity_history = recent;
-        self.activity.lifetime_activity = crate::services::db_worker::get_lifetime_activity();
-        self.scan.past_scans = crate::services::db_worker::list_stored_scans();
+        self.activity.lifetime_activity = crate::services::settings_store::get_lifetime_activity();
+        self.scan.past_scans = crate::services::settings_store::list_stored_scans();
+    }
+
+    #[inline]
+    pub fn reload_db_state(&mut self) {
+        self.reload_activity_state();
     }
 
     pub fn flush_activity(&mut self, now: f64) {
@@ -278,7 +283,7 @@ impl App {
         self.activity.pending_edited = 0;
 
         let today_str = Local::now().date_naive().format("%Y-%m-%d").to_string();
-        let _ = self.services.db_tx.send(DbMsg::FlushActivity {
+        let _ = self.services.db_tx.send(StorageMsg::FlushActivity {
             date: today_str,
             delta_secs: secs as u32,
             delta_keys: keys,

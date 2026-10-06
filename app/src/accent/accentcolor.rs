@@ -52,10 +52,10 @@ impl AccentOverrides {
 
     pub fn save_to_settings(
         &self,
-        tx: &std::sync::mpsc::Sender<crate::services::db_worker::DbMsg>,
+        tx: &std::sync::mpsc::Sender<crate::services::settings_store::StorageMsg>,
     ) {
         let put = |key: &str, c: Option<Color32>| {
-            let _ = tx.send(crate::services::db_worker::DbMsg::SaveSetting {
+            let _ = tx.send(crate::services::settings_store::StorageMsg::SaveSetting {
                 key: key.to_string(),
                 val: c.map(hex_from_color).unwrap_or_default(),
             });

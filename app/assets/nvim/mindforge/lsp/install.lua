@@ -55,6 +55,19 @@ end
 --- Absolute path of the server executable, or nil when it is not installed.
 function M.resolve(spec)
   if spec.rustup then
+    local rustup = vim.fn.exepath('rustup')
+    if rustup ~= '' then
+      local ok, res = pcall(function()
+        return vim.system({ rustup, 'which', spec.bin }, { text = true }):wait()
+      end)
+      if ok and res and res.code == 0 and res.stdout and vim.trim(res.stdout) ~= '' then
+        local p = vim.trim(res.stdout)
+        if vim.uv.fs_stat(p) then
+          return p
+        end
+      end
+      return nil
+    end
     local found = vim.fn.exepath(spec.bin)
     return found ~= '' and found or nil
   end

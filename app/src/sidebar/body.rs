@@ -317,6 +317,159 @@ fn render_tree_entry(
     }
 }
 
+/// Renders the workspace root directory row at depth 0 with expand/collapse chevron and action buttons (VS Code style).
+fn render_root_entry(
+    ui: &mut egui::Ui,
+    root: &std::path::Path,
+    workspace: &mut WorkspaceState,
+    any_modal_open: bool,
+    theme: &Theme,
+    action: &mut Option<SidebarAction>,
+) {
+    let row_w = ui.available_width();
+    let row_h = 24.0;
+    let (row_rect, response) = ui.allocate_exact_size(
+        vec2(row_w, row_h),
+        if any_modal_open {
+            egui::Sense::hover()
+        } else {
+            egui::Sense::click_and_drag()
+        },
+    );
+    let hovered = !any_modal_open && response.hovered();
+    let expanded = workspace.expanded.contains(root);
+    let caret = if expanded { "▾" } else { "▸" };
+    let glyph = "📁";
+    let project_name = root
+        .file_name()
+        .unwrap_or(root.as_os_str())
+        .to_string_lossy();
+
+    // 1. Background highlighting
+    if hovered {
+        let hover_bg = if theme.is_light() {
+            Color32::from_rgba_unmultiplied(0, 0, 0, 10)
+        } else {
+            Color32::from_rgba_unmultiplied(255, 255, 255, 12)
+        };
+        ui.painter().rect_filled(row_rect, 3.0, hover_bg);
+    }
+
+    // DnD hover drop target
+    if response
+        .dnd_hover_payload::<Vec<std::path::PathBuf>>()
+        .is_some()
+    {
+        ui.painter().rect_stroke(
+            row_rect.shrink(1.0),
+            3.0,
+            Stroke::new(1.5, theme.accent),
+            egui::StrokeKind::Inside,
+        );
+    }
+    if let Some(sources) = response.dnd_release_payload::<Vec<std::path::PathBuf>>() {
+        *action = Some(SidebarAction::WorkspaceMove(
+            (*sources).clone(),
+            root.to_path_buf(),
+        ));
+    }
+
+    // 2. Action buttons on hover (right side of the root row)
+    let mut btn_clicked = false;
+    if hovered {
+        let actions_w = 88.0;
+        let actions_rect = Rect::from_min_max(
+            pos2(row_rect.max.x - actions_w, row_rect.min.y),
+            row_rect.max,
+        );
+        ui.allocate_new_ui(
+            egui::UiBuilder::new()
+                .max_rect(actions_rect)
+                .layout(egui::Layout::right_to_left(egui::Align::Center)),
+            |ui| {
+                ui.spacing_mut().item_spacing = vec2(3.0, 0.0);
+                if ui
+                    .add(egui::Button::new(egui::RichText::new("↗").size(11.5)).frame(false))
+                    .on_hover_text("Open workspace folder...")
+                    .clicked()
+                {
+                    *action = Some(SidebarAction::OpenWorkspace);
+                    btn_clicked = true;
+                }
+                if ui
+                    .add(egui::Button::new(egui::RichText::new("↻").size(11.5)).frame(false))
+                    .on_hover_text("Refresh explorer")
+                    .clicked()
+                {
+                    *action = Some(SidebarAction::WorkspaceRefresh);
+                    btn_clicked = true;
+                }
+                if ui
+                    .add(egui::Button::new(egui::RichText::new("📁+").size(11.5)).frame(false))
+                    .on_hover_text("New Folder")
+                    .clicked()
+                {
+                    *action = Some(SidebarAction::WorkspaceCreate(
+                        root.to_path_buf(),
+                        WorkspaceDialog::CreateFolder,
+                    ));
+                    btn_clicked = true;
+                }
+                if ui
+                    .add(egui::Button::new(egui::RichText::new("📄+").size(11.5)).frame(false))
+                    .on_hover_text("New File")
+                    .clicked()
+                {
+                    *action = Some(SidebarAction::WorkspaceCreate(
+                        root.to_path_buf(),
+                        WorkspaceDialog::CreateFile,
+                    ));
+                    btn_clicked = true;
+                }
+            },
+        );
+    }
+
+    // 3. Label text
+    let text_x = row_rect.min.x + 6.0;
+    let right_limit = if hovered {
+        row_rect.max.x - 90.0
+    } else {
+        row_rect.max.x - 4.0
+    };
+    let text_clip = Rect::from_min_max(
+        pos2(text_x, row_rect.min.y),
+        pos2(right_limit, row_rect.max.y),
+    );
+    let text_painter = ui.painter().with_clip_rect(text_clip);
+    let display_str = format!("{caret} {glyph}  {}", project_name.to_uppercase());
+    text_painter.text(
+        pos2(text_x, row_rect.center().y),
+        Align2::LEFT_CENTER,
+        display_str,
+        FontId::proportional(12.0),
+        theme.highlight,
+    );
+
+    let response = response.on_hover_text(format!("Workspace root:\n{}", root.display()));
+
+    // Click: toggle expanded/collapsed!
+    if !btn_clicked && response.clicked() {
+        *action = Some(SidebarAction::ToggleWorkspaceFolder(root.to_path_buf()));
+    }
+
+    // Right-click: context menu
+    if response.secondary_clicked() && !any_modal_open {
+        let pointer_pos = ui
+            .input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+            .unwrap_or(row_rect.left_bottom());
+        workspace.context_menu = Some(crate::ui::menu::MenuState::new(
+            pointer_pos,
+            crate::ui::menu::root_menu(root),
+        ));
+    }
+}
+
 /// Renders the sidebar body: workspace file tree when a project is open, or clean clickable 'nothing available' message when empty.
 pub fn render_sidebar_body(
     ui: &mut egui::Ui,
@@ -400,6 +553,10 @@ pub fn render_sidebar_body(
     }
 
     // 2. ACTIVE WORKSPACE: Render filesystem tree within body_rect
+    let Some(root) = workspace.root.clone() else {
+        return action;
+    };
+
     ui.allocate_new_ui(
         egui::UiBuilder::new()
             .max_rect(body_rect)
@@ -409,24 +566,29 @@ pub fn render_sidebar_body(
                 .id_salt("workspace_tree_scroll")
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
+                    // Render Root Folder (VS Code explorer root node)
+                    render_root_entry(ui, &root, workspace, any_modal_open, theme, &mut action);
+
+                    let is_root_expanded = workspace.expanded.contains(&root);
+                    if !is_root_expanded {
+                        return;
+                    }
+
                     let is_creating = matches!(
                         workspace.dialog,
                         Some(WorkspaceDialog::CreateFile | WorkspaceDialog::CreateFolder)
                     );
                     let is_creating_dir =
                         matches!(workspace.dialog, Some(WorkspaceDialog::CreateFolder));
-                    let creating_at_root = workspace
-                        .root
-                        .as_ref()
-                        .map_or(false, |r| r == &workspace.dialog_parent);
+                    let creating_at_root = workspace.dialog_parent == root;
                     let mut inline_created_rendered = false;
 
-                    // Inline creation row at root level
+                    // Inline creation row at root level (indented inside root at depth 1)
                     if is_creating && creating_at_root {
                         render_inline_creation(
                             ui,
                             workspace,
-                            0,
+                            1,
                             is_creating_dir,
                             theme,
                             &mut action,
@@ -436,19 +598,21 @@ pub fn render_sidebar_body(
 
                     let total_entries = workspace.entries.len();
                     if total_entries == 0 && !is_creating {
-                        ui.add_space(8.0);
-                        ui.label(
-                            egui::RichText::new("Folder is empty")
-                                .color(theme.muted)
-                                .size(12.0),
-                        );
+                        ui.horizontal(|ui| {
+                            ui.add_space(20.0);
+                            ui.label(
+                                egui::RichText::new("Folder is empty")
+                                    .color(theme.muted)
+                                    .size(11.5),
+                            );
+                        });
                     }
 
-                    // Iterate through tree entries
+                    // Iterate through tree entries (children indented at depth + 1)
                     for i in 0..total_entries {
                         let (entry_path, entry_depth, entry_directory) = {
                             let e = &workspace.entries[i];
-                            (e.path.clone(), e.depth, e.directory)
+                            (e.path.clone(), e.depth + 1, e.directory)
                         };
 
                         let is_renaming_this = workspace.dialog == Some(WorkspaceDialog::Rename)
@@ -500,7 +664,7 @@ pub fn render_sidebar_body(
                         render_inline_creation(
                             ui,
                             workspace,
-                            0,
+                            1,
                             is_creating_dir,
                             theme,
                             &mut action,

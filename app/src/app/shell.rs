@@ -162,13 +162,12 @@ impl App {
                     }
                 } else {
                     self.sidebar.dragging_splitter = false;
-                    let _ =
-                        self.services
-                            .db_tx
-                            .send(crate::services::db_worker::DbMsg::SaveSetting {
-                                key: "sidebar_w".into(),
-                                val: self.sidebar.width.to_string(),
-                            });
+                    let _ = self.services.db_tx.send(
+                        crate::services::settings_store::StorageMsg::SaveSetting {
+                            key: "sidebar_w".into(),
+                            val: self.sidebar.width.to_string(),
+                        },
+                    );
                 }
             } else if is_knob_hovered {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeColumn);

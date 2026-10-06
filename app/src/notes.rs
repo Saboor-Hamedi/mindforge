@@ -175,13 +175,26 @@ pub fn quick_save_active_note(app: &mut App, now: f64) {
 
 /// Deletes the active note from the filesystem and in-memory notes_list.
 pub fn delete_active_note(app: &mut App, now: f64) {
-    if app
-        .open_notes
-        .get(app.tabs.active_tab)
-        .is_some_and(|tab| tab.file_path.is_some() && tab.id <= 0)
-    {
-        app.set_status("Code files cannot be deleted from MindForge", now);
-        return;
+    if let Some(tab) = app.open_notes.get(app.tabs.active_tab) {
+        if let Some(path) = tab.file_path.clone() {
+            let file_name_disp = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            let active_idx = app.tabs.active_tab;
+            app.close_tab(active_idx, now);
+            match crate::workspace::delete_path(&path) {
+                Ok(()) => {
+                    let _ = app.workspace.refresh();
+                    app.set_status(format!("Deleted {}", file_name_disp), now);
+                }
+                Err(e) => {
+                    app.set_status(format!("Failed to delete {}: {}", file_name_disp, e), now);
+                }
+            }
+            return;
+        }
     }
     if let Some(id) = app.notes.active_note_id {
         app.notes.notes_list.retain(|n| n.id != id);

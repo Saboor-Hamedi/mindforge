@@ -194,10 +194,9 @@ impl App {
                 .map(|p| p.to_string_lossy().into_owned())
                 .collect();
             if let Ok(value) = serde_json::to_string(&paths) {
-                let _ = self
-                    .services
-                    .db_tx
-                    .send(crate::services::db_worker::DbMsg::SaveSetting { key, val: value });
+                let _ = self.services.db_tx.send(
+                    crate::services::settings_store::StorageMsg::SaveSetting { key, val: value },
+                );
             }
         }
     }
@@ -207,7 +206,7 @@ impl App {
                 if let Some(root) = self.workspace.root.clone() {
                     let expanded_key = format!("workspace_expanded:{}", root.to_string_lossy());
                     if let Some(saved) =
-                        crate::services::db_worker::get_stored_setting(&expanded_key)
+                        crate::services::settings_store::get_stored_setting(&expanded_key)
                     {
                         if let Ok(paths) = serde_json::from_str::<Vec<String>>(&saved) {
                             for path in paths.into_iter().map(std::path::PathBuf::from) {
@@ -219,13 +218,13 @@ impl App {
                         }
                     }
                     let root_str = root.to_string_lossy().into_owned();
-                    crate::services::db_worker::save_setting_sync("workspace_root", &root_str);
+                    crate::services::settings_store::save_setting_sync("workspace_root", &root_str);
                     self.sidebar.open = true;
                     self.misc.show_welcome = false;
 
                     // Track recent workspaces (MRU order, max 10, without duplicating)
                     let mut recents: Vec<String> =
-                        crate::services::db_worker::get_stored_setting("recent_workspaces")
+                        crate::services::settings_store::get_stored_setting("recent_workspaces")
                             .and_then(|s| serde_json::from_str(&s).ok())
                             .unwrap_or_default();
                     recents.retain(|p| p != &root_str);
@@ -233,7 +232,7 @@ impl App {
                     recents.truncate(10);
                     if let Ok(json) = serde_json::to_string(&recents) {
                         let _ = self.services.db_tx.send(
-                            crate::services::db_worker::DbMsg::SaveSetting {
+                            crate::services::settings_store::StorageMsg::SaveSetting {
                                 key: "recent_workspaces".into(),
                                 val: json,
                             },
@@ -262,7 +261,7 @@ impl App {
         self.workspace.dialog = None;
         self.workspace.dialog_name.clear();
         self.workspace.dialog_error = None;
-        crate::services::db_worker::save_setting_sync("workspace_root", "");
+        crate::services::settings_store::save_setting_sync("workspace_root", "");
         if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
             let _ = backend.set_workspace_root(std::path::Path::new(""));
         }
@@ -276,31 +275,30 @@ impl App {
     pub fn remove_recent_workspace(&mut self, path: &std::path::Path) {
         let path_str = path.to_string_lossy();
         let mut recents: Vec<String> =
-            crate::services::db_worker::get_stored_setting("recent_workspaces")
+            crate::services::settings_store::get_stored_setting("recent_workspaces")
                 .and_then(|s| serde_json::from_str(&s).ok())
                 .unwrap_or_default();
         recents.retain(|p| p.as_str() != path_str);
         if let Ok(json) = serde_json::to_string(&recents) {
-            let _ = self
-                .services
-                .db_tx
-                .send(crate::services::db_worker::DbMsg::SaveSetting {
+            let _ = self.services.db_tx.send(
+                crate::services::settings_store::StorageMsg::SaveSetting {
                     key: "recent_workspaces".into(),
                     val: json,
-                });
+                },
+            );
         }
     }
 
     /// Returns the stored list of recent workspace paths.
     pub fn get_recent_workspaces(&self) -> Vec<std::path::PathBuf> {
-        crate::services::db_worker::get_stored_setting("recent_workspaces")
+        crate::services::settings_store::get_stored_setting("recent_workspaces")
             .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
             .map(|list| list.into_iter().map(std::path::PathBuf::from).collect())
             .unwrap_or_default()
     }
 
     /// Navigates to or creates a note/document target referenced by a Wikilink `[[target]]`.
-    /// Resolves against workspace files on disk first, then database notes.
+    /// Resolves against workspace files on disk first, then scratch notes.
     pub fn follow_wikilink(&mut self, target: &str, now: f64) {
         let clean = target.trim();
         if clean.is_empty() {
@@ -350,7 +348,7 @@ impl App {
             }
         }
 
-        // 2. Fall back to existing database notes
+        // 2. Fall back to existing scratch notes
         if let Some(note) = crate::wikilink::resolve_wikilink(clean, &self.notes.notes_list) {
             self.open_note_by_id(note.id, now);
         } else {
@@ -882,7 +880,7 @@ impl eframe::App for App {
                     Ok(scan_res) => {
                         // Persist scan result to filesystem scans.json
                         if let Ok(json_str) = serde_json::to_string(&scan_res.findings) {
-                            crate::services::db_worker::save_stored_scan(
+                            crate::services::settings_store::save_stored_scan(
                                 &scan_res.url,
                                 scan_res.note.as_deref(),
                                 &json_str,

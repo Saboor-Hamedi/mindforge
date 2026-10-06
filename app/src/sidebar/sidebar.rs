@@ -95,8 +95,8 @@ pub fn render_sidebar(
         pos2(sb_rect.max.x - pad_x, sb_rect.max.y - pad_y),
     );
 
-    // Header height: compact when empty, taller when workspace root has controls
-    let header_h = if workspace.root.is_some() { 56.0 } else { 32.0 };
+    // Header height: sleek compact 32.0 px
+    let header_h = 32.0;
     let header_rect = Rect::from_min_max(
         inner_rect.min,
         pos2(inner_rect.max.x, inner_rect.min.y + header_h),
@@ -116,7 +116,7 @@ pub fn render_sidebar(
         pos2(inner_rect.max.x, body_bottom),
     );
 
-    // 1. Sidebar Header (Branding, Stats toggle, and Workspace controls)
+    // 1. Sidebar Header (Branding and Stats toggle)
     let header_action = header::render_sidebar_header(
         ui,
         painter,
@@ -124,7 +124,6 @@ pub fn render_sidebar(
         active_mode_idx,
         theme,
         any_modal_open,
-        workspace,
     );
 
     // 2. Sidebar Body (File explorer tree or clickable empty state)

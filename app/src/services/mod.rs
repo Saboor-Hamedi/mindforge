@@ -2,7 +2,7 @@
 //!
 //! These modules run independently of the UI thread or provide shared
 //! infrastructure used across multiple views:
-//! - `db_worker`: Async background storage queue (prevents UI blocking)
+//! - `settings_store`: Async background settings and metadata storage queue (prevents UI blocking)
 //! - `updater`: GitHub release checker and binary downloader
 //! - `font_manager`: Dynamic font discovery and egui typography loading
 //! - `sound`: Mechanical keyboard audio synthesizer (16-channel PCM)
@@ -10,8 +10,10 @@
 //! - `blur`: Windows DWM Acrylic/Mica backdrop integration
 
 pub mod blur;
-pub mod db_worker;
 pub mod font_manager;
 pub mod fuzzy;
+pub mod settings_store;
 pub mod sound;
 pub mod updater;
+
+pub use settings_store as db_worker;

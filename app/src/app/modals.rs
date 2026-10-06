@@ -3,7 +3,7 @@
 use super::App;
 use crate::modals::{render_confirm_modal, render_rename_modal, render_search_modal};
 use crate::mode::Mode;
-use crate::services::db_worker::DbMsg;
+use crate::services::settings_store::StorageMsg as DbMsg;
 use crate::setting::{render_setting_container, SettingPanelAction};
 use eframe::egui::{self, Rect, Ui};
 
@@ -473,6 +473,17 @@ impl App {
                         .map(|n| n.topic.clone())
                         .unwrap_or_else(|| "this note".to_string());
                     (name, false)
+                } else if let Some(tab) = self.open_notes.get(self.tabs.active_tab) {
+                    if let Some(path) = tab.file_path.as_ref() {
+                        let name = path
+                            .file_name()
+                            .unwrap_or(path.as_os_str())
+                            .to_string_lossy()
+                            .into_owned();
+                        (name, false)
+                    } else {
+                        (self.notes.active_note_title.clone(), false)
+                    }
                 } else {
                     (self.notes.active_note_title.clone(), false)
                 };
@@ -534,7 +545,6 @@ impl App {
                         }
                     }
                 } else if let Some(del_id) = self.modal.pending_delete_note_id.take() {
-                    let _ = self.services.db_tx.send(DbMsg::DeleteNote { id: del_id });
                     self.notes.notes_list.retain(|n| n.id != del_id);
                     if self.notes.active_note_id == Some(del_id) {
                         self.delete_active_note(now);
@@ -574,13 +584,12 @@ impl App {
                 &mut self.misc.opacity,
                 &mut self.misc.blur_effect,
                 &mut |key: &str, val: &str| {
-                    let _ =
-                        self.services
-                            .db_tx
-                            .send(crate::services::db_worker::DbMsg::SaveSetting {
-                                key: key.into(),
-                                val: val.into(),
-                            });
+                    let _ = self.services.db_tx.send(
+                        crate::services::settings_store::StorageMsg::SaveSetting {
+                            key: key.into(),
+                            val: val.into(),
+                        },
+                    );
                 },
             );
             if let Some(act) = action {

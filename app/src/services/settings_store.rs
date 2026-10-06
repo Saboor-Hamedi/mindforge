@@ -1,11 +1,10 @@
-//! Asynchronous background filesystem storage worker thread and message protocol.
+//! Asynchronous background filesystem settings and metadata storage worker.
 //!
-//! The UI thread sends `DbMsg` variants through a channel; a dedicated
+//! The UI thread sends `StorageMsg` variants through a channel; a dedicated
 //! background thread receives and executes them against lightweight JSON files
-//! (`settings.json`, `activity.json`, `cards.json`, `decisions.json`).
+//! (`settings.json`, `activity.json`, `scans.json`) inside `.mindforge`.
 //! 100% pure filesystem storage with zero locks.
 
-use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -14,26 +13,7 @@ use std::thread;
 
 /// Message protocol between the UI thread and the background storage worker.
 #[allow(dead_code)]
-pub enum DbMsg {
-    AddCard {
-        prompt: String,
-        answer: String,
-        tag: Option<String>,
-        today: NaiveDate,
-    },
-    RecordReview {
-        card_id: i64,
-        quality: u8,
-        typed: String,
-        wpm: f32,
-    },
-    UpdateCardSm2 {
-        id: i64,
-        ease: f32,
-        interval: u32,
-        reps: u32,
-        due: NaiveDate,
-    },
+pub enum StorageMsg {
     SaveSetting {
         key: String,
         val: String,
@@ -41,29 +21,6 @@ pub enum DbMsg {
     SaveFocus {
         t1: String,
         t2: String,
-    },
-    UpdateNote {
-        id: i64,
-        body: String,
-    },
-    RenameNote {
-        id: i64,
-        new_topic: String,
-    },
-    DeleteNote {
-        id: i64,
-    },
-    AddDecision {
-        decision: String,
-        reasoning: String,
-        prediction: String,
-        confidence: u8,
-        review_on: NaiveDate,
-    },
-    ResolveDecision {
-        id: i64,
-        outcome: i32,
-        lessons: String,
     },
     FlushActivity {
         date: String,
@@ -74,6 +31,9 @@ pub enum DbMsg {
         delta_edited: u32,
     },
 }
+
+/// Backwards-compatible alias for StorageMsg
+pub type DbMsg = StorageMsg;
 
 #[derive(Default, Serialize, Deserialize)]
 struct ActivityStore {
@@ -95,9 +55,9 @@ fn storage_dir() -> PathBuf {
     dir
 }
 
-/// Spawns the background filesystem storage worker thread.
-pub fn spawn_db_worker() -> Sender<DbMsg> {
-    let (tx, rx): (Sender<DbMsg>, Receiver<DbMsg>) = channel();
+/// Spawns the background filesystem settings and metadata storage worker thread.
+pub fn spawn_settings_store() -> Sender<StorageMsg> {
+    let (tx, rx): (Sender<StorageMsg>, Receiver<StorageMsg>) = channel();
     thread::spawn(move || {
         let dir = storage_dir();
         let settings_file = dir.join("settings.json");
@@ -111,20 +71,20 @@ pub fn spawn_db_worker() -> Sender<DbMsg> {
 
         while let Ok(msg) = rx.recv() {
             match msg {
-                DbMsg::SaveSetting { key, val } => {
+                StorageMsg::SaveSetting { key, val } => {
                     settings_map.insert(key, val);
                     if let Ok(json) = serde_json::to_string_pretty(&settings_map) {
                         let _ = std::fs::write(&settings_file, json);
                     }
                 }
-                DbMsg::SaveFocus { t1, t2 } => {
+                StorageMsg::SaveFocus { t1, t2 } => {
                     settings_map.insert("focus_topic1".into(), t1);
                     settings_map.insert("focus_topic2".into(), t2);
                     if let Ok(json) = serde_json::to_string_pretty(&settings_map) {
                         let _ = std::fs::write(&settings_file, json);
                     }
                 }
-                DbMsg::FlushActivity {
+                StorageMsg::FlushActivity {
                     date,
                     delta_secs,
                     delta_keys,
@@ -148,20 +108,14 @@ pub fn spawn_db_worker() -> Sender<DbMsg> {
                         let _ = std::fs::write(&activity_file, json);
                     }
                 }
-                // Notes are pure filesystem files — handled directly via std::fs
-                DbMsg::UpdateNote { .. } => {}
-                DbMsg::RenameNote { .. } => {}
-                DbMsg::DeleteNote { .. } => {}
-                DbMsg::AddCard { .. } => {}
-                DbMsg::RecordReview { .. } => {}
-                DbMsg::UpdateCardSm2 { .. } => {}
-                DbMsg::AddDecision { .. } => {}
-                DbMsg::ResolveDecision { .. } => {}
             }
         }
     });
     tx
 }
+
+/// Backwards-compatible alias for spawn_settings_store
+pub use spawn_settings_store as spawn_db_worker;
 
 /// Reads a setting directly from `settings.json`.
 pub fn get_stored_setting(key: &str) -> Option<String> {

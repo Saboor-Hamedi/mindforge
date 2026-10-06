@@ -90,13 +90,14 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
             app.set_status("Documentation notes cannot be deleted", now);
             return Some(false);
         }
-        if app
-            .open_notes
-            .get(app.tabs.active_tab)
-            .is_some_and(|tab| tab.file_path.is_some())
-        {
-            app.set_status("Code files cannot be deleted from MindForge", now);
-            return Some(false);
+        if let Some(tab) = app.open_notes.get(app.tabs.active_tab) {
+            if let Some(path) = tab.file_path.clone() {
+                app.modal.delete_confirm_open = true;
+                app.modal.delete_just_opened = true;
+                app.modal.pending_delete_path = Some(path);
+                app.modal.pending_delete_note_id = None;
+                return Some(false);
+            }
         }
         if !app.misc.show_welcome
             && (!app.open_notes.is_empty() || app.notes.active_note_id.is_some())
@@ -107,6 +108,7 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
                 .notes
                 .active_note_id
                 .or_else(|| app.open_notes.get(app.tabs.active_tab).map(|t| t.id));
+            app.modal.pending_delete_path = None;
             return Some(false);
         }
     }

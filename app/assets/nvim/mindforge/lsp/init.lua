@@ -55,7 +55,13 @@ local function build_config(name)
     server.root_markers = server.root_markers or { '.git' }
   end
   if override then
-    server = vim.tbl_deep_extend('force', server, override)
+    server = vim.tbl_deep_extend('force', server, override)
+  end
+  local orig_on_exit = server.on_exit
+  server.on_exit = function(code, signal, client_id)
+    if orig_on_exit then
+      pcall(orig_on_exit, code, signal, client_id)
+    end
   end
   return server.cmd and server or nil
 end

@@ -534,7 +534,7 @@ impl App {
                                     self.misc.show_tabs = true;
                                 }
                                 let _ = self.services.db_tx.send(
-                                    crate::services::db_worker::DbMsg::SaveSetting {
+                                    crate::services::settings_store::StorageMsg::SaveSetting {
                                         key: "zen_mode".into(),
                                         val: if self.misc.zen_mode { "true" } else { "false" }
                                             .into(),

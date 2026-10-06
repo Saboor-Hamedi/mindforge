@@ -42,8 +42,22 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 app.set_status("Documentation files cannot be deleted.", now);
                 return true;
             }
+            if let Some(tab) = app.open_notes.get(app.tabs.active_tab) {
+                if let Some(path) = tab.file_path.clone() {
+                    app.modal.delete_confirm_open = true;
+                    app.modal.delete_just_opened = true;
+                    app.modal.pending_delete_path = Some(path);
+                    app.modal.pending_delete_note_id = None;
+                    return true;
+                }
+            }
             app.modal.delete_confirm_open = true;
             app.modal.delete_just_opened = true;
+            app.modal.pending_delete_note_id = app
+                .notes
+                .active_note_id
+                .or_else(|| app.open_notes.get(app.tabs.active_tab).map(|t| t.id));
+            app.modal.pending_delete_path = None;
             true
         }
         "clear" | "cls" => {

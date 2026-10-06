@@ -14,7 +14,7 @@ use crate::vim::VimRuntime;
 /// State for all external services and background engines.
 pub struct ServicesState {
     /// Channel sender for the background storage worker thread
-    pub db_tx: std::sync::mpsc::Sender<crate::services::db_worker::DbMsg>,
+    pub db_tx: std::sync::mpsc::Sender<crate::services::settings_store::StorageMsg>,
     /// Vim modal editing runtime
     pub vim_runtime: VimRuntime,
     /// In-app GitHub updater
@@ -31,7 +31,9 @@ pub struct ServicesState {
 
 impl ServicesState {
     /// Creates a new services state with the given storage worker sender.
-    pub fn new(db_tx: std::sync::mpsc::Sender<crate::services::db_worker::DbMsg>) -> Self {
+    pub fn new(
+        db_tx: std::sync::mpsc::Sender<crate::services::settings_store::StorageMsg>,
+    ) -> Self {
         Self {
             db_tx,
             vim_runtime: VimRuntime::default(),
@@ -45,7 +47,7 @@ impl ServicesState {
     }
 
     /// Sends a message to the background storage worker.
-    pub fn send_db(&self, msg: crate::services::db_worker::DbMsg) {
+    pub fn send_db(&self, msg: crate::services::settings_store::StorageMsg) {
         let _ = self.db_tx.send(msg);
     }
 }
@@ -53,13 +55,13 @@ impl ServicesState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::db_worker::DbMsg;
+    use crate::services::settings_store::StorageMsg;
 
     #[test]
     fn test_services_send_db() {
         let (tx, rx) = std::sync::mpsc::channel();
         let services = ServicesState::new(tx);
-        services.send_db(DbMsg::SaveSetting {
+        services.send_db(StorageMsg::SaveSetting {
             key: "test".to_string(),
             val: "value".to_string(),
         });

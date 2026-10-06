@@ -65,7 +65,9 @@ impl WorkspaceState {
     pub fn refresh(&mut self) -> std::io::Result<()> {
         self.entries.clear();
         if let Some(root) = self.root.clone() {
-            list_dir(&root, 0, &self.expanded, &mut self.entries)?;
+            if self.expanded.contains(&root) {
+                list_dir(&root, 0, &self.expanded, &mut self.entries)?;
+            }
         }
         self.snapshot = snapshot(self.root.as_deref(), &self.expanded);
         self.selected_items.retain(|path| path.exists());

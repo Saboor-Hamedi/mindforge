@@ -15,7 +15,7 @@ enum SavedTab {
 }
 use crate::caret::CaretKind;
 use crate::editor::Editor;
-use crate::services::db_worker::{spawn_db_worker, DbMsg};
+use crate::services::settings_store::{spawn_settings_store, StorageMsg as DbMsg};
 use crate::services::sound::SoundProfile;
 use crate::setting::SettingTab;
 use crate::ui::theme::{Theme, ThemeKind};
@@ -34,7 +34,7 @@ impl App {
     }
 
     pub fn new_with_flags(is_new_window: bool) -> Self {
-        let tx = spawn_db_worker();
+        let tx = spawn_settings_store();
 
         let mut app = Self {
             workspace: crate::workspace::WorkspaceState::default(),
@@ -106,7 +106,7 @@ impl App {
         };
 
         app.load_settings();
-        let stored_settings = crate::services::db_worker::get_all_stored_settings();
+        let stored_settings = crate::services::settings_store::get_all_stored_settings();
 
         if !is_new_window {
             if let Some(path) = stored_settings.get("workspace_root") {
@@ -199,13 +199,13 @@ impl App {
             .date_naive()
             .format("%Y-%m-%d")
             .to_string();
-        let recent = crate::services::db_worker::get_recent_activity(14);
+        let recent = crate::services::settings_store::get_recent_activity(14);
         if let Some(act) = recent.iter().find(|a| a.date == today_str) {
             app.activity.today_activity = act.clone();
         }
         app.activity.activity_history = recent;
-        app.activity.lifetime_activity = crate::services::db_worker::get_lifetime_activity();
-        app.scan.past_scans = crate::services::db_worker::list_stored_scans();
+        app.activity.lifetime_activity = crate::services::settings_store::get_lifetime_activity();
+        app.scan.past_scans = crate::services::settings_store::list_stored_scans();
         if let Some(json) = stored_settings.get("command_history") {
             if let Ok(hist) = serde_json::from_str::<Vec<String>>(json) {
                 app.command_bar.history = hist;
@@ -220,7 +220,7 @@ impl App {
     }
 
     pub fn load_settings(&mut self) {
-        let settings = crate::services::db_worker::get_all_stored_settings();
+        let settings = crate::services::settings_store::get_all_stored_settings();
         let map: std::collections::BTreeMap<String, String> = settings.into_iter().collect();
 
         if let Some(c) = map.get("caret") {
@@ -383,9 +383,12 @@ impl App {
             saved.push(entry);
         }
         if let Ok(json) = serde_json::to_string(&saved) {
-            crate::services::db_worker::save_setting_sync("open_tabs_v2", &json);
+            crate::services::settings_store::save_setting_sync("open_tabs_v2", &json);
         }
-        crate::services::db_worker::save_setting_sync("open_tabs_v2_active", &active.to_string());
+        crate::services::settings_store::save_setting_sync(
+            "open_tabs_v2_active",
+            &active.to_string(),
+        );
     }
 
     pub fn sync_save_session(&mut self) {
@@ -472,7 +475,7 @@ impl App {
         if let Ok(json) = serde_json::to_string(&self.command_bar.history) {
             batch.push(("command_history", json));
         }
-        crate::services::db_worker::save_settings_batch_sync(&batch);
+        crate::services::settings_store::save_settings_batch_sync(&batch);
         self.persist_workspace_expansion();
         self.save_open_tabs();
     }

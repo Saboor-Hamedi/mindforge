@@ -2,7 +2,7 @@
 
 use crate::app::App;
 use crate::caret::CaretKind;
-use crate::services::db_worker::DbMsg;
+use crate::services::settings_store::StorageMsg as DbMsg;
 use crate::services::sound::SoundProfile;
 use crate::ui::theme::{Theme, ThemeKind};
 

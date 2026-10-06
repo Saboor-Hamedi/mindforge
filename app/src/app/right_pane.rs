@@ -67,7 +67,7 @@ impl App {
                         self.editor.preview_open = false;
                         self.services.agent_state.is_open = false;
                         let _ = self.services.db_tx.send(
-                            crate::services::db_worker::DbMsg::SaveSetting {
+                            crate::services::settings_store::StorageMsg::SaveSetting {
                                 key: "preview".into(),
                                 val: "false".into(),
                             },

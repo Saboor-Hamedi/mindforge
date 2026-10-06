@@ -1,7 +1,7 @@
 //! View layout, UI toggles, and editor settings commands (:set, :nu, :preview, :zen, :tabs, :sidebar, :titlebar, :noh).
 
 use crate::app::App;
-use crate::services::db_worker::DbMsg;
+use crate::services::settings_store::StorageMsg as DbMsg;
 
 pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> bool {
     match cmd {

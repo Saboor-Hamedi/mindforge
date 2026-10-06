@@ -80,7 +80,7 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             true
         }
         "scans" | "scanhistory" | "securityhistory" => {
-            app.scan.past_scans = crate::services::db_worker::list_stored_scans();
+            app.scan.past_scans = crate::services::settings_store::list_stored_scans();
             app.scan.prev_mode_before_scan = app.misc.mode;
             app.scan.scan_history_selected = 0;
             app.scan.scan_history_scroll_y = 0.0;
