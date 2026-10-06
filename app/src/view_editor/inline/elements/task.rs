@@ -27,7 +27,11 @@ pub fn render_task_checkbox(
         painter.line_segment([p2, p3], Stroke::new(2.0_f32, check_color));
     } else {
         // Empty outlined box with smooth hover glow
-        let border_color = if is_hovered { theme.accent } else { theme.border() };
+        let border_color = if is_hovered {
+            theme.accent
+        } else {
+            theme.border()
+        };
         let fill_color = if is_hovered {
             Color32::from_rgba_unmultiplied(
                 theme.accent.r(),

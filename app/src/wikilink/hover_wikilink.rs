@@ -102,7 +102,8 @@ impl HoverWikiLinkState {
         } else {
             self.target_note_id = None;
             self.target_title = target.to_string();
-            self.target_body = "*Note does not exist yet. Click the link icon above to create it.*".to_string();
+            self.target_body =
+                "*Note does not exist yet. Click the link icon above to create it.*".to_string();
         }
     }
 }
@@ -139,7 +140,10 @@ pub fn render_hover_wikilink_popup(
 
     // Position popup right below or above the anchor with zero gap
     let mut top_left = pos2(
-        (state.anchor_pos.x - 12.0).clamp(window_bounds.min.x + 10.0, (window_bounds.max.x - popup_w - 10.0).max(window_bounds.min.x + 10.0)),
+        (state.anchor_pos.x - 12.0).clamp(
+            window_bounds.min.x + 10.0,
+            (window_bounds.max.x - popup_w - 10.0).max(window_bounds.min.x + 10.0),
+        ),
         state.anchor_pos.y + 2.0,
     );
     if top_left.y + popup_h > window_bounds.max.y - 30.0 {
@@ -170,18 +174,27 @@ pub fn render_hover_wikilink_popup(
     );
 
     let header_h = 34.0;
-    let header_rect = Rect::from_min_max(popup_rect.min, pos2(popup_rect.max.x, popup_rect.min.y + header_h));
+    let header_rect = Rect::from_min_max(
+        popup_rect.min,
+        pos2(popup_rect.max.x, popup_rect.min.y + header_h),
+    );
 
     // Header subtle divider
     painter.line_segment(
-        [pos2(header_rect.min.x, header_rect.max.y), pos2(header_rect.max.x, header_rect.max.y)],
+        [
+            pos2(header_rect.min.x, header_rect.max.y),
+            pos2(header_rect.max.x, header_rect.max.y),
+        ],
         Stroke::new(1.0_f32, theme.border()),
     );
 
     // Left: Document / Folder icon
     let is_nested = state.target_title.contains('/') || state.target_title.contains('\\');
     let icon_name = if is_nested { "folder" } else { "doc" };
-    let icon_rect = Rect::from_center_size(pos2(header_rect.min.x + 18.0, header_rect.center().y), vec2(14.0, 14.0));
+    let icon_rect = Rect::from_center_size(
+        pos2(header_rect.min.x + 18.0, header_rect.center().y),
+        vec2(14.0, 14.0),
+    );
     crate::ui_components::render_vector_icon(painter, icon_name, icon_rect, theme.accent);
 
     // Handle large file names safely without panicking on UTF-8 boundaries
@@ -212,10 +225,20 @@ pub fn render_hover_wikilink_popup(
         vec2(btn_size, btn_size),
     );
     let is_open_hovered = pointer_pos.map_or(false, |p| open_btn_rect.contains(p));
-    let link_color = if is_open_hovered { theme.accent } else { theme.muted };
+    let link_color = if is_open_hovered {
+        theme.accent
+    } else {
+        theme.muted
+    };
     let link_c = open_btn_rect.center();
     let stroke = Stroke::new(1.3_f32, link_color);
-    painter.line_segment([pos2(link_c.x - 4.0, link_c.y + 4.0), pos2(link_c.x + 4.0, link_c.y - 4.0)], stroke);
+    painter.line_segment(
+        [
+            pos2(link_c.x - 4.0, link_c.y + 4.0),
+            pos2(link_c.x + 4.0, link_c.y - 4.0),
+        ],
+        stroke,
+    );
     painter.circle_stroke(pos2(link_c.x - 2.2, link_c.y + 2.2), 2.2, stroke);
     painter.circle_stroke(pos2(link_c.x + 2.2, link_c.y - 2.2), 2.2, stroke);
 
@@ -225,11 +248,27 @@ pub fn render_hover_wikilink_popup(
         vec2(btn_size, btn_size),
     );
     let is_close_hovered = pointer_pos.map_or(false, |p| close_btn_rect.contains(p));
-    let close_color = if is_close_hovered { theme.accent } else { theme.muted };
+    let close_color = if is_close_hovered {
+        theme.accent
+    } else {
+        theme.muted
+    };
     let close_c = close_btn_rect.center();
     let x_stroke = Stroke::new(1.3_f32, close_color);
-    painter.line_segment([pos2(close_c.x - 3.5, close_c.y - 3.5), pos2(close_c.x + 3.5, close_c.y + 3.5)], x_stroke);
-    painter.line_segment([pos2(close_c.x + 3.5, close_c.y - 3.5), pos2(close_c.x - 3.5, close_c.y + 3.5)], x_stroke);
+    painter.line_segment(
+        [
+            pos2(close_c.x - 3.5, close_c.y - 3.5),
+            pos2(close_c.x + 3.5, close_c.y + 3.5),
+        ],
+        x_stroke,
+    );
+    painter.line_segment(
+        [
+            pos2(close_c.x + 3.5, close_c.y - 3.5),
+            pos2(close_c.x - 3.5, close_c.y + 3.5),
+        ],
+        x_stroke,
+    );
 
     if is_close_hovered && primary_clicked {
         state.dismiss();
@@ -270,8 +309,12 @@ pub fn render_hover_wikilink_popup(
         }
 
         let (down, up) = ui.input_mut(|i| {
-            let d = i.key_pressed(egui::Key::ArrowDown) || i.key_pressed(egui::Key::PageDown) || (i.modifiers.ctrl && i.key_pressed(egui::Key::J));
-            let u = i.key_pressed(egui::Key::ArrowUp) || i.key_pressed(egui::Key::PageUp) || (i.modifiers.ctrl && i.key_pressed(egui::Key::K));
+            let d = i.key_pressed(egui::Key::ArrowDown)
+                || i.key_pressed(egui::Key::PageDown)
+                || (i.modifiers.ctrl && i.key_pressed(egui::Key::J));
+            let u = i.key_pressed(egui::Key::ArrowUp)
+                || i.key_pressed(egui::Key::PageUp)
+                || (i.modifiers.ctrl && i.key_pressed(egui::Key::K));
             (d, u)
         });
         if down {
@@ -306,15 +349,22 @@ mod tests {
     #[test]
     fn test_hover_wikilink_dwell_delay_and_dismissal() {
         let now = Local::now().naive_local();
-        let notes = vec![
-            Note { id: 10, topic: "Architecture".into(), body: "System design specs".into(), struggled_with: None, created_at: now },
-        ];
+        let notes = vec![Note {
+            id: 10,
+            topic: "Architecture".into(),
+            body: "System design specs".into(),
+            struggled_with: None,
+            created_at: now,
+        }];
 
         let mut state = HoverWikiLinkState::default();
 
         // 1. Mouse enters the link
         state.update_hover("Architecture", pos2(100.0, 100.0), &notes, 1.0);
-        assert!(!state.is_active(), "Should not be active before dwell delay of 150ms");
+        assert!(
+            !state.is_active(),
+            "Should not be active before dwell delay of 150ms"
+        );
         assert_eq!(state.pending_target.as_deref(), Some("Architecture"));
 
         // 2. Before 150ms passes (e.g. at 1.10s -> 100ms)
@@ -335,7 +385,10 @@ mod tests {
 
         // 5. As long as mouse is still on this link, it remains dismissed
         state.update_hover("Architecture", pos2(100.0, 100.0), &notes, 1.30);
-        assert!(!state.is_active(), "Must stay dismissed until mouse leaves link");
+        assert!(
+            !state.is_active(),
+            "Must stay dismissed until mouse leaves link"
+        );
 
         // 6. Mouse moves away from link
         state.dismissed_target = None;
@@ -347,4 +400,3 @@ mod tests {
         assert!(state.is_active(), "Can hover again after moving away");
     }
 }
-

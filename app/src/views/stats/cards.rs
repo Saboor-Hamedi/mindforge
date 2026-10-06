@@ -45,7 +45,10 @@ pub fn render_hero_cards(
         let card_w = ((avail_w - 3.0 * gap) / 4.0).max(100.0);
         for (i, (label, val, sub)) in cards_data.iter().enumerate() {
             let c_rect = Rect::from_min_size(
-                pos2(cards_rect.min.x + i as f32 * (card_w + gap), cards_rect.min.y),
+                pos2(
+                    cards_rect.min.x + i as f32 * (card_w + gap),
+                    cards_rect.min.y,
+                ),
                 vec2(card_w, card_h),
             );
             draw_metric_card(p, c_rect, label, val, sub, theme, scale);
@@ -86,7 +89,16 @@ pub fn draw_metric_card(
 
     // Accent line on left edge: width stays at 3.0
     let stripe = Rect::from_min_size(rect.min, vec2(3.0, rect.height()));
-    p.rect_filled(stripe, egui::CornerRadius { nw: 5, sw: 5, ne: 0, se: 0 }, theme.highlight);
+    p.rect_filled(
+        stripe,
+        egui::CornerRadius {
+            nw: 5,
+            sw: 5,
+            ne: 0,
+            se: 0,
+        },
+        theme.highlight,
+    );
 
     let left_content_pad = 16.0 * scale;
 

@@ -21,8 +21,6 @@ use eframe::egui::{Pos2, Rect};
 use eframe::egui::{self, Color32, FontId};
 use std::time::Duration;
 
-pub use crate::editor::types::EditorMode as EditorInputMode;
-
 #[derive(Clone)]
 pub struct OpenNote {
     pub id: i64,
@@ -84,7 +82,6 @@ pub struct App {
     // External services and background engines
     pub services: crate::state::services::ServicesState,
 
-    // Active editing mode (Hybrid vs Vim)
     pub showcmd: crate::ui::showcmd::ShowCmdState,
     pub active_doc_idx: usize,
     pub doc_sidebar_focused: bool,
@@ -114,36 +111,77 @@ impl App {
 
     fn apply_external_workspace_renames(&mut self) {
         let renames = self.workspace.take_external_renames();
-        if renames.is_empty() { return; }
+        if renames.is_empty() {
+            return;
+        }
         for (old, new) in renames {
             self.remap_workspace_prefix(&old, &new);
-            let versions: Vec<_> = self.file_versions.iter().map(|(p,v)|(p.clone(),*v)).collect();
-            for (path,version) in versions {
-                if path.starts_with(&old) { if let Ok(suffix)=path.strip_prefix(&old) {
-                    self.file_versions.remove(&path);
-                    let moved=new.join(suffix);
-                    if let Ok(actual)=crate::workspace::file_fingerprint(&moved) { self.file_versions.insert(moved,actual); }
-                    else { self.file_versions.insert(moved,version); }
-                } }
+            let versions: Vec<_> = self
+                .file_versions
+                .iter()
+                .map(|(p, v)| (p.clone(), *v))
+                .collect();
+            for (path, version) in versions {
+                if path.starts_with(&old) {
+                    if let Ok(suffix) = path.strip_prefix(&old) {
+                        self.file_versions.remove(&path);
+                        let moved = new.join(suffix);
+                        if let Ok(actual) = crate::workspace::file_fingerprint(&moved) {
+                            self.file_versions.insert(moved, actual);
+                        } else {
+                            self.file_versions.insert(moved, version);
+                        }
+                    }
+                }
             }
             for tab in &mut self.open_notes {
-                if let Some(path)=tab.file_path.as_mut() { if path.starts_with(&old) {
-                    if let Ok(suffix)=path.strip_prefix(&old) { *path=new.join(suffix); }
-                    if *path==new { tab.title=new.file_name().unwrap_or_default().to_string_lossy().into_owned(); }
-                } }
+                if let Some(path) = tab.file_path.as_mut() {
+                    if path.starts_with(&old) {
+                        if let Ok(suffix) = path.strip_prefix(&old) {
+                            *path = new.join(suffix);
+                        }
+                        if *path == new {
+                            tab.title = new
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .into_owned();
+                        }
+                    }
+                }
             }
         }
-        let _=self.workspace.refresh();
+        let _ = self.workspace.refresh();
         self.persist_workspace_expansion();
         self.save_open_tabs();
     }
 
-    fn remap_workspace_prefix(&mut self,old:&std::path::Path,new:&std::path::Path){
-        let expanded:Vec<_>=self.workspace.expanded.iter().cloned().collect();
-        for path in expanded {if path.starts_with(old){if let Ok(suffix)=path.strip_prefix(old){self.workspace.expanded.remove(&path);self.workspace.expanded.insert(new.join(suffix));}}}
-        let selected:Vec<_>=self.workspace.selected_items.iter().cloned().collect();
-        for path in selected {if path.starts_with(old){if let Ok(suffix)=path.strip_prefix(old){self.workspace.selected_items.remove(&path);self.workspace.selected_items.insert(new.join(suffix));}}}
-        if let Some(anchor)=self.workspace.selection_anchor.as_mut(){if anchor.starts_with(old){if let Ok(suffix)=anchor.strip_prefix(old){*anchor=new.join(suffix);}}}
+    fn remap_workspace_prefix(&mut self, old: &std::path::Path, new: &std::path::Path) {
+        let expanded: Vec<_> = self.workspace.expanded.iter().cloned().collect();
+        for path in expanded {
+            if path.starts_with(old) {
+                if let Ok(suffix) = path.strip_prefix(old) {
+                    self.workspace.expanded.remove(&path);
+                    self.workspace.expanded.insert(new.join(suffix));
+                }
+            }
+        }
+        let selected: Vec<_> = self.workspace.selected_items.iter().cloned().collect();
+        for path in selected {
+            if path.starts_with(old) {
+                if let Ok(suffix) = path.strip_prefix(old) {
+                    self.workspace.selected_items.remove(&path);
+                    self.workspace.selected_items.insert(new.join(suffix));
+                }
+            }
+        }
+        if let Some(anchor) = self.workspace.selection_anchor.as_mut() {
+            if anchor.starts_with(old) {
+                if let Ok(suffix) = anchor.strip_prefix(old) {
+                    *anchor = new.join(suffix);
+                }
+            }
+        }
     }
 
     fn persist_workspace_expansion(&self) {
@@ -159,10 +197,7 @@ impl App {
                 let _ = self
                     .services
                     .db_tx
-                    .send(crate::services::db_worker::DbMsg::SaveSetting {
-                        key,
-                        val: value,
-                    });
+                    .send(crate::services::db_worker::DbMsg::SaveSetting { key, val: value });
             }
         }
     }
@@ -171,7 +206,9 @@ impl App {
             Ok(()) => {
                 if let Some(root) = self.workspace.root.clone() {
                     let expanded_key = format!("workspace_expanded:{}", root.to_string_lossy());
-                    if let Some(saved) = crate::services::db_worker::get_stored_setting(&expanded_key) {
+                    if let Some(saved) =
+                        crate::services::db_worker::get_stored_setting(&expanded_key)
+                    {
                         if let Ok(paths) = serde_json::from_str::<Vec<String>>(&saved) {
                             for path in paths.into_iter().map(std::path::PathBuf::from) {
                                 if path.is_dir() && path.starts_with(&root) {
@@ -182,26 +219,25 @@ impl App {
                         }
                     }
                     let root_str = root.to_string_lossy().into_owned();
-                    let _ =
-                        self.services
-                            .db_tx
-                            .send(crate::services::db_worker::DbMsg::SaveSetting {
-                                key: "workspace_root".into(),
-                                val: root_str.clone(),
-                            });
+                    crate::services::db_worker::save_setting_sync("workspace_root", &root_str);
+                    self.sidebar.open = true;
+                    self.misc.show_welcome = false;
 
                     // Track recent workspaces (MRU order, max 10, without duplicating)
-                    let mut recents: Vec<String> = crate::services::db_worker::get_stored_setting("recent_workspaces")
-                        .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or_default();
+                    let mut recents: Vec<String> =
+                        crate::services::db_worker::get_stored_setting("recent_workspaces")
+                            .and_then(|s| serde_json::from_str(&s).ok())
+                            .unwrap_or_default();
                     recents.retain(|p| p != &root_str);
                     recents.insert(0, root_str);
                     recents.truncate(10);
                     if let Ok(json) = serde_json::to_string(&recents) {
-                        let _ = self.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
-                            key: "recent_workspaces".into(),
-                            val: json,
-                        });
+                        let _ = self.services.db_tx.send(
+                            crate::services::db_worker::DbMsg::SaveSetting {
+                                key: "recent_workspaces".into(),
+                                val: json,
+                            },
+                        );
                     }
                 }
                 if let (Some(backend), Some(root)) = (
@@ -226,13 +262,7 @@ impl App {
         self.workspace.dialog = None;
         self.workspace.dialog_name.clear();
         self.workspace.dialog_error = None;
-        let _ = self
-            .services
-            .db_tx
-            .send(crate::services::db_worker::DbMsg::SaveSetting {
-                key: "workspace_root".into(),
-                val: String::new(),
-            });
+        crate::services::db_worker::save_setting_sync("workspace_root", "");
         if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
             let _ = backend.set_workspace_root(std::path::Path::new(""));
         }
@@ -245,15 +275,19 @@ impl App {
     /// Removes a workspace path from the recent list WITHOUT deleting any files on disk.
     pub fn remove_recent_workspace(&mut self, path: &std::path::Path) {
         let path_str = path.to_string_lossy();
-        let mut recents: Vec<String> = crate::services::db_worker::get_stored_setting("recent_workspaces")
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
+        let mut recents: Vec<String> =
+            crate::services::db_worker::get_stored_setting("recent_workspaces")
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
         recents.retain(|p| p.as_str() != path_str);
         if let Ok(json) = serde_json::to_string(&recents) {
-            let _ = self.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
-                key: "recent_workspaces".into(),
-                val: json,
-            });
+            let _ = self
+                .services
+                .db_tx
+                .send(crate::services::db_worker::DbMsg::SaveSetting {
+                    key: "recent_workspaces".into(),
+                    val: json,
+                });
         }
     }
 
@@ -288,12 +322,16 @@ impl App {
 
             // Search by stem or filename in workspace entries
             let clean_lower = clean.to_ascii_lowercase();
-            if let Some(entry) = self.workspace.entries.iter().find(|e| {
-                !e.directory && (
-                    e.path.file_stem().is_some_and(|s| s.to_string_lossy().to_ascii_lowercase() == clean_lower)
-                    || e.path.file_name().is_some_and(|n| n.to_string_lossy().to_ascii_lowercase() == clean_lower)
-                )
-            }) {
+            if let Some(entry) =
+                self.workspace.entries.iter().find(|e| {
+                    !e.directory
+                        && (e.path.file_stem().is_some_and(|s| {
+                            s.to_string_lossy().to_ascii_lowercase() == clean_lower
+                        }) || e.path.file_name().is_some_and(|n| {
+                            n.to_string_lossy().to_ascii_lowercase() == clean_lower
+                        }))
+                })
+            {
                 let path = entry.path.clone();
                 self.open_file_path(path, now);
                 return;
@@ -321,7 +359,7 @@ impl App {
         }
     }
 
-    pub fn toggle_workspace_folder(&mut self,path:&std::path::Path){
+    pub fn toggle_workspace_folder(&mut self, path: &std::path::Path) {
         self.workspace.toggle(path);
         self.persist_workspace_expansion();
     }
@@ -501,12 +539,18 @@ impl App {
                 .is_some_and(|p| crate::workspace::same_path(p, &path))
         }) {
             self.switch_tab(index, now);
-            self.sidebar.focused=false;
+            self.sidebar.focused = false;
             return;
         }
         if let Ok(meta) = std::fs::metadata(&path) {
             if meta.len() > 30 * 1024 * 1024 {
-                self.set_status(format!("File too large to open ({} MB, limit is 30MB)", meta.len() / (1024 * 1024)), now);
+                self.set_status(
+                    format!(
+                        "File too large to open ({} MB, limit is 30MB)",
+                        meta.len() / (1024 * 1024)
+                    ),
+                    now,
+                );
                 return;
             }
         }
@@ -560,8 +604,8 @@ impl App {
         });
         self.tabs.active_tab = self.open_notes.len() - 1;
         self.tabs.last_active_tab = self.tabs.active_tab;
-        self.sidebar.focused=false;
-        self.misc.caret.gliding=false;
+        self.sidebar.focused = false;
+        self.misc.caret.gliding = false;
         self.save_active_note_id();
         self.save_open_tabs();
         self.set_status(format!("Opened {}", self.display_file_path(&path)), now);
@@ -569,7 +613,7 @@ impl App {
 
     pub fn perform_workspace_dialog(&mut self, now: f64) {
         let kind = self.workspace.dialog;
-        let dialog_parent=self.workspace.dialog_parent.clone();
+        let dialog_parent = self.workspace.dialog_parent.clone();
         let old = self.workspace.selected_path.clone();
         if kind == Some(crate::workspace::WorkspaceDialog::Delete) {
             if let Some(path) = old.as_ref() {
@@ -593,9 +637,15 @@ impl App {
         };
         match self.workspace.perform() {
             Ok(()) => {
-                if matches!(kind,Some(crate::workspace::WorkspaceDialog::CreateFile|crate::workspace::WorkspaceDialog::CreateFolder)) {
+                if matches!(
+                    kind,
+                    Some(
+                        crate::workspace::WorkspaceDialog::CreateFile
+                            | crate::workspace::WorkspaceDialog::CreateFolder
+                    )
+                ) {
                     self.workspace.expanded.insert(dialog_parent.clone());
-                    let _=self.workspace.refresh();
+                    let _ = self.workspace.refresh();
                     self.persist_workspace_expansion();
                     if kind == Some(crate::workspace::WorkspaceDialog::CreateFile) {
                         let created_file = dialog_parent.join(&created_name);
@@ -646,7 +696,7 @@ impl App {
                 self.set_status("Workspace updated", now);
             }
             Err(e) => {
-                self.workspace.dialog_error=Some(e.to_string());
+                self.workspace.dialog_error = Some(e.to_string());
                 self.set_status(format!("Filesystem operation failed: {e}"), now);
             }
         }
@@ -696,7 +746,9 @@ impl App {
                         }
                     }
                 }
-                for (from,to) in &targets {self.remap_workspace_prefix(from,to);}
+                for (from, to) in &targets {
+                    self.remap_workspace_prefix(from, to);
+                }
                 let versions: Vec<_> = self
                     .file_versions
                     .iter()
@@ -740,99 +792,23 @@ impl eframe::App for App {
         let now = ctx.input(|i| i.time);
         if self.workspace.poll_external(now) {
             self.apply_external_workspace_renames();
-            if self.modal.search_open { self.update_search_results(); }
+            if self.modal.search_open {
+                self.update_search_results();
+            }
             ctx.request_repaint();
         }
         let dt = ctx.input(|i| i.unstable_dt).clamp(0.0, 0.05);
-        let mode_at_frame_start = self.services.editor_controller.mode;
-        crate::vim::runtime::update(self, ctx, now, mode_at_frame_start);
+        crate::vim::runtime::update(self, ctx, now);
 
-        // Precompute visual lines so keyboard navigation (ArrowUp, ArrowDown, PageUp, PageDown) uses accurate visual layout
-        let (cw, _) = self.cell_size(ctx);
-        let screen_w = ctx.screen_rect().width();
-        let left_margin = if self.sidebar.open {
-            crate::layout::GAP
-                + self.sidebar.width
-                + crate::layout::SPLITTER_BAR_W
-                + crate::layout::GAP
-        } else {
-            crate::layout::GAP
-        };
-        let editor_w = (screen_w - left_margin - crate::layout::GAP).max(100.0);
-        let is_preview_active = self.editor.preview_open && self.misc.mode == Mode::Normal;
-        let effective_editor_w = if is_preview_active {
-            let divider_w = 12.0;
-            let available_w = (editor_w - divider_w).max(200.0);
-            let min_w = 120.0f32;
-            let max_w = (available_w - 120.0f32).max(min_w);
-            (available_w * self.editor.split_ratio).clamp(min_w, max_w)
-        } else {
-            editor_w
-        };
-        let (ed_font_size, _, _) = self.misc.zoom.editor_metrics(self.misc.font_size, ctx);
         let active_ed = if self.misc.mode == Mode::Doc {
             &self.editor.doc_ed
         } else {
             &self.editor.ed
         };
-        let in_vim = self.services.editor_controller.mode == EditorInputMode::Vim
-            && matches!(self.misc.mode, Mode::Normal | Mode::Doc);
-        let use_inline_markdown = self.editor.inline_mode
-            && (self.misc.mode == Mode::Doc
-                || self.active_language() == crate::language::FileLanguage::Markdown);
-        self.editor.visual_lines = if in_vim {
-            vec![crate::types::VisualLine {
-                char_start: 0,
-                char_end: active_ed.buf.len(),
-            }]
-        } else if use_inline_markdown {
-            let gutter_w = if self.editor.show_line_numbers {
-                let total_lines = (active_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
-                let digits = total_lines.to_string().len().max(2);
-                (digits as f32 * (ed_font_size * 0.55) + 14.0).max(28.0)
-            } else {
-                0.0
-            };
-            let pad_x = if self.editor.show_line_numbers {
-                16.0
-            } else {
-                24.0
-            };
-            let safe_w = effective_editor_w;
-            let effective_gutter_w = if safe_w > gutter_w + 40.0 {
-                gutter_w
-            } else {
-                0.0
-            };
-            let wrap_w = (effective_editor_w - effective_gutter_w - pad_x - 24.0).max(120.0);
-            let inline_layout = crate::view_editor::inline::compute_inline_layout_ctx(
-                ctx,
-                active_ed,
-                wrap_w,
-                ed_font_size,
-                &self.misc.theme,
-                0.0,
-            );
-            inline_layout.compute_visual_lines()
-        } else {
-            let gutter_space = if self.editor.show_line_numbers {
-                42.0
-            } else {
-                0.0
-            };
-            let text_area_w = (effective_editor_w - gutter_space - 8.0).max(100.0);
-            let max_cols = (text_area_w / cw).floor().max(15.0) as usize;
-            if self.editor.cached_visual_cols == Some(max_cols)
-                && self.editor.cached_buf_len == active_ed.buf.len()
-                && !self.editor.visual_lines.is_empty()
-            {
-                std::mem::take(&mut self.editor.visual_lines)
-            } else {
-                self.editor.cached_visual_cols = Some(max_cols);
-                self.editor.cached_buf_len = active_ed.buf.len();
-                active_ed.compute_visual_lines(max_cols)
-            }
-        };
+        self.editor.visual_lines = vec![crate::types::VisualLine {
+            char_start: 0,
+            char_end: active_ed.buf.len(),
+        }];
 
         if self.terminal.open || self.misc.mode == Mode::Terminal {
             if let Some(ref mut pane) = self.terminal.pane {
@@ -943,9 +919,6 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 self.draw(ui, dt, now, typed);
             });
-        // Defer recording transitions performed during this frame until the
-        // next update, where the newly selected backend can reconcile state.
-        self.services.editor_controller.last_observed_mode = mode_at_frame_start;
 
         // Repaint gating: animate caret at high rate; command/modal at ~60fps; idle at 100ms.
         // Do NOT call request_repaint() (unbounded) for command mode — it starves the Windows

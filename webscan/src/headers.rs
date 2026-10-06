@@ -13,7 +13,10 @@ pub fn check(headers: &HeaderMap, is_https: bool) -> Vec<Finding> {
                         category: Category::Headers,
                         severity: Severity::Low,
                         title: "HSTS header missing max-age".into(),
-                        description: format!("HSTS value '{}' lacks valid max-age directive", v_str),
+                        description: format!(
+                            "HSTS value '{}' lacks valid max-age directive",
+                            v_str
+                        ),
                     });
                 }
             }
@@ -38,12 +41,15 @@ pub fn check(headers: &HeaderMap, is_https: bool) -> Vec<Finding> {
     }
 
     // 3. X-Frame-Options (Clickjacking)
-    if !headers.contains_key("x-frame-options") && !headers.contains_key("content-security-policy") {
+    if !headers.contains_key("x-frame-options") && !headers.contains_key("content-security-policy")
+    {
         findings.push(Finding {
             category: Category::Headers,
             severity: Severity::Medium,
             title: "X-Frame-Options missing".into(),
-            description: "No anti-clickjacking protection found. Page may be framed by external sites.".into(),
+            description:
+                "No anti-clickjacking protection found. Page may be framed by external sites."
+                    .into(),
         });
     }
 
@@ -72,7 +78,9 @@ pub fn check(headers: &HeaderMap, is_https: bool) -> Vec<Finding> {
             category: Category::Headers,
             severity: Severity::Low,
             title: "Referrer-Policy missing".into(),
-            description: "Referrer information may leak sensitive path or query parameters to third parties.".into(),
+            description:
+                "Referrer information may leak sensitive path or query parameters to third parties."
+                    .into(),
         });
     }
 
@@ -82,7 +90,9 @@ pub fn check(headers: &HeaderMap, is_https: bool) -> Vec<Finding> {
             category: Category::Headers,
             severity: Severity::Low,
             title: "Permissions-Policy missing".into(),
-            description: "Browser features (camera, microphone, geolocation) are not explicitly restricted.".into(),
+            description:
+                "Browser features (camera, microphone, geolocation) are not explicitly restricted."
+                    .into(),
         });
     }
 

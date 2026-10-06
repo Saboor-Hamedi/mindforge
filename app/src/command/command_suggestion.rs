@@ -43,7 +43,11 @@ pub fn record_history(history: &mut Vec<String>, cmd: &str) {
 /// Returns ranked suggestions matching `query` from both history and the command catalog.
 pub fn get_filtered_suggestions(query: &str, history: &[String]) -> Vec<SuggestionItem> {
     let raw_query = query.trim();
-    let clean_query = raw_query.strip_prefix(':').unwrap_or(raw_query).trim().to_lowercase();
+    let clean_query = raw_query
+        .strip_prefix(':')
+        .unwrap_or(raw_query)
+        .trim()
+        .to_lowercase();
 
     let mut results: Vec<SuggestionItem> = Vec::new();
     let mut seen_commands = std::collections::HashSet::new();
@@ -164,7 +168,8 @@ fn move_selection(app: &mut App, delta: isize, now: f64) {
     if suggestions.is_empty() {
         return;
     }
-    let next = (app.command_bar.selected_idx as isize + delta).rem_euclid(suggestions.len() as isize);
+    let next =
+        (app.command_bar.selected_idx as isize + delta).rem_euclid(suggestions.len() as isize);
     select_suggestion(app, &suggestions, next as usize, now);
 }
 
@@ -235,7 +240,8 @@ pub fn handle_suggestion_key(app: &mut App, key: Key, modifiers: Modifiers, now:
         Key::ArrowUp => {
             move_selection(app, -1, now);
             true
-        }        _ => false,
+        }
+        _ => false,
     }
 }
 
@@ -328,7 +334,10 @@ pub fn render_command_suggestions(
     );
 
     // Header label & hint
-    let header_rect = Rect::from_min_size(popup_rect.min + vec2(10.0, pad_y), vec2(popup_w - 20.0, header_h));
+    let header_rect = Rect::from_min_size(
+        popup_rect.min + vec2(10.0, pad_y),
+        vec2(popup_w - 20.0, header_h),
+    );
     painter.text(
         pos2(header_rect.min.x, header_rect.center().y),
         Align2::LEFT_CENTER,
@@ -347,7 +356,10 @@ pub fn render_command_suggestions(
     // Separator line
     let sep_y = header_rect.max.y + 1.0;
     painter.line_segment(
-        [pos2(popup_rect.min.x + 8.0, sep_y), pos2(popup_rect.max.x - 8.0, sep_y)],
+        [
+            pos2(popup_rect.min.x + 8.0, sep_y),
+            pos2(popup_rect.max.x - 8.0, sep_y),
+        ],
         Stroke::new(1.0_f32, theme.border().linear_multiply(0.6)),
     );
 
@@ -377,11 +389,7 @@ pub fn render_command_suggestions(
                 egui::StrokeKind::Inside,
             );
         } else if is_hovered {
-            painter.rect_filled(
-                row_rect,
-                4.0,
-                theme.bg.lerp_to_gamma(theme.surface(), 0.5),
-            );
+            painter.rect_filled(row_rect, 4.0, theme.bg.lerp_to_gamma(theme.surface(), 0.5));
         }
 
         // Pointer click
@@ -413,7 +421,11 @@ pub fn render_command_suggestions(
 
         // Command text
         let cmd_display = format!(":{}", item.text);
-        let text_color = if is_selected { theme.accent } else { theme.text };
+        let text_color = if is_selected {
+            theme.accent
+        } else {
+            theme.text
+        };
         painter.text(
             pos2(badge_rect.max.x + 8.0, row_rect.center().y),
             Align2::LEFT_CENTER,

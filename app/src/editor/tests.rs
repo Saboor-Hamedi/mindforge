@@ -1,3 +1,4 @@
+use super::visual::caret_cell;
 use super::*;
 
 #[test]
@@ -39,7 +40,9 @@ fn test_visual_line_wrapping() {
     ed.insert_str("The quick brown fox jumps over the lazy dog");
     let lines = ed.compute_visual_lines(16);
     assert!(lines.len() >= 3);
-    let first_line: String = ed.buf[lines[0].char_start..lines[0].char_end].iter().collect();
+    let first_line: String = ed.buf[lines[0].char_start..lines[0].char_end]
+        .iter()
+        .collect();
     assert_eq!(first_line, "The quick brown ");
 
     ed.cur = 0;
@@ -63,7 +66,10 @@ fn test_visual_line_wrapping() {
 
     ed.down_visual(&lines);
     let (r_down1, _) = ed.visual_row_col(&lines);
-    assert_eq!(r_down1, 1, "down_visual from end of line 0 must land on line 1, not skip to line 2");
+    assert_eq!(
+        r_down1, 1,
+        "down_visual from end of line 0 must land on line 1, not skip to line 2"
+    );
 
     ed.down_visual(&lines);
     let (r_down2, _) = ed.visual_row_col(&lines);
@@ -76,7 +82,10 @@ fn test_visual_line_wrapping() {
     ed.up_visual(&lines);
     let (r_up0, c_up0) = ed.visual_row_col(&lines);
     assert_eq!(r_up0, 0, "up_visual from line 1 must land on line 0");
-    assert_eq!(c_up0, c_end0, "desired_col should restore cursor to original column");
+    assert_eq!(
+        c_up0, c_end0,
+        "desired_col should restore cursor to original column"
+    );
 }
 
 #[test]
@@ -88,13 +97,21 @@ fn test_paragraph_vertical_navigation_and_rankers_selection() {
     // Test across several screen widths / max_cols
     for max_cols in [20, 25, 30, 40, 50, 60] {
         let lines = ed.compute_visual_lines(max_cols);
-        assert!(lines.len() >= 2, "Should wrap into multiple visual lines for max_cols {}", max_cols);
+        assert!(
+            lines.len() >= 2,
+            "Should wrap into multiple visual lines for max_cols {}",
+            max_cols
+        );
 
         // Verify every line can be visited sequentially from row 0 to last_row
         ed.cur = 0;
         for expected_row in 0..lines.len() {
             let (r, _) = ed.visual_row_col(&lines);
-            assert_eq!(r, expected_row, "Forward traversal failed at row {} for max_cols {}", expected_row, max_cols);
+            assert_eq!(
+                r, expected_row,
+                "Forward traversal failed at row {} for max_cols {}",
+                expected_row, max_cols
+            );
             if expected_row + 1 < lines.len() {
                 ed.down_visual(&lines);
             }
@@ -103,7 +120,11 @@ fn test_paragraph_vertical_navigation_and_rankers_selection() {
         // Verify every line can be visited backwards from last_row to 0
         for expected_row in (0..lines.len()).rev() {
             let (r, _) = ed.visual_row_col(&lines);
-            assert_eq!(r, expected_row, "Backward traversal failed at row {} for max_cols {}", expected_row, max_cols);
+            assert_eq!(
+                r, expected_row,
+                "Backward traversal failed at row {} for max_cols {}",
+                expected_row, max_cols
+            );
             if expected_row > 0 {
                 ed.up_visual(&lines);
             }
@@ -202,9 +223,27 @@ fn test_compute_visual_lines_trailing_newlines() {
     ed.insert_str("Line 1\nLine 2\n");
     let lines = ed.compute_visual_lines(80);
     assert_eq!(lines.len(), 3);
-    assert_eq!(lines[0], VisualLine { char_start: 0, char_end: 6 });
-    assert_eq!(lines[1], VisualLine { char_start: 7, char_end: 13 });
-    assert_eq!(lines[2], VisualLine { char_start: 14, char_end: 14 });
+    assert_eq!(
+        lines[0],
+        VisualLine {
+            char_start: 0,
+            char_end: 6
+        }
+    );
+    assert_eq!(
+        lines[1],
+        VisualLine {
+            char_start: 7,
+            char_end: 13
+        }
+    );
+    assert_eq!(
+        lines[2],
+        VisualLine {
+            char_start: 14,
+            char_end: 14
+        }
+    );
 
     // Cursor at bottom trailing line
     ed.cur = 14;
@@ -286,31 +325,22 @@ fn test_caret_kind_on_whitespace() {
     ed.cur = 0;
     let (r0, _) = ed.visual_row_col(&lines);
     assert_eq!(r0, 0);
-    let style_row0 = crate::caret::resolve_caret_kind(
-        crate::app::EditorInputMode::Vim,
-        Some("normal"),
-        crate::caret::CaretKind::Block,
-    );
+    let style_row0 =
+        crate::caret::resolve_caret_kind(Some("normal"), crate::caret::CaretKind::Block);
 
     // Row 1: blank line
     ed.down_visual(&lines);
     let (r1, _) = ed.visual_row_col(&lines);
     assert_eq!(r1, 1);
-    let style_row1 = crate::caret::resolve_caret_kind(
-        crate::app::EditorInputMode::Vim,
-        Some("normal"),
-        crate::caret::CaretKind::Block,
-    );
+    let style_row1 =
+        crate::caret::resolve_caret_kind(Some("normal"), crate::caret::CaretKind::Block);
 
     // Row 2: non-blank line
     ed.down_visual(&lines);
     let (r2, _) = ed.visual_row_col(&lines);
     assert_eq!(r2, 2);
-    let style_row2 = crate::caret::resolve_caret_kind(
-        crate::app::EditorInputMode::Vim,
-        Some("normal"),
-        crate::caret::CaretKind::Block,
-    );
+    let style_row2 =
+        crate::caret::resolve_caret_kind(Some("normal"), crate::caret::CaretKind::Block);
 
     // Assert caret style is identical across blank and non-blank lines
     assert_eq!(style_row0, crate::caret::CaretKind::Block);
@@ -321,26 +351,10 @@ fn test_caret_kind_on_whitespace() {
 #[test]
 fn test_vim_caret_consistent_across_submodes() {
     let custom = crate::caret::CaretKind::Neon;
-    let normal = crate::caret::resolve_caret_kind(
-        crate::app::EditorInputMode::Vim,
-        Some("normal"),
-        custom,
-    );
-    let insert = crate::caret::resolve_caret_kind(
-        crate::app::EditorInputMode::Vim,
-        Some("insert"),
-        custom,
-    );
-    let visual = crate::caret::resolve_caret_kind(
-        crate::app::EditorInputMode::Vim,
-        Some("visual"),
-        custom,
-    );
-    let visual_line = crate::caret::resolve_caret_kind(
-        crate::app::EditorInputMode::Vim,
-        Some("visual_line"),
-        custom,
-    );
+    let normal = crate::caret::resolve_caret_kind(Some("normal"), custom);
+    let insert = crate::caret::resolve_caret_kind(Some("insert"), custom);
+    let visual = crate::caret::resolve_caret_kind(Some("visual"), custom);
+    let visual_line = crate::caret::resolve_caret_kind(Some("visual_line"), custom);
 
     assert_eq!(normal, custom);
     assert_eq!(insert, normal);
@@ -350,12 +364,30 @@ fn test_vim_caret_consistent_across_submodes() {
 
 #[test]
 fn test_caret_kinds_parsing_and_properties() {
-    assert_eq!(crate::caret::CaretKind::parse("snow"), Some(crate::caret::CaretKind::Snow));
-    assert_eq!(crate::caret::CaretKind::parse("water"), Some(crate::caret::CaretKind::Water));
-    assert_eq!(crate::caret::CaretKind::parse("fire"), Some(crate::caret::CaretKind::Fire));
-    assert_eq!(crate::caret::CaretKind::parse("candle"), Some(crate::caret::CaretKind::Candle));
-    assert_eq!(crate::caret::CaretKind::parse("ice"), Some(crate::caret::CaretKind::Ice));
-    assert_eq!(crate::caret::CaretKind::parse("neon"), Some(crate::caret::CaretKind::Neon));
+    assert_eq!(
+        crate::caret::CaretKind::parse("snow"),
+        Some(crate::caret::CaretKind::Snow)
+    );
+    assert_eq!(
+        crate::caret::CaretKind::parse("water"),
+        Some(crate::caret::CaretKind::Water)
+    );
+    assert_eq!(
+        crate::caret::CaretKind::parse("fire"),
+        Some(crate::caret::CaretKind::Fire)
+    );
+    assert_eq!(
+        crate::caret::CaretKind::parse("candle"),
+        Some(crate::caret::CaretKind::Candle)
+    );
+    assert_eq!(
+        crate::caret::CaretKind::parse("ice"),
+        Some(crate::caret::CaretKind::Ice)
+    );
+    assert_eq!(
+        crate::caret::CaretKind::parse("neon"),
+        Some(crate::caret::CaretKind::Neon)
+    );
 
     for &kind in crate::caret::CaretKind::ALL {
         assert!(!kind.name().is_empty());
@@ -516,11 +548,17 @@ fn test_enter_table_continuation_and_clearing() {
     ed2.insert_str("| Col 1 | Col 2 |\n| --- | --- |\n| val1 | val2 |");
     ed2.cur = ed2.buf.len();
     ed2.handle_enter();
-    assert_eq!(ed2.text(), "| Col 1 | Col 2 |\n| --- | --- |\n| val1 | val2 |\n|  |  |");
+    assert_eq!(
+        ed2.text(),
+        "| Col 1 | Col 2 |\n| --- | --- |\n| val1 | val2 |\n|  |  |"
+    );
 
     // 3. Hitting Enter on an empty row clears it and exits table
     ed2.handle_enter();
-    assert_eq!(ed2.text(), "| Col 1 | Col 2 |\n| --- | --- |\n| val1 | val2 |\n\n");
+    assert_eq!(
+        ed2.text(),
+        "| Col 1 | Col 2 |\n| --- | --- |\n| val1 | val2 |\n\n"
+    );
 }
 
 #[test]
@@ -569,8 +607,11 @@ fn test_enter_with_selection_replaces_without_continuation() {
 
 #[test]
 fn test_caret_cell_does_not_ignore_letters() {
-    let line = VisualLine { char_start: 0, char_end: 5 }; // "hello"
-    // At column 0: sits at 0
+    let line = VisualLine {
+        char_start: 0,
+        char_end: 5,
+    }; // "hello"
+       // At column 0: sits at 0
     assert_eq!(caret_cell(0, &line, None), 0);
     // Mid line: sits at character offset
     assert_eq!(caret_cell(2, &line, None), 2);
@@ -584,44 +625,65 @@ fn test_caret_cell_does_not_ignore_letters() {
 
 #[test]
 fn test_caret_cell_empty_line() {
-    let line = VisualLine { char_start: 3, char_end: 3 };
+    let line = VisualLine {
+        char_start: 3,
+        char_end: 3,
+    };
     assert_eq!(caret_cell(3, &line, None), 0);
 }
 
 #[test]
 fn test_caret_cell_normal_on_last_char() {
-    let line = VisualLine { char_start: 0, char_end: 3 };
+    let line = VisualLine {
+        char_start: 0,
+        char_end: 3,
+    };
     assert_eq!(caret_cell(2, &line, Some("normal")), 2);
 }
 
 #[test]
 fn test_caret_cell_normal_at_end() {
-    let line = VisualLine { char_start: 0, char_end: 3 };
+    let line = VisualLine {
+        char_start: 0,
+        char_end: 3,
+    };
     assert_eq!(caret_cell(3, &line, Some("normal")), 3);
 }
 
 #[test]
 fn test_caret_cell_insert_at_end_sits_past_last_char() {
-    let line = VisualLine { char_start: 0, char_end: 3 };
+    let line = VisualLine {
+        char_start: 0,
+        char_end: 3,
+    };
     assert_eq!(caret_cell(3, &line, Some("insert")), 3);
 }
 
 #[test]
 fn test_caret_cell_insert_mid_line() {
-    let line = VisualLine { char_start: 0, char_end: 3 };
+    let line = VisualLine {
+        char_start: 0,
+        char_end: 3,
+    };
     assert_eq!(caret_cell(2, &line, Some("insert")), 2);
 }
 
 #[test]
 fn test_caret_cell_visual_modes() {
-    let line = VisualLine { char_start: 0, char_end: 3 };
+    let line = VisualLine {
+        char_start: 0,
+        char_end: 3,
+    };
     assert_eq!(caret_cell(3, &line, Some("visual")), 3);
     assert_eq!(caret_cell(3, &line, Some("visual_line")), 3);
 }
 
 #[test]
 fn test_caret_cell_empty_line_all_modes() {
-    let line = VisualLine { char_start: 5, char_end: 5 };
+    let line = VisualLine {
+        char_start: 5,
+        char_end: 5,
+    };
     assert_eq!(caret_cell(5, &line, Some("normal")), 0);
     assert_eq!(caret_cell(5, &line, Some("insert")), 0);
     assert_eq!(caret_cell(5, &line, None), 0);
@@ -629,7 +691,10 @@ fn test_caret_cell_empty_line_all_modes() {
 
 #[test]
 fn test_caret_cell_no_vim_mode_behaves_like_insert() {
-    let line = VisualLine { char_start: 0, char_end: 3 };
+    let line = VisualLine {
+        char_start: 0,
+        char_end: 3,
+    };
     assert_eq!(caret_cell(3, &line, None), 3);
 }
 
@@ -857,6 +922,3 @@ fn test_toggle_checklist_multiline_selection() {
         "- [ ] Line one\n- [ ] Line two\n- [ ] Line three"
     );
 }
-
-
-

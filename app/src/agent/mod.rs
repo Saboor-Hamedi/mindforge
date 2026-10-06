@@ -14,7 +14,7 @@ pub(super) fn truncate_with_ellipsis(value: &str, max_chars: usize) -> String {
     }
 }
 
-use client::{deobfuscate_key, ApiMessage, AgentRequest, AgentResponse, AgentWorker};
+use client::{deobfuscate_key, AgentRequest, AgentResponse, AgentWorker, ApiMessage};
 use core::Note;
 use eframe::egui::Rect;
 use serde::{Deserialize, Serialize};
@@ -252,17 +252,21 @@ mod tests {
     #[test]
     fn test_deepseek_workspace_prompt_builder() {
         let dt = NaiveDateTime::parse_from_str("2026-09-23 10:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-        let notes = vec![
-            Note {
-                id: 1,
-                topic: "Rust Ownership".to_string(),
-                body: "Memory safety without garbage collection.".to_string(),
-                struggled_with: None,
-                created_at: dt,
-            },
-        ];
+        let notes = vec![Note {
+            id: 1,
+            topic: "Rust Ownership".to_string(),
+            body: "Memory safety without garbage collection.".to_string(),
+            struggled_with: None,
+            created_at: dt,
+        }];
 
-        let prompt = build_workspace_system_prompt(&notes, Some(("Rust Ownership", "Memory safety without garbage collection.")));
+        let prompt = build_workspace_system_prompt(
+            &notes,
+            Some((
+                "Rust Ownership",
+                "Memory safety without garbage collection.",
+            )),
+        );
         assert!(prompt.contains("1 document(s)"));
         assert!(prompt.contains("Rust Ownership"));
         assert!(prompt.contains("2026-09-23 10:00"));

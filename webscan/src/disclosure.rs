@@ -35,7 +35,9 @@ pub fn run(base_url: &str, opts: &ScanOptions) -> Vec<Finding> {
                 // Verify content isn't a custom 404 HTML page pretending to be 200
                 let text = resp.text().unwrap_or_default();
                 let is_valid = match path {
-                    "/.env" => text.contains('=') && !text.contains("<!DOCTYPE") && !text.contains("<html"),
+                    "/.env" => {
+                        text.contains('=') && !text.contains("<!DOCTYPE") && !text.contains("<html")
+                    }
                     "/.git/HEAD" => text.starts_with("ref:") || text.len() == 41,
                     _ => !text.is_empty(),
                 };

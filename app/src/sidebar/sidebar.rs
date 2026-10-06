@@ -16,16 +16,21 @@ pub use footer::render_sidebar_footer;
 #[allow(unused_imports)]
 pub use header::render_sidebar_header;
 
+use crate::workspace::{WorkspaceDialog, WorkspaceState};
 use core::Note;
 use eframe::egui::{self, pos2, Color32, Rect, Stroke};
-use crate::workspace::{WorkspaceDialog, WorkspaceState};
 
 pub const SECTION_GAP: f32 = 5.0;
 
 #[allow(dead_code)]
 pub enum SidebarAction {
     SwitchMode(usize),
-    LoadNote { id: i64, topic: String, body: String, index: usize },
+    LoadNote {
+        id: i64,
+        topic: String,
+        body: String,
+        index: usize,
+    },
     DeleteNote(i64),
     NewNote,
     OpenSettings,
@@ -80,13 +85,7 @@ pub fn render_sidebar(
             alpha,
         )
     };
-    painter.rect(
-        sb_rect,
-        5.0,
-        sb_bg,
-        sb_stroke,
-        egui::StrokeKind::Inside,
-    );
+    painter.rect(sb_rect, 5.0, sb_bg, sb_stroke, egui::StrokeKind::Inside);
 
     // 2. Compute inner boundary and exact 5px section gaps
     let pad_x = 12.0;
@@ -148,13 +147,8 @@ pub fn render_sidebar(
     );
 
     // 3. Sidebar Footer (Round settings button with tooltip)
-    let footer_action = footer::render_sidebar_footer(
-        ui,
-        painter,
-        footer_rect,
-        theme,
-        any_modal_open,
-    );
+    let footer_action =
+        footer::render_sidebar_footer(ui, painter, footer_rect, theme, any_modal_open);
 
     if any_modal_open {
         None

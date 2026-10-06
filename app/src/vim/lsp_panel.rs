@@ -58,7 +58,8 @@ impl LspPanel {
     fn step(&mut self, delta: i32) {
         let total = self.matches().len();
         if total > 0 {
-            self.selected = (self.selected as i64 + delta as i64).clamp(0, total as i64 - 1) as usize;
+            self.selected =
+                (self.selected as i64 + delta as i64).clamp(0, total as i64 - 1) as usize;
         }
     }
 
@@ -67,10 +68,13 @@ impl LspPanel {
     }
 
     fn activate(&mut self, index: usize) -> PanelAction {
-        let command = self.matches().get(index).and_then(|row| match row.status.as_str() {
-            "available" => Some(format!("<Esc>:LspInstall {}<CR>", row.name)),
-            _ => None,
-        });
+        let command = self
+            .matches()
+            .get(index)
+            .and_then(|row| match row.status.as_str() {
+                "available" => Some(format!("<Esc>:LspInstall {}<CR>", row.name)),
+                _ => None,
+            });
         self.selected = index;
         command.map_or(PanelAction::None, PanelAction::Run)
     }
@@ -140,7 +144,12 @@ impl LspPanel {
         let (panel, visible) = self.panel_rect(rect, row_height);
         let width = panel.width();
         painter.rect_filled(panel, 4.0, theme.surface());
-        painter.rect_stroke(panel, 4.0, Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
+        painter.rect_stroke(
+            panel,
+            4.0,
+            Stroke::new(1.0, theme.border()),
+            egui::StrokeKind::Outside,
+        );
 
         let installed = self.rows.iter().filter(|r| r.status != "available").count();
         let header = format!(
@@ -149,14 +158,23 @@ impl LspPanel {
             self.rows.len(),
             self.filter
         );
-        painter.text(panel.min + egui::vec2(8.0, 2.0), Align2::LEFT_TOP, header, font.clone(), theme.text);
+        painter.text(
+            panel.min + egui::vec2(8.0, 2.0),
+            Align2::LEFT_TOP,
+            header,
+            font.clone(),
+            theme.text,
+        );
 
-        let start = (self.selected + 1).saturating_sub(visible).min(matches.len().saturating_sub(visible));
+        let start = (self.selected + 1)
+            .saturating_sub(visible)
+            .min(matches.len().saturating_sub(visible));
         let mut clicked = None;
         for (slot, index) in (start..(start + visible).min(matches.len())).enumerate() {
             let row = matches[index];
             let y = panel.min.y + (slot + 1) as f32 * row_height;
-            let line = Rect::from_min_size(Pos2::new(panel.min.x, y), egui::vec2(width, row_height));
+            let line =
+                Rect::from_min_size(Pos2::new(panel.min.x, y), egui::vec2(width, row_height));
             if index == self.selected {
                 painter.rect_filled(line, 0.0, theme.accent.linear_multiply(0.25));
             }
@@ -169,8 +187,20 @@ impl LspPanel {
                 "installing" => ("◐", theme.highlight),
                 _ => ("○", theme.text.linear_multiply(0.45)),
             };
-            painter.text(Pos2::new(line.min.x + 8.0, y), Align2::LEFT_TOP, mark, small.clone(), color);
-            painter.text(Pos2::new(line.min.x + 24.0, y), Align2::LEFT_TOP, &row.name, font.clone(), theme.text);
+            painter.text(
+                Pos2::new(line.min.x + 8.0, y),
+                Align2::LEFT_TOP,
+                mark,
+                small.clone(),
+                color,
+            );
+            painter.text(
+                Pos2::new(line.min.x + 24.0, y),
+                Align2::LEFT_TOP,
+                &row.name,
+                font.clone(),
+                theme.text,
+            );
             painter.text(
                 Pos2::new(line.min.x + 24.0 + width * 0.22, y),
                 Align2::LEFT_TOP,

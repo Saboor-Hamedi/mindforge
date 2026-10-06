@@ -1,10 +1,4 @@
-//! Shared, strongly typed editor mode and coordinates.
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EditorMode {
-    Hybrid,
-    Vim,
-}
+//! Editor coordinates and cursor positions.
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CursorPosition {

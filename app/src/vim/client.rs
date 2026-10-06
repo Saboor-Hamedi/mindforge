@@ -42,7 +42,12 @@ impl NeovimClient {
         // dashboards or other UI that does not belong inside the editor pane.
         let app_nvim_config = std::env::var_os("APPDATA")
             .map(std::path::PathBuf::from)
-            .map(|path| path.join("mindforge").join("mindforge").join("nvim").join("init.lua"))
+            .map(|path| {
+                path.join("mindforge")
+                    .join("mindforge")
+                    .join("nvim")
+                    .join("init.lua")
+            })
             .filter(|path| path.is_file());
         if let Some(config) = &app_nvim_config {
             cmd.arg("-u").arg(config);
@@ -58,8 +63,13 @@ impl NeovimClient {
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
         if let Some(appdata) = std::env::var_os("APPDATA") {
-            let home = std::path::PathBuf::from(appdata).join("mindforge").join("mindforge");
-            let home = home.to_string_lossy().replace('\\', "/").replace('\'', "''");
+            let home = std::path::PathBuf::from(appdata)
+                .join("mindforge")
+                .join("mindforge");
+            let home = home
+                .to_string_lossy()
+                .replace('\\', "/")
+                .replace('\'', "''");
             cmd.args(["--cmd", &format!("let g:mindforge_home='{home}'")]);
         }
 
@@ -70,7 +80,9 @@ impl NeovimClient {
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
-        let mut child = cmd.spawn().map_err(|e| format!("Could not start Neovim: {e}"))?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| format!("Could not start Neovim: {e}"))?;
         let stdin = child.stdin.take().ok_or("Neovim stdin unavailable")?;
         let stdout = child.stdout.take().ok_or("Neovim stdout unavailable")?;
 
@@ -190,8 +202,7 @@ impl NeovimClient {
                         .map(|mut last| {
                             let now = Instant::now();
                             if last.is_none_or(|previous| {
-                                now.duration_since(previous)
-                                    >= std::time::Duration::from_millis(16)
+                                now.duration_since(previous) >= std::time::Duration::from_millis(16)
                             }) {
                                 *last = Some(now);
                                 true
@@ -371,7 +382,7 @@ impl NeovimClient {
         self.notify(
             "nvim_exec_lua",
             vec![
-                Value::from("dofile(...)") ,
+                Value::from("dofile(...)"),
                 Value::Array(vec![Value::from(path_string)]),
             ],
         )?;
@@ -423,11 +434,7 @@ impl NeovimClient {
         )?;
         let lines: Vec<String> = val
             .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(rmpv_value_to_str)
-                    .collect()
-            })
+            .map(|arr| arr.iter().filter_map(rmpv_value_to_str).collect())
             .unwrap_or_default();
         Ok(lines.join("\n"))
     }
@@ -467,10 +474,7 @@ impl NeovimClient {
 
     /// Execute arbitrary Lua code in Neovim synchronously via MessagePack-RPC.
     pub fn execute_lua(&mut self, code: &str, args: Vec<Value>) -> Result<String, String> {
-        let val = self.request(
-            "nvim_exec_lua",
-            vec![Value::from(code), Value::Array(args)],
-        )?;
+        let val = self.request("nvim_exec_lua", vec![Value::from(code), Value::Array(args)])?;
         Ok(format_rpc_value(&val))
     }
 
@@ -509,7 +513,8 @@ pub fn format_rpc_value(val: &Value) -> String {
             format!("[{}]", items.join(", "))
         }
         Value::Map(m) => {
-            let entries: Vec<String> = m.iter()
+            let entries: Vec<String> = m
+                .iter()
                 .map(|(k, v)| format!("{}: {}", format_rpc_value(k), format_rpc_value(v)))
                 .collect();
             format!("{{{}}}", entries.join(", "))
@@ -522,7 +527,9 @@ pub fn format_rpc_value(val: &Value) -> String {
 pub fn rmpv_value_to_str(val: &Value) -> Option<String> {
     match val {
         Value::String(s) => s.as_str().map(|s| s.to_string()),
-        Value::Binary(b) => String::from_utf8(b.clone()).ok().or_else(|| Some(String::from_utf8_lossy(b).into_owned())),
+        Value::Binary(b) => String::from_utf8(b.clone())
+            .ok()
+            .or_else(|| Some(String::from_utf8_lossy(b).into_owned())),
         _ => None,
     }
 }

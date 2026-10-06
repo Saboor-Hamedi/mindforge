@@ -110,10 +110,7 @@ pub fn compute_modular_layout_ex(
             vec2(14.0, (panel_bottom - panel_top).max(0.0)),
         );
         let ed_left = sb_rect.max.x + GAP + SPLITTER_BAR_W + GAP;
-        let ed_panel = Rect::from_min_max(
-            pos2(ed_left, panel_top),
-            pos2(ed_right, panel_bottom),
-        );
+        let ed_panel = Rect::from_min_max(pos2(ed_left, panel_top), pos2(ed_right, panel_bottom));
         AppLayout {
             titlebar_rect,
             cmd_bar_rect,
@@ -160,7 +157,10 @@ mod tests {
         assert_eq!(layout_closed.editor_panel_rect.min.x - bounds.min.x, GAP);
         assert_eq!(layout_closed.editor_panel_rect.min.y - bounds.min.y, GAP);
         assert_eq!(bounds.max.x - layout_closed.editor_panel_rect.max.x, GAP);
-        assert_eq!(layout_closed.cmd_bar_rect.min.y - layout_closed.editor_panel_rect.max.y, GAP);
+        assert_eq!(
+            layout_closed.cmd_bar_rect.min.y - layout_closed.editor_panel_rect.max.y,
+            GAP
+        );
         assert_eq!(bounds.max.y - layout_closed.cmd_bar_rect.max.y, GAP);
         assert_eq!(layout_closed.sidebar_rect, None);
         assert_eq!(layout_closed.titlebar_rect, Rect::NOTHING);
@@ -216,9 +216,19 @@ mod tests {
                     let ed = layout.editor_panel_rect;
 
                     // Critical assertion per spec: top and bottom must align with 0 difference
-                    assert_eq!(sb.min.y, ed.min.y, "Sidebar top must match editor panel top");
-                    assert_eq!(sb.max.y, ed.max.y, "Sidebar bottom must match editor panel bottom");
-                    assert_eq!(sb.height(), ed.height(), "Sidebar height must match editor panel height");
+                    assert_eq!(
+                        sb.min.y, ed.min.y,
+                        "Sidebar top must match editor panel top"
+                    );
+                    assert_eq!(
+                        sb.max.y, ed.max.y,
+                        "Sidebar bottom must match editor panel bottom"
+                    );
+                    assert_eq!(
+                        sb.height(),
+                        ed.height(),
+                        "Sidebar height must match editor panel height"
+                    );
                 }
             }
         }

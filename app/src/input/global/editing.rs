@@ -9,32 +9,13 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
     let ctrl_z =
         ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::Z));
     if ctrl_z {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-            && !app.command_bar.in_command
-        {
+        if !app.command_bar.in_command {
             return None;
         }
-        if app.command_bar.in_command {
-            if app.editor.cmd_ed.undo() {
-                app.misc.sound.play();
-                app.set_status("Undo", now);
-                return Some(true);
-            }
-        } else {
-            let changed = if app.misc.mode == Mode::Doc {
-                app.editor.doc_ed.undo()
-            } else {
-                app.editor.ed.undo()
-            };
-            if changed {
-                if app.misc.mode != Mode::Doc {
-                    app.editor.is_dirty = true;
-                    app.sync_active_tab();
-                }
-                app.misc.sound.play();
-                app.set_status("Undo", now);
-                return Some(true);
-            }
+        if app.editor.cmd_ed.undo() {
+            app.misc.sound.play();
+            app.set_status("Undo", now);
+            return Some(true);
         }
         return Some(false);
     }
@@ -45,32 +26,13 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
             || (i.modifiers.ctrl && i.modifiers.shift && i.key_pressed(egui::Key::Z))
     });
     if ctrl_y {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-            && !app.command_bar.in_command
-        {
+        if !app.command_bar.in_command {
             return None;
         }
-        if app.command_bar.in_command {
-            if app.editor.cmd_ed.redo() {
-                app.misc.sound.play();
-                app.set_status("Redo", now);
-                return Some(true);
-            }
-        } else {
-            let changed = if app.misc.mode == Mode::Doc {
-                app.editor.doc_ed.redo()
-            } else {
-                app.editor.ed.redo()
-            };
-            if changed {
-                if app.misc.mode != Mode::Doc {
-                    app.editor.is_dirty = true;
-                    app.sync_active_tab();
-                }
-                app.misc.sound.play();
-                app.set_status("Redo", now);
-                return Some(true);
-            }
+        if app.editor.cmd_ed.redo() {
+            app.misc.sound.play();
+            app.set_status("Redo", now);
+            return Some(true);
         }
         return Some(false);
     }
@@ -82,10 +44,7 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
     let ctrl_dedent = ctx
         .input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::OpenBracket));
     if ctrl_indent {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-            && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
-            && !app.command_bar.in_command
-        {
+        if matches!(app.misc.mode, Mode::Normal | Mode::Doc) && !app.command_bar.in_command {
             return None;
         }
         if !app.command_bar.in_command {
@@ -101,10 +60,7 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
         }
     }
     if ctrl_dedent {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-            && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
-            && !app.command_bar.in_command
-        {
+        if matches!(app.misc.mode, Mode::Normal | Mode::Doc) && !app.command_bar.in_command {
             return None;
         }
         if !app.command_bar.in_command {
@@ -136,10 +92,7 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
             && i.key_pressed(egui::Key::ArrowDown)
     });
     if alt_up {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-            && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
-            && !app.command_bar.in_command
-        {
+        if matches!(app.misc.mode, Mode::Normal | Mode::Doc) && !app.command_bar.in_command {
             return None;
         }
         if !app.command_bar.in_command {
@@ -154,10 +107,7 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
         }
     }
     if alt_down {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-            && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
-            && !app.command_bar.in_command
-        {
+        if matches!(app.misc.mode, Mode::Normal | Mode::Doc) && !app.command_bar.in_command {
             return None;
         }
         if !app.command_bar.in_command {
@@ -193,27 +143,6 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
             app.set_status("Toggled checklist item (Ctrl+Shift+X)", now);
             return Some(true);
         }
-    }
-
-    // Mode Toggle (Ctrl+E) between Vim and Hybrid
-    let ctrl_e = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command)
-            && !i.modifiers.alt
-            && !i.modifiers.shift
-            && i.key_pressed(egui::Key::E)
-    });
-    if ctrl_e {
-        let new_mode = match app.services.editor_controller.mode {
-            crate::app::EditorInputMode::Vim => crate::app::EditorInputMode::Hybrid,
-            crate::app::EditorInputMode::Hybrid => crate::app::EditorInputMode::Vim,
-        };
-        app.services.editor_controller.set_mode(new_mode);
-        let mode_name = match new_mode {
-            crate::app::EditorInputMode::Vim => "Vim",
-            crate::app::EditorInputMode::Hybrid => "Hybrid",
-        };
-        app.set_status(&format!("Switched to {} mode", mode_name), now);
-        return Some(false);
     }
 
     // Quick Save (Ctrl+S)

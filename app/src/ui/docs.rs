@@ -93,33 +93,36 @@ pub const BRAIN_DOCS: &[DocItem] = &[
 pub fn get_docs() -> &'static [DocItem] {
     static DOCS: OnceLock<Vec<DocItem>> = OnceLock::new();
     DOCS.get_or_init(|| {
-        BRAIN_DOCS.iter().map(|doc| {
-            let disk_paths = [
-                format!("brain/{}", doc.filename),
-                format!("../brain/{}", doc.filename),
-            ];
-            let disk_content = disk_paths
-                .iter()
-                .find_map(|p| std::fs::read_to_string(p).ok());
+        BRAIN_DOCS
+            .iter()
+            .map(|doc| {
+                let disk_paths = [
+                    format!("brain/{}", doc.filename),
+                    format!("../brain/{}", doc.filename),
+                ];
+                let disk_content = disk_paths
+                    .iter()
+                    .find_map(|p| std::fs::read_to_string(p).ok());
 
-            if let Some(content) = disk_content {
-                // Disk overrides are loaded once and kept for the app lifetime.
-                let content = Box::leak(content.into_boxed_str());
-                DocItem {
-                    id: doc.id,
-                    title: doc.title,
-                    filename: doc.filename,
-                    content,
+                if let Some(content) = disk_content {
+                    // Disk overrides are loaded once and kept for the app lifetime.
+                    let content = Box::leak(content.into_boxed_str());
+                    DocItem {
+                        id: doc.id,
+                        title: doc.title,
+                        filename: doc.filename,
+                        content,
+                    }
+                } else {
+                    DocItem {
+                        id: doc.id,
+                        title: doc.title,
+                        filename: doc.filename,
+                        content: doc.content,
+                    }
                 }
-            } else {
-                DocItem {
-                    id: doc.id,
-                    title: doc.title,
-                    filename: doc.filename,
-                    content: doc.content,
-                }
-            }
-        }).collect()
+            })
+            .collect()
     })
 }
 
@@ -231,7 +234,9 @@ pub fn format_doc_for_reader(raw_md: &str) -> String {
         // Markdown table support: format tables into cozy, cleanly aligned text
         if trimmed.starts_with('|') && trimmed.ends_with('|') {
             let inner = &trimmed[1..trimmed.len() - 1];
-            let is_separator = inner.chars().all(|c| c == '-' || c == '|' || c == ':' || c == ' ');
+            let is_separator = inner
+                .chars()
+                .all(|c| c == '-' || c == '|' || c == ':' || c == ' ');
             if is_separator {
                 out.push_str("  ├────────────────────────────────────────────────────────────\n");
                 continue;
@@ -397,11 +402,9 @@ pub fn render_doc_sidebar(
     );
 
     // Sidebar collapse icon on top right [◀]
-    let collapse_rect = Rect::from_min_size(
-        pos2(rect.max.x - 34.0, origin.y),
-        vec2(22.0, 22.0),
-    );
-    let collapse_resp = ui.allocate_rect(collapse_rect, egui::Sense::click())
+    let collapse_rect = Rect::from_min_size(pos2(rect.max.x - 34.0, origin.y), vec2(22.0, 22.0));
+    let collapse_resp = ui
+        .allocate_rect(collapse_rect, egui::Sense::click())
         .on_hover_text("Collapse sidebar (Ctrl+B)");
     let collapse_hover = collapse_resp.hovered() || ui.rect_contains_pointer(collapse_rect);
     if collapse_hover {
@@ -415,74 +418,107 @@ pub fn render_doc_sidebar(
         Align2::CENTER_CENTER,
         "◀",
         FontId::monospace(11.0),
-        if collapse_hover { theme.accent } else { Color32::from_gray(130) },
+        if collapse_hover {
+            theme.accent
+        } else {
+            Color32::from_gray(130)
+        },
     );
 
     // Divider under header
     let div_y = origin.y + 44.0;
     painter.line_segment(
-        [pos2(rect.min.x + 16.0, div_y), pos2(rect.max.x - 16.0, div_y)],
+        [
+            pos2(rect.min.x + 16.0, div_y),
+            pos2(rect.max.x - 16.0, div_y),
+        ],
         Stroke::new(1.0_f32, theme.border()),
     );
 
     // Navigation items (Body matching sidebar/body.rs)
-    let doc_icons = ["📖", "⚡", "⌨", "⚔", "✨", "🚀", "🌐"];
+    let doc_icons = ["📖", "⚡", "⌨", "⚔", "✨", "🚀", "🌐", "🧠", "🎨", "🖥", "🛡"];
     let start_y = div_y + 10.0;
     let item_w = rect.width() - 32.0;
+    // Fit every guide between the header divider and the footer buttons.
+    let footer_top = rect.max.y - 30.0 - 10.0 - 8.0;
+    let doc_count = BRAIN_DOCS.len().max(1) as f32;
+    let pitch = ((footer_top - start_y) / doc_count).clamp(20.0, 34.0);
+    let item_h = (pitch - 4.0).max(18.0);
+    let list_clip = Rect::from_min_max(pos2(rect.min.x, start_y), pos2(rect.max.x, footer_top));
+    let list_painter = painter.with_clip_rect(list_clip);
 
-    for (idx, doc) in BRAIN_DOCS.iter().enumerate() {
-        let item_rect = Rect::from_min_size(
-            pos2(origin.x, start_y + idx as f32 * 34.0),
-            vec2(item_w, 28.0),
-        );
-        let is_active = idx == active_idx;
-        let is_selected = idx == selected_idx;
-        let is_hovered = ui.rect_contains_pointer(item_rect);
+    // Only the list uses the clipped painter; the footer below keeps the full one.
+    {
+        let painter = &list_painter;
+        for (idx, doc) in BRAIN_DOCS.iter().enumerate() {
+            let item_rect = Rect::from_min_size(
+                pos2(origin.x, start_y + idx as f32 * pitch),
+                vec2(item_w, item_h),
+            );
+            let is_active = idx == active_idx;
+            let is_selected = idx == selected_idx;
+            let is_hovered = ui.rect_contains_pointer(item_rect.intersect(list_clip));
 
-        if is_active || (is_selected && is_focused) || is_hovered {
-            let bg = if is_selected && is_focused && is_active {
-                Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 24)
+            if is_active || (is_selected && is_focused) || is_hovered {
+                let bg = if is_selected && is_focused && is_active {
+                    Color32::from_rgba_unmultiplied(
+                        theme.accent.r(),
+                        theme.accent.g(),
+                        theme.accent.b(),
+                        24,
+                    )
+                } else if is_selected && is_focused {
+                    Color32::from_rgba_unmultiplied(
+                        theme.accent.r(),
+                        theme.accent.g(),
+                        theme.accent.b(),
+                        18,
+                    )
+                } else if is_active {
+                    Color32::from_rgba_unmultiplied(
+                        theme.accent.r(),
+                        theme.accent.g(),
+                        theme.accent.b(),
+                        16,
+                    )
+                } else {
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 8)
+                };
+                painter.rect_filled(item_rect, 4.0, bg);
+
+                // Left accent bar on active or focused/selected item
+                if is_active || (is_selected && is_focused) {
+                    let bar_w = if is_selected && is_focused { 3.0 } else { 2.5 };
+                    let bar = Rect::from_min_size(
+                        pos2(item_rect.min.x, item_rect.min.y + 3.0),
+                        vec2(bar_w, item_rect.height() - 6.0),
+                    );
+                    painter.rect_filled(bar, 1.5, theme.accent);
+                }
+
+                if is_hovered && ui.input(|i| i.pointer.primary_clicked()) {
+                    action = Some(DocSidebarAction::SelectDoc(idx));
+                }
+            }
+
+            let icon = doc_icons.get(idx).copied().unwrap_or("📄");
+            let label = format!("{} {}", icon, doc.title);
+            let label_color = if is_active {
+                theme.accent
             } else if is_selected && is_focused {
-                Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 18)
-            } else if is_active {
-                Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 16)
+                Color32::WHITE
             } else {
-                Color32::from_rgba_unmultiplied(255, 255, 255, 8)
+                theme.text
             };
-            painter.rect_filled(item_rect, 4.0, bg);
 
-            // Left accent bar on active or focused/selected item
-            if is_active || (is_selected && is_focused) {
-                let bar_w = if is_selected && is_focused { 3.0 } else { 2.5 };
-                let bar = Rect::from_min_size(
-                    pos2(item_rect.min.x, item_rect.min.y + 3.0),
-                    vec2(bar_w, item_rect.height() - 6.0),
-                );
-                painter.rect_filled(bar, 1.5, theme.accent);
-            }
-
-            if is_hovered && ui.input(|i| i.pointer.primary_clicked()) {
-                action = Some(DocSidebarAction::SelectDoc(idx));
-            }
+            painter.text(
+                pos2(item_rect.min.x + 10.0, item_rect.center().y),
+                Align2::LEFT_CENTER,
+                label,
+                FontId::monospace(12.0),
+                label_color,
+            );
         }
-
-        let icon = doc_icons.get(idx).copied().unwrap_or("📄");
-        let label = format!("{} {}", icon, doc.title);
-        let label_color = if is_active {
-            theme.accent
-        } else if is_selected && is_focused {
-            Color32::WHITE
-        } else {
-            theme.text
-        };
-
-        painter.text(
-            item_rect.min + vec2(10.0, 5.5),
-            Align2::LEFT_TOP,
-            label,
-            FontId::monospace(12.0),
-            label_color,
-        );
     }
 
     // ── Footer Bar: Exactly matching sidebar/footer.rs ──────────────────────
@@ -490,10 +526,8 @@ pub fn render_doc_sidebar(
     let bottom_y = rect.max.y - btn_size - 10.0;
 
     // 1. Settings icon button on bottom left (identical geometry & styling to footer.rs)
-    let settings_rect = Rect::from_min_size(
-        pos2(rect.min.x + 14.0, bottom_y),
-        vec2(btn_size, btn_size),
-    );
+    let settings_rect =
+        Rect::from_min_size(pos2(rect.min.x + 14.0, bottom_y), vec2(btn_size, btn_size));
     let settings_resp = ui.allocate_rect(settings_rect, egui::Sense::click());
     let settings_hovered = settings_resp.hovered() || ui.rect_contains_pointer(settings_rect);
 
@@ -511,14 +545,24 @@ pub fn render_doc_sidebar(
     } else {
         Stroke::NONE
     };
-    painter.rect(settings_rect, 6.0, settings_bg, settings_stroke, egui::StrokeKind::Inside);
+    painter.rect(
+        settings_rect,
+        6.0,
+        settings_bg,
+        settings_stroke,
+        egui::StrokeKind::Inside,
+    );
 
     painter.text(
         settings_rect.center(),
         Align2::CENTER_CENTER,
         "⚙",
         FontId::proportional(15.5),
-        if settings_hovered { theme.text } else { theme.muted },
+        if settings_hovered {
+            theme.text
+        } else {
+            theme.muted
+        },
     );
     let settings_resp = settings_resp.on_hover_text("Settings (Ctrl+,)");
     if settings_resp.clicked() || (settings_hovered && ui.input(|i| i.pointer.primary_clicked())) {
@@ -532,7 +576,8 @@ pub fn render_doc_sidebar(
         pos2(rect.max.x - back_btn_w - 14.0, bottom_y),
         vec2(back_btn_w, back_btn_h),
     );
-    let back_resp = ui.allocate_rect(back_rect, egui::Sense::click())
+    let back_resp = ui
+        .allocate_rect(back_rect, egui::Sense::click())
         .on_hover_text("Return to Notes (:editor)");
     let back_hovered = back_resp.hovered() || ui.rect_contains_pointer(back_rect);
 
@@ -550,14 +595,24 @@ pub fn render_doc_sidebar(
     } else {
         Stroke::NONE
     };
-    painter.rect(back_rect, 6.0, back_bg, back_stroke, egui::StrokeKind::Inside);
+    painter.rect(
+        back_rect,
+        6.0,
+        back_bg,
+        back_stroke,
+        egui::StrokeKind::Inside,
+    );
 
     painter.text(
         back_rect.center(),
         Align2::CENTER_CENTER,
         "← Notes",
         FontId::monospace(11.5),
-        if back_hovered { theme.accent } else { theme.muted },
+        if back_hovered {
+            theme.accent
+        } else {
+            theme.muted
+        },
     );
 
     if back_resp.clicked() || (back_hovered && ui.input(|i| i.pointer.primary_clicked())) {

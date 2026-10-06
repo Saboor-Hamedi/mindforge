@@ -5,22 +5,8 @@ use eframe::egui::text::LayoutJob;
 use eframe::egui::{Color32, TextFormat};
 
 /// Tokenizes a code line into rich multi-color syntax highlighting.
-pub fn highlight_code_line(
-    line: &str,
-    lang: &str,
-    font_size: f32,
-    theme: &Theme,
-) -> LayoutJob {
+pub fn highlight_code_line(line: &str, lang: &str, font_size: f32, theme: &Theme) -> LayoutJob {
     highlight_code_line_impl(line, lang, font_size, theme, true)
-}
-
-pub fn highlight_editor_code_line(
-    line: &str,
-    lang: &str,
-    font_size: f32,
-    theme: &Theme,
-) -> LayoutJob {
-    highlight_code_line_impl(line, lang, font_size, theme, false)
 }
 
 fn highlight_code_line_impl(
@@ -41,7 +27,9 @@ fn highlight_code_line_impl(
         return highlight_markdown_line(line, font_size, theme);
     }
     let is_python = matches!(language.as_str(), "python" | "py");
-    let is_bash = lang.eq_ignore_ascii_case("bash") || lang.eq_ignore_ascii_case("sh") || lang.eq_ignore_ascii_case("shell");
+    let is_bash = lang.eq_ignore_ascii_case("bash")
+        || lang.eq_ignore_ascii_case("sh")
+        || lang.eq_ignore_ascii_case("shell");
     let is_yaml = matches!(language.as_str(), "yaml" | "yml");
     let is_sql = language == "sql";
     let is_html = matches!(language.as_str(), "html" | "htm");
@@ -63,7 +51,12 @@ fn highlight_code_line_impl(
             let comment_text: String = chars[i..].iter().collect();
             let mut fmt = TextFormat::simple(
                 mono_font.clone(),
-                Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 170),
+                Color32::from_rgba_unmultiplied(
+                    theme.muted.r(),
+                    theme.muted.g(),
+                    theme.muted.b(),
+                    170,
+                ),
             );
             fmt.italics = true;
             job.append(&comment_text, 0.0, fmt);
@@ -88,20 +81,31 @@ fn highlight_code_line_impl(
             let str_val: String = chars[start..i].iter().collect();
             // Strings: emerald / lime green
             let str_color = Color32::from_rgb(152, 195, 121);
-            job.append(&str_val, 0.0, TextFormat::simple(mono_font.clone(), str_color));
+            job.append(
+                &str_val,
+                0.0,
+                TextFormat::simple(mono_font.clone(), str_color),
+            );
             continue;
         }
 
         // 3. Numbers (integers, floats, hex)
-        if chars[i].is_ascii_digit() && (i == 0 || (!chars[i - 1].is_alphanumeric() && chars[i - 1] != '_')) {
+        if chars[i].is_ascii_digit()
+            && (i == 0 || (!chars[i - 1].is_alphanumeric() && chars[i - 1] != '_'))
+        {
             let start = i;
-            while i < n && (chars[i].is_ascii_alphanumeric() || chars[i] == '.' || chars[i] == '_') {
+            while i < n && (chars[i].is_ascii_alphanumeric() || chars[i] == '.' || chars[i] == '_')
+            {
                 i += 1;
             }
             let num_val: String = chars[start..i].iter().collect();
             // Numbers: amber / orange
             let num_color = Color32::from_rgb(209, 154, 102);
-            job.append(&num_val, 0.0, TextFormat::simple(mono_font.clone(), num_color));
+            job.append(
+                &num_val,
+                0.0,
+                TextFormat::simple(mono_font.clone(), num_color),
+            );
             continue;
         }
 
@@ -117,16 +121,55 @@ fn highlight_code_line_impl(
             }
             let word: String = chars[start..i].iter().collect();
 
-            let is_sql_keyword = is_sql && matches!(
-                word.to_ascii_lowercase().as_str(),
-                "select" | "from" | "where" | "join" | "left" | "right" | "inner" | "outer"
-                    | "on" | "as" | "insert" | "into" | "values" | "update" | "set"
-                    | "delete" | "create" | "table" | "index" | "drop" | "alter" | "group"
-                    | "by" | "order" | "having" | "limit" | "offset" | "and" | "or" | "not"
-                    | "null" | "primary" | "key" | "foreign" | "references" | "distinct"
-                    | "union" | "all" | "case" | "when" | "then" | "else" | "end"
-            );
-            let is_keyword = is_sql_keyword || match word.as_str() {
+            let is_sql_keyword = is_sql
+                && matches!(
+                    word.to_ascii_lowercase().as_str(),
+                    "select"
+                        | "from"
+                        | "where"
+                        | "join"
+                        | "left"
+                        | "right"
+                        | "inner"
+                        | "outer"
+                        | "on"
+                        | "as"
+                        | "insert"
+                        | "into"
+                        | "values"
+                        | "update"
+                        | "set"
+                        | "delete"
+                        | "create"
+                        | "table"
+                        | "index"
+                        | "drop"
+                        | "alter"
+                        | "group"
+                        | "by"
+                        | "order"
+                        | "having"
+                        | "limit"
+                        | "offset"
+                        | "and"
+                        | "or"
+                        | "not"
+                        | "null"
+                        | "primary"
+                        | "key"
+                        | "foreign"
+                        | "references"
+                        | "distinct"
+                        | "union"
+                        | "all"
+                        | "case"
+                        | "when"
+                        | "then"
+                        | "else"
+                        | "end"
+                );
+            let is_keyword = is_sql_keyword
+                || match word.as_str() {
                 // Rust
                 "fn" | "let" | "mut" | "pub" | "struct" | "enum" | "impl" | "match" | "if" | "else"
                 | "return" | "use" | "mod" | "trait" | "type" | "where" | "async" | "await" | "for"
@@ -142,17 +185,39 @@ fn highlight_code_line_impl(
             };
 
             let is_bool_or_none = match word.as_str() {
-                "true" | "false" | "True" | "False" | "None" | "Some" | "Ok" | "Err"
-                | "null" | "undefined" | "NULL" | "Null" => true,
+                "true" | "false" | "True" | "False" | "None" | "Some" | "Ok" | "Err" | "null"
+                | "undefined" | "NULL" | "Null" => true,
                 _ => false,
             };
 
-            let is_type = !is_keyword && (
-                word.starts_with(|c: char| c.is_ascii_uppercase())
-                || matches!(word.as_str(), "bool" | "u8" | "u16" | "u32" | "u64" | "u128" | "usize"
-                    | "i8" | "i16" | "i32" | "i64" | "i128" | "isize"
-                    | "f32" | "f64" | "char" | "str" | "int" | "float" | "dict" | "list" | "number" | "string")
-            );
+            let is_type = !is_keyword
+                && (word.starts_with(|c: char| c.is_ascii_uppercase())
+                    || matches!(
+                        word.as_str(),
+                        "bool"
+                            | "u8"
+                            | "u16"
+                            | "u32"
+                            | "u64"
+                            | "u128"
+                            | "usize"
+                            | "i8"
+                            | "i16"
+                            | "i32"
+                            | "i64"
+                            | "i128"
+                            | "isize"
+                            | "f32"
+                            | "f64"
+                            | "char"
+                            | "str"
+                            | "int"
+                            | "float"
+                            | "dict"
+                            | "list"
+                            | "number"
+                            | "string"
+                    ));
 
             let color = if is_keyword {
                 theme.accent
@@ -161,7 +226,7 @@ fn highlight_code_line_impl(
             } else if is_type {
                 Color32::from_rgb(229, 192, 123) // warm gold
             } else if word.ends_with('!') {
-                Color32::from_rgb(97, 175, 239)  // cyan/blue for macros
+                Color32::from_rgb(97, 175, 239) // cyan/blue for macros
             } else {
                 theme.text
             };
@@ -189,15 +254,25 @@ fn highlight_code_line_impl(
         // 6. Punctuation & Single Operators
         let punc_char = chars[i];
         let punc_color = match punc_char {
-            '=' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '!' | '<' | '>' | '~' | '?' | ':' => {
+            '=' | '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '!' | '<' | '>' | '~' | '?'
+            | ':' => {
                 Color32::from_rgb(97, 175, 239) // vibrant operator
             }
             '{' | '}' | '(' | ')' | '[' | ']' => {
                 Color32::from_rgb(224, 108, 117) // coral bracket
             }
-            _ => Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 180),
+            _ => Color32::from_rgba_unmultiplied(
+                theme.muted.r(),
+                theme.muted.g(),
+                theme.muted.b(),
+                180,
+            ),
         };
-        job.append(&punc_char.to_string(), 0.0, TextFormat::simple(mono_font.clone(), punc_color));
+        job.append(
+            &punc_char.to_string(),
+            0.0,
+            TextFormat::simple(mono_font.clone(), punc_color),
+        );
         i += 1;
     }
 
@@ -214,7 +289,12 @@ pub fn highlight_markdown_line(line: &str, font_size: f32, theme: &Theme) -> Lay
     // 1. Heading line (#, ##, ###, ...)
     if trimmed.starts_with('#') {
         let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
-        if hash_count <= 6 && trimmed.chars().nth(hash_count).is_some_and(|c| c.is_whitespace()) {
+        if hash_count <= 6
+            && trimmed
+                .chars()
+                .nth(hash_count)
+                .is_some_and(|c| c.is_whitespace())
+        {
             let heading_color = match hash_count {
                 1 => theme.accent,
                 2 => Color32::from_rgb(97, 175, 239), // Light blue
@@ -223,7 +303,11 @@ pub fn highlight_markdown_line(line: &str, font_size: f32, theme: &Theme) -> Lay
                 _ => Color32::from_rgb(209, 154, 102), // Orange
             };
             if indent_len > 0 {
-                job.append(&line[..indent_len], 0.0, TextFormat::simple(mono_font.clone(), theme.text));
+                job.append(
+                    &line[..indent_len],
+                    0.0,
+                    TextFormat::simple(mono_font.clone(), theme.text),
+                );
             }
             job.append(trimmed, 0.0, TextFormat::simple(mono_font, heading_color));
             return job;
@@ -233,9 +317,14 @@ pub fn highlight_markdown_line(line: &str, font_size: f32, theme: &Theme) -> Lay
     // 2. Blockquote (> ...)
     if trimmed.starts_with('>') {
         if indent_len > 0 {
-            job.append(&line[..indent_len], 0.0, TextFormat::simple(mono_font.clone(), theme.text));
+            job.append(
+                &line[..indent_len],
+                0.0,
+                TextFormat::simple(mono_font.clone(), theme.text),
+            );
         }
-        let quote_color = Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 180);
+        let quote_color =
+            Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 180);
         let mut fmt = TextFormat::simple(mono_font, quote_color);
         fmt.italics = true;
         job.append(trimmed, 0.0, fmt);
@@ -264,7 +353,11 @@ pub fn highlight_markdown_line(line: &str, font_size: f32, theme: &Theme) -> Lay
             if found_end {
                 let link_text: String = chars[start..i].iter().collect();
                 let link_color = Color32::from_rgb(198, 120, 221); // purple
-                job.append(&link_text, 0.0, TextFormat::simple(mono_font.clone(), link_color));
+                job.append(
+                    &link_text,
+                    0.0,
+                    TextFormat::simple(mono_font.clone(), link_color),
+                );
                 continue;
             } else {
                 i = start;
@@ -282,7 +375,11 @@ pub fn highlight_markdown_line(line: &str, font_size: f32, theme: &Theme) -> Lay
                 i += 1;
                 let code_text: String = chars[start..i].iter().collect();
                 let code_color = Color32::from_rgb(209, 154, 102); // amber
-                job.append(&code_text, 0.0, TextFormat::simple(mono_font.clone(), code_color));
+                job.append(
+                    &code_text,
+                    0.0,
+                    TextFormat::simple(mono_font.clone(), code_color),
+                );
                 continue;
             } else {
                 i = start;
@@ -315,7 +412,11 @@ pub fn highlight_markdown_line(line: &str, font_size: f32, theme: &Theme) -> Lay
                     if let Some(par) = end_paren {
                         let link_text: String = chars[start..=par].iter().collect();
                         let link_color = Color32::from_rgb(97, 175, 239);
-                        job.append(&link_text, 0.0, TextFormat::simple(mono_font.clone(), link_color));
+                        job.append(
+                            &link_text,
+                            0.0,
+                            TextFormat::simple(mono_font.clone(), link_color),
+                        );
                         i = par + 1;
                         continue;
                     }
@@ -338,7 +439,11 @@ pub fn highlight_markdown_line(line: &str, font_size: f32, theme: &Theme) -> Lay
             }
             if found_bold {
                 let bold_text: String = chars[start..i].iter().collect();
-                job.append(&bold_text, 0.0, TextFormat::simple(mono_font.clone(), theme.highlight));
+                job.append(
+                    &bold_text,
+                    0.0,
+                    TextFormat::simple(mono_font.clone(), theme.highlight),
+                );
                 continue;
             } else {
                 i = start;
@@ -346,7 +451,11 @@ pub fn highlight_markdown_line(line: &str, font_size: f32, theme: &Theme) -> Lay
         }
 
         // Plain char
-        job.append(&chars[i].to_string(), 0.0, TextFormat::simple(mono_font.clone(), theme.text));
+        job.append(
+            &chars[i].to_string(),
+            0.0,
+            TextFormat::simple(mono_font.clone(), theme.text),
+        );
         i += 1;
     }
 

@@ -313,10 +313,8 @@ impl App {
             self.editor.doc_ed.set_text(doc.content);
             self.editor.doc_ed.clear_history();
             self.editor.doc_scroll_y = 0.0;
-            if self.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
-                if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
-                    let _ = backend.set_document(doc.content, 0, 0);
-                }
+            if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+                let _ = backend.set_document(doc.content, 0, 0);
             }
             let msg = format!(
                 "{} — editable practice copy; source documentation stays unchanged",
@@ -505,72 +503,89 @@ mod tests {
     }
 
     #[test]
-    fn repeated_tab_switches_restore_text_cursor_and_scroll_once(){
-        let mut app=App::new();
+    fn repeated_tab_switches_restore_text_cursor_and_scroll_once() {
+        let mut app = App::new();
         app.open_notes.clear();
         app.create_new_note(1.0);
         app.editor.ed.set_text("one line");
-        if let Some(tab)=app.open_notes.get_mut(0){tab.id=1;}
-        app.editor.ed.cur=4;
-        app.editor.scroll_y=37.0;
-        app.editor.is_dirty=true;
+        if let Some(tab) = app.open_notes.get_mut(0) {
+            tab.id = 1;
+        }
+        app.editor.ed.cur = 4;
+        app.editor.scroll_y = 37.0;
+        app.editor.is_dirty = true;
         app.sync_active_tab();
         app.create_new_note(2.0);
-        app.switch_tab(0,3.0);
-        assert_eq!(app.editor.ed.text(),"one line");
-        assert_eq!(app.editor.ed.cur,4);
-        assert_eq!(app.editor.scroll_y,37.0);
-        app.switch_tab(1,4.0);
-        app.switch_tab(0,5.0);
-        assert_eq!(app.editor.ed.text(),"one line");
-        assert_eq!(app.editor.ed.text().matches("one line").count(),1);
+        app.switch_tab(0, 3.0);
+        assert_eq!(app.editor.ed.text(), "one line");
+        assert_eq!(app.editor.ed.cur, 4);
+        assert_eq!(app.editor.scroll_y, 37.0);
+        app.switch_tab(1, 4.0);
+        app.switch_tab(0, 5.0);
+        assert_eq!(app.editor.ed.text(), "one line");
+        assert_eq!(app.editor.ed.text().matches("one line").count(), 1);
     }
 
     #[test]
-    fn opening_the_same_filesystem_path_reuses_its_tab(){
-        let path=std::env::temp_dir().join(format!("mindforge-open-{}-{}.md",std::process::id(),fastrand::u64(..)));
-        std::fs::write(&path,"# one").unwrap();
-        let mut app=App::new();
+    fn opening_the_same_filesystem_path_reuses_its_tab() {
+        let path = std::env::temp_dir().join(format!(
+            "mindforge-open-{}-{}.md",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        std::fs::write(&path, "# one").unwrap();
+        let mut app = App::new();
         app.open_notes.clear();
-        app.open_file_path(path.clone(),1.0);
-        app.open_file_path(path.clone(),2.0);
-        assert_eq!(app.open_notes.len(),1);
-        assert_eq!(app.editor.ed.text(),"# one");
-        let _=std::fs::remove_file(path);
+        app.open_file_path(path.clone(), 1.0);
+        app.open_file_path(path.clone(), 2.0);
+        assert_eq!(app.open_notes.len(), 1);
+        assert_eq!(app.editor.ed.text(), "# one");
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]
-    fn common_workspace_file_formats_open_from_their_real_paths(){
-        let dir=std::env::temp_dir().join(format!("mindforge-formats-{}-{}",std::process::id(),fastrand::u64(..)));
+    fn common_workspace_file_formats_open_from_their_real_paths() {
+        let dir = std::env::temp_dir().join(format!(
+            "mindforge-formats-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
         std::fs::create_dir_all(&dir).unwrap();
-        let mut app=App::new();
+        let mut app = App::new();
         app.open_notes.clear();
-        let samples=[
-            ("README.md",crate::language::FileLanguage::Markdown),
-            ("main.py",crate::language::FileLanguage::Python),
-            ("index.html",crate::language::FileLanguage::Html),
-            ("App.jsx",crate::language::FileLanguage::Jsx),
-            ("App.tsx",crate::language::FileLanguage::Tsx),
-            ("style.css",crate::language::FileLanguage::Css),
-            ("main.rs",crate::language::FileLanguage::Rust),
-            ("package.json",crate::language::FileLanguage::Json),
+        let samples = [
+            ("README.md", crate::language::FileLanguage::Markdown),
+            ("main.py", crate::language::FileLanguage::Python),
+            ("index.html", crate::language::FileLanguage::Html),
+            ("App.jsx", crate::language::FileLanguage::Jsx),
+            ("App.tsx", crate::language::FileLanguage::Tsx),
+            ("style.css", crate::language::FileLanguage::Css),
+            ("main.rs", crate::language::FileLanguage::Rust),
+            ("package.json", crate::language::FileLanguage::Json),
         ];
-        for (index,(name,language)) in samples.iter().enumerate(){
-            let path=dir.join(name);
-            let text=format!("file {index}");
-            std::fs::write(&path,&text).unwrap();
-            app.open_file_path(path.clone(),index as f64+1.0);
-            assert_eq!(app.editor.ed.text(),text);
-            assert_eq!(app.active_language(),*language);
-            assert_eq!(app.open_notes.last().unwrap().file_path.as_deref(),Some(path.as_path()));
+        for (index, (name, language)) in samples.iter().enumerate() {
+            let path = dir.join(name);
+            let text = format!("file {index}");
+            std::fs::write(&path, &text).unwrap();
+            app.open_file_path(path.clone(), index as f64 + 1.0);
+            assert_eq!(app.editor.ed.text(), text);
+            assert_eq!(app.active_language(), *language);
+            assert_eq!(
+                app.open_notes.last().unwrap().file_path.as_deref(),
+                Some(path.as_path())
+            );
         }
-        assert_eq!(app.open_notes.len(),samples.len());
-        let _=std::fs::remove_dir_all(dir);
+        assert_eq!(app.open_notes.len(), samples.len());
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
     fn test_deleted_file_tabs_close_cleanly() {
-        let dir = std::env::temp_dir().join(format!("mindforge-deltest-{}-{}", std::process::id(), fastrand::u64(..)));
+        let dir = std::env::temp_dir().join(format!(
+            "mindforge-deltest-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
         std::fs::create_dir_all(&dir).unwrap();
         let file_a = dir.join("file_a.txt");
         let file_b = dir.join("file_b.txt");

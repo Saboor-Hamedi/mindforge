@@ -20,19 +20,24 @@ impl App {
             painter.rect_filled(p_rect, 0.0, self.misc.theme.surface());
 
             let r_header_h = crate::view_editor::TAB_ROW_H;
-            let r_header_rect = Rect::from_min_max(
-                p_rect.min,
-                pos2(p_rect.max.x, p_rect.min.y + r_header_h),
-            );
-            let r_content_rect = Rect::from_min_max(
-                pos2(p_rect.min.x, p_rect.min.y + r_header_h),
-                p_rect.max,
-            );
+            let r_header_rect =
+                Rect::from_min_max(p_rect.min, pos2(p_rect.max.x, p_rect.min.y + r_header_h));
+            let r_content_rect =
+                Rect::from_min_max(pos2(p_rect.min.x, p_rect.min.y + r_header_h), p_rect.max);
 
             // Backlinks are cached by active note in RightSidebarState. Avoid
             // scanning every Markdown note during every frame.
-            let target_key = (self.notes.active_note_title.clone(), self.notes.active_note_id);
-            if self.right_pane.sidebar_state.cached_backlinks_target.as_ref() != Some(&target_key) {
+            let target_key = (
+                self.notes.active_note_title.clone(),
+                self.notes.active_note_id,
+            );
+            if self
+                .right_pane
+                .sidebar_state
+                .cached_backlinks_target
+                .as_ref()
+                != Some(&target_key)
+            {
                 self.right_pane.sidebar_state.cached_backlinks = crate::wikilink::find_backlinks(
                     &self.notes.active_note_title,
                     &self.notes.notes_list,
@@ -61,17 +66,20 @@ impl App {
                     crate::view_editor::preview::RightPaneAction::Close => {
                         self.editor.preview_open = false;
                         self.services.agent_state.is_open = false;
-                        let _ = self.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
-                            key: "preview".into(),
-                            val: "false".into(),
-                        });
+                        let _ = self.services.db_tx.send(
+                            crate::services::db_worker::DbMsg::SaveSetting {
+                                key: "preview".into(),
+                                val: "false".into(),
+                            },
+                        );
                     }
                 }
             }
 
             match self.right_pane.tab {
                 RightPaneTab::Preview => {
-                    let is_markdown = self.active_language() == crate::language::FileLanguage::Markdown
+                    let is_markdown = self.active_language()
+                        == crate::language::FileLanguage::Markdown
                         || self.misc.mode == Mode::Doc;
                     if is_markdown {
                         let note_text = if self.misc.mode == Mode::Doc {
@@ -95,12 +103,16 @@ impl App {
                         ui.allocate_new_ui(
                             eframe::egui::UiBuilder::new()
                                 .max_rect(r_content_rect)
-                                .layout(eframe::egui::Layout::centered_and_justified(eframe::egui::Direction::TopDown)),
+                                .layout(eframe::egui::Layout::centered_and_justified(
+                                    eframe::egui::Direction::TopDown,
+                                )),
                             |ui| {
                                 ui.label(
-                                    eframe::egui::RichText::new("Markdown preview is available for Markdown files")
-                                        .color(self.misc.theme.muted)
-                                        .size(12.5),
+                                    eframe::egui::RichText::new(
+                                        "Markdown preview is available for Markdown files",
+                                    )
+                                    .color(self.misc.theme.muted)
+                                    .size(12.5),
                                 );
                             },
                         );
@@ -119,7 +131,12 @@ impl App {
                             .map(|d| d.title)
                             .unwrap_or("Documentation");
                         Some((doc_title, cur_text.as_str()))
-                    } else if let Some(n) = self.notes.notes_list.iter().find(|n| Some(n.id) == self.notes.active_note_id) {
+                    } else if let Some(n) = self
+                        .notes
+                        .notes_list
+                        .iter()
+                        .find(|n| Some(n.id) == self.notes.active_note_id)
+                    {
                         Some((n.topic.as_str(), cur_text.as_str()))
                     } else {
                         None
@@ -152,10 +169,16 @@ impl App {
                     );
                     if let Some(act) = action {
                         match act {
-                            crate::rightsidebar::backlinks::BacklinkAction::OpenNote { id, title } => {
+                            crate::rightsidebar::backlinks::BacklinkAction::OpenNote {
+                                id,
+                                title,
+                            } => {
                                 if id > 0 {
                                     self.open_note_by_id(id, now);
-                                } else if let Some(note) = crate::wikilink::resolve_wikilink(&title, &self.notes.notes_list) {
+                                } else if let Some(note) = crate::wikilink::resolve_wikilink(
+                                    &title,
+                                    &self.notes.notes_list,
+                                ) {
                                     self.open_note_by_id(note.id, now);
                                 } else {
                                     self.create_new_note(now);
@@ -166,7 +189,8 @@ impl App {
                     }
                 }
                 RightPaneTab::Outline => {
-                    self.right_pane.sidebar_state.cached_headings = crate::rightsidebar::outline::extract_outline_headings(&self.editor.ed);
+                    self.right_pane.sidebar_state.cached_headings =
+                        crate::rightsidebar::outline::extract_outline_headings(&self.editor.ed);
                     let action = crate::rightsidebar::outline::render_outline_panel(
                         ui,
                         r_content_rect,

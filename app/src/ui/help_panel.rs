@@ -32,12 +32,12 @@ Welcome to **MindForge**, an ultra-fast, local-first markdown notebook with livi
 
 ---
 
-## 2. Hybrid vs. Vim Modes
+## 2. Neovim Modal Engine
 
-- **Hybrid Mode**: Modern editor experience with intuitive hotkeys, smooth cursor glide, and auto-pairing for brackets and quotes.
-- **Vim Mode**: Pure home-row modal editing with Normal, Insert, Visual, and Command lines.
-- **Switching Modes**: Type `:vim` or `:mode vim` / `:mode hybrid` in the command bar to switch anytime.
-- **Living Carets in Vim**: Your custom animated caret stays uniform and visible across all Vim submodes.
+- **Neovim Engine**: MindForge runs embedded Neovim as its unified editor engine with full modal fidelity.
+- **Modal Editing**: Pure home-row modal editing with Normal, Insert, Visual, and Command lines.
+- **Native Lua & Ex-Commands**: Run `:lua <expr>` or execute any Vim command directly from the command bar.
+- **Living Carets**: Your custom animated caret stays uniform and visible across all Vim submodes.
 
 ---
 
@@ -104,7 +104,7 @@ Type `:` in Normal mode to open the command bar at the bottom of the screen:
 | `:q` / `:quit` | Exit the MindForge application |
 | `:set showcmd` | Enable the floating keystroke and command HUD capsule |
 | `:set noshowcmd` | Disable the floating HUD |
-| `:vim on` / `off` | Toggle between Vim modal engine and modern Hybrid IDE input |
+| `:vim` / `:mode` | Display active Neovim editor engine status |
 | `:theme <name>` | Switch theme: `green`, `amber`, `blue`, `monokai`, `rose`, `purple` |
 | `:sound <type>` | Change switch sounds: `thocky`, `clacky`, `creamy`, `marbly`, `poppy`, `clicky`, `off` |
 | `:caret <kind>` | Set caret style: `candle`, `fire`, `water`, `snow`, `neon`, `rainbow`, `beam`, `block` |

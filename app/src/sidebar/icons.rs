@@ -6,7 +6,11 @@
 use std::path::Path;
 
 /// Returns `(caret_indicator, icon_glyph)` for a filesystem entry.
-pub fn get_explorer_icon(path: &Path, is_dir: bool, expanded: bool) -> (&'static str, &'static str) {
+pub fn get_explorer_icon(
+    path: &Path,
+    is_dir: bool,
+    expanded: bool,
+) -> (&'static str, &'static str) {
     if is_dir {
         if expanded {
             ("▾", "📂")

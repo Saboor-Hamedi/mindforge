@@ -7,11 +7,10 @@
 //! The `match_subpicker` function is the main entry point — it routes
 //! the query to the appropriate sub-picker based on the prefix.
 
-use crate::app::EditorInputMode;
 use crate::caret::CaretKind;
+use crate::lunaline::LunaStyle;
 use crate::services::font_manager::SUPPORTED_FONTS;
 use crate::services::fuzzy::{fuzzy_match, PaletteAction, SearchItem};
-use crate::lunaline::LunaStyle;
 use crate::services::sound::SoundProfile;
 use crate::ui::theme::ThemeKind;
 
@@ -100,7 +99,11 @@ pub fn sound_picker_items(needle: &str, active_sound: SoundProfile) -> Vec<Searc
             } else {
                 String::new()
             };
-            let icon = if profile == SoundProfile::Off { "🔇" } else { "🔊" };
+            let icon = if profile == SoundProfile::Off {
+                "🔇"
+            } else {
+                "🔊"
+            };
             results.push(SearchItem {
                 id: 0,
                 title: name.to_string(),
@@ -191,63 +194,29 @@ pub fn font_picker_items(needle: &str, active_font: &str) -> Vec<SearchItem> {
     results
 }
 
-/// Generates search items for editor mode sub-picker (`>mode [query]`).
-pub fn mode_picker_items(needle: &str, active_mode: EditorInputMode) -> Vec<SearchItem> {
-    let modes = [
-        (
-            EditorInputMode::Vim,
-            "Vim Modal Motions",
-            "Command, Insert, Visual, VisualLine • hjkl, text objects, operators",
-            "⚡",
-        ),
-        (
-            EditorInputMode::Hybrid,
-            "Hybrid Cursor Mode",
-            "Standard cursor & selection • Ctrl+D duplicate, instant writing",
-            "✍",
-        ),
-    ];
-
-    let mut results = Vec::new();
-    for (mode, name, desc, icon) in modes {
-        let score = if needle.is_empty() {
-            Some(100)
-        } else {
-            fuzzy_match(needle, name).or_else(|| fuzzy_match(needle, desc))
-        };
-
-        if let Some(mut s) = score {
-            let is_active = mode == active_mode;
-            if is_active {
-                s += 200;
-            }
-            let badge = if is_active {
-                "✓ Active".to_string()
-            } else {
-                String::new()
-            };
-            results.push(SearchItem {
-                id: 0,
-                title: name.to_string(),
-                snippet: desc.to_string(),
-                score: s,
-                badge,
-                icon,
-                action: PaletteAction::ApplyEditorMode(mode),
-            });
-        }
-    }
-    results.sort_by(|a, b| b.score.cmp(&a.score));
-    results
-}
-
 /// Generates search items for LunaLine statusline sub-picker (`>luna [query]`).
 pub fn luna_picker_items(needle: &str, active_style: LunaStyle) -> Vec<SearchItem> {
     let styles = [
-        (LunaStyle::Pill, "Pill Capsules", "Discrete rounded capsules with subtle surface background"),
-        (LunaStyle::Powerline, "Neovim Powerline", "Classic angled arrow chevrons connecting segments"),
-        (LunaStyle::Floating, "Floating Island Pill", "Detached glassmorphic statusline floating above canvas"),
-        (LunaStyle::Minimal, "Minimal Clean Typography", "Pure typographic statusline with subtle dot separators"),
+        (
+            LunaStyle::Pill,
+            "Pill Capsules",
+            "Discrete rounded capsules with subtle surface background",
+        ),
+        (
+            LunaStyle::Powerline,
+            "Neovim Powerline",
+            "Classic angled arrow chevrons connecting segments",
+        ),
+        (
+            LunaStyle::Floating,
+            "Floating Island Pill",
+            "Detached glassmorphic statusline floating above canvas",
+        ),
+        (
+            LunaStyle::Minimal,
+            "Minimal Clean Typography",
+            "Pure typographic statusline with subtle dot separators",
+        ),
     ];
 
     let mut results = Vec::new();
@@ -291,7 +260,6 @@ pub fn match_subpicker(
     active_sound: SoundProfile,
     active_caret: CaretKind,
     active_font: &str,
-    active_mode: EditorInputMode,
     active_luna_style: LunaStyle,
 ) -> Option<Vec<SearchItem>> {
     if raw.starts_with(">theme") || raw.starts_with("> theme") {
@@ -328,15 +296,6 @@ pub fn match_subpicker(
             .unwrap_or("")
             .trim();
         return Some(font_picker_items(needle, active_font));
-    }
-
-    if raw.starts_with(">mode") || raw.starts_with("> mode") {
-        let needle = raw
-            .strip_prefix(">mode")
-            .or_else(|| raw.strip_prefix("> mode"))
-            .unwrap_or("")
-            .trim();
-        return Some(mode_picker_items(needle, active_mode));
     }
 
     if raw.starts_with(">luna") || raw.starts_with("> luna") {

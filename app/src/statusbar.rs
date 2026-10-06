@@ -31,12 +31,8 @@ pub fn render_bottom_dock(
 
     // Seamless bottom dock matching the editor canvas (translucent so desktop blur shows through)
     let dock_alpha = (opacity * 255.0) as u8;
-    let dock_bg = Color32::from_rgba_unmultiplied(
-        theme.bg.r(),
-        theme.bg.g(),
-        theme.bg.b(),
-        dock_alpha,
-    );
+    let dock_bg =
+        Color32::from_rgba_unmultiplied(theme.bg.r(), theme.bg.g(), theme.bg.b(), dock_alpha);
     painter.rect(
         dock_rect,
         5.0,
@@ -51,7 +47,10 @@ pub fn render_bottom_dock(
 
     // Right side stats: Line, Col, word count (padded before resize knob)
     let stats = if dock_rect.width() > 640.0 {
-        format!("Ln {}, Col {}  ·  {} words", cursor_row, cursor_col, total_words)
+        format!(
+            "Ln {}, Col {}  ·  {} words",
+            cursor_row, cursor_col, total_words
+        )
     } else {
         format!("Ln {}, Col {}", cursor_row, cursor_col)
     };
@@ -109,8 +108,14 @@ pub fn render_bottom_dock(
             valid_cur -= 1;
         }
         let before_cur = &cmd_text[..valid_cur];
-        let cursor_offset_x = painter.layout_no_wrap(before_cur.to_string(), font.clone(), theme.text).size().x;
-        let total_text_w = painter.layout_no_wrap(cmd_text.to_string(), font.clone(), theme.text).size().x;
+        let cursor_offset_x = painter
+            .layout_no_wrap(before_cur.to_string(), font.clone(), theme.text)
+            .size()
+            .x;
+        let total_text_w = painter
+            .layout_no_wrap(cmd_text.to_string(), font.clone(), theme.text)
+            .size()
+            .x;
 
         // Auto-scroll offset so cursor is always within view and long commands push left
         let scroll_x = if total_text_w > cmd_avail_w {
@@ -141,10 +146,19 @@ pub fn render_bottom_dock(
             }
             let prefix = &cmd_text[..valid_min];
             let selected_part = &cmd_text[valid_min..valid_max];
-            let x_off = cmd_painter.layout_no_wrap(prefix.to_string(), font.clone(), theme.text).size().x;
-            let sel_w = cmd_painter.layout_no_wrap(selected_part.to_string(), font.clone(), theme.text).size().x;
+            let x_off = cmd_painter
+                .layout_no_wrap(prefix.to_string(), font.clone(), theme.text)
+                .size()
+                .x;
+            let sel_w = cmd_painter
+                .layout_no_wrap(selected_part.to_string(), font.clone(), theme.text)
+                .size()
+                .x;
             cmd_painter.rect_filled(
-                Rect::from_min_size(pos2(text_origin.x + x_off, text_origin.y), vec2(sel_w, 18.0)),
+                Rect::from_min_size(
+                    pos2(text_origin.x + x_off, text_origin.y),
+                    vec2(sel_w, 18.0),
+                ),
                 2.0,
                 Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 90),
             );
@@ -166,7 +180,11 @@ pub fn render_bottom_dock(
         }
     } else if let Some((symbol, query, match_count)) = search_prompt {
         // [SEARCH] label (clean text, no background highlight or border)
-        let badge_label = if symbol == "?" { "? SEARCH" } else { "/ SEARCH" };
+        let badge_label = if symbol == "?" {
+            "? SEARCH"
+        } else {
+            "/ SEARCH"
+        };
         painter.text(
             pos2(cmd_x, dock_rect.center().y),
             Align2::LEFT_CENTER,
@@ -267,14 +285,13 @@ pub fn render_bottom_dock(
     }
 
     if is_knob_hovered && ui.input(|i| i.pointer.primary_down() || i.pointer.primary_pressed()) {
-        ui.ctx().send_viewport_cmd(egui::ViewportCommand::BeginResize(egui::ResizeDirection::SouthEast));
+        ui.ctx()
+            .send_viewport_cmd(egui::ViewportCommand::BeginResize(
+                egui::ResizeDirection::SouthEast,
+            ));
     }
 
-    let knob_color = if is_knob_hovered {
-        accent
-    } else {
-        theme.muted
-    };
+    let knob_color = if is_knob_hovered { accent } else { theme.muted };
 
     // Tactile diagonal gripper ridges
     for &d in &[5.0, 9.0, 13.0, 17.0] {
@@ -288,14 +305,11 @@ pub fn render_bottom_dock(
     }
 
     // Draw right side stats
-    painter.galley(
-        pos2(stats_left_x, stats_pos.y),
-        stats_galley,
-        theme.muted,
-    );
+    painter.galley(pos2(stats_left_x, stats_pos.y), stats_galley, theme.muted);
 
     // Empty-space statusbar drag: lets users grab and move the borderless window from the dock
-    let is_empty_dock_hovered = ui.rect_contains_pointer(dock_rect) && !is_ai_hovered && !is_knob_hovered && !in_command;
+    let is_empty_dock_hovered =
+        ui.rect_contains_pointer(dock_rect) && !is_ai_hovered && !is_knob_hovered && !in_command;
     if is_empty_dock_hovered && ui.input(|i| i.pointer.primary_down()) {
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
     }

@@ -150,13 +150,21 @@ fn call_deepseek_api(
                         if let Some(first) = parsed.choices.into_iter().next() {
                             AgentResponse::Success(first.message.content)
                         } else {
-                            AgentResponse::Error("DeepSeek returned an empty response choices array.".to_string())
+                            AgentResponse::Error(
+                                "DeepSeek returned an empty response choices array.".to_string(),
+                            )
                         }
                     }
-                    Err(e) => AgentResponse::Error(format!("Failed to parse DeepSeek response: {}", e)),
+                    Err(e) => {
+                        AgentResponse::Error(format!("Failed to parse DeepSeek response: {}", e))
+                    }
                 }
             } else {
-                AgentResponse::Error(format!("DeepSeek API returned HTTP status {}: {}", resp.status(), resp.status_text()))
+                AgentResponse::Error(format!(
+                    "DeepSeek API returned HTTP status {}: {}",
+                    resp.status(),
+                    resp.status_text()
+                ))
             }
         }
         Err(ureq::Error::Status(code, resp)) => {

@@ -24,10 +24,18 @@ pub fn render_backlinks_panel(
         let icon_rect = Rect::from_center_size(pos2(center.x, center.y - 32.0), vec2(28.0, 28.0));
         let stroke = Stroke::new(
             1.8_f32,
-            eframe::egui::Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 130),
+            eframe::egui::Color32::from_rgba_unmultiplied(
+                theme.accent.r(),
+                theme.accent.g(),
+                theme.accent.b(),
+                130,
+            ),
         );
         let ic = icon_rect.center();
-        painter.line_segment([pos2(ic.x - 5.5, ic.y + 5.5), pos2(ic.x + 5.5, ic.y - 5.5)], stroke);
+        painter.line_segment(
+            [pos2(ic.x - 5.5, ic.y + 5.5), pos2(ic.x + 5.5, ic.y - 5.5)],
+            stroke,
+        );
         painter.circle_stroke(pos2(ic.x - 3.5, ic.y + 3.5), 3.5, stroke);
         painter.circle_stroke(pos2(ic.x + 3.5, ic.y - 3.5), 3.5, stroke);
 
@@ -102,7 +110,10 @@ pub fn render_backlinks_panel(
             .show(ui, |ui| {
                 for (idx, bl) in backlinks.iter().enumerate() {
                     let is_selected = idx == *selected_idx;
-                    let (item_rect, resp) = ui.allocate_exact_size(vec2(rect.width() - 8.0, item_h), egui::Sense::click());
+                    let (item_rect, resp) = ui.allocate_exact_size(
+                        vec2(rect.width() - 8.0, item_h),
+                        egui::Sense::click(),
+                    );
                     let is_hovered = resp.hovered();
 
                     if resp.clicked() {
@@ -123,19 +134,29 @@ pub fn render_backlinks_panel(
                     };
 
                     // Left note / folder icon
-                    let is_nested = bl.source_note_title.contains('/') || bl.source_note_title.contains('\\');
+                    let is_nested =
+                        bl.source_note_title.contains('/') || bl.source_note_title.contains('\\');
                     let icon_name = if is_nested { "folder" } else { "doc" };
-                    let icon_rect = Rect::from_center_size(pos2(item_rect.min.x + 12.0, item_rect.min.y + 12.0), vec2(12.0, 12.0));
+                    let icon_rect = Rect::from_center_size(
+                        pos2(item_rect.min.x + 12.0, item_rect.min.y + 12.0),
+                        vec2(12.0, 12.0),
+                    );
                     crate::ui_components::render_vector_icon(
                         painter,
                         icon_name,
                         icon_rect,
-                        if is_selected { theme.accent } else { theme.muted },
+                        if is_selected {
+                            theme.accent
+                        } else {
+                            theme.muted
+                        },
                     );
 
                     // Note title
-                    let max_chars = (((item_rect.max.x - item_rect.min.x - 30.0).max(20.0)) / 7.2) as usize;
-                    let display_title = crate::ui::truncate_with_ellipsis(&bl.source_note_title, max_chars);
+                    let max_chars =
+                        (((item_rect.max.x - item_rect.min.x - 30.0).max(20.0)) / 7.2) as usize;
+                    let display_title =
+                        crate::ui::truncate_with_ellipsis(&bl.source_note_title, max_chars);
 
                     painter.text(
                         pos2(item_rect.min.x + 24.0, item_rect.min.y + 12.0),
@@ -146,7 +167,8 @@ pub fn render_backlinks_panel(
                     );
 
                     // Line snippet below title
-                    let snip_chars = (((item_rect.max.x - item_rect.min.x - 24.0).max(20.0)) / 6.5) as usize;
+                    let snip_chars =
+                        (((item_rect.max.x - item_rect.min.x - 24.0).max(20.0)) / 6.5) as usize;
                     let display_snip = crate::ui::truncate_with_ellipsis(&bl.snippet, snip_chars);
 
                     painter.text(

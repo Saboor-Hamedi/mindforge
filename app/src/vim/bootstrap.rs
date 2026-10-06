@@ -8,7 +8,7 @@
 //! - Bundles Lua runtime scripts for LSP handlers, diagnostics, snippets, and Emmet.
 //! - Configures initial Neovim options (relative line numbers, true colors, syntax on, cursorline).
 //! - Normalizes indentation and visual line navigation shortcuts (`gj`/`gk`, `<C-]>`, `<A-Up/Down>`).
-//! - Initializes auto-closing pairs for parentheses, quotes, and brackets to match Hybrid mode.
+//! - Initializes auto-closing pairs for parentheses, quotes, and brackets.
 //!
 //! # Non-Goals & Invariants
 //! - Must NOT perform blocking network or filesystem requests.
@@ -25,6 +25,10 @@ pub const LSP_MODULES: &[(&str, &str)] = &[
     (
         "mindforge.lsp.paths",
         include_str!("../../assets/nvim/mindforge/lsp/paths.lua"),
+    ),
+    (
+        "mindforge.lsp.guard",
+        include_str!("../../assets/nvim/mindforge/lsp/guard.lua"),
     ),
     (
         "mindforge.lsp.notify",
@@ -130,7 +134,7 @@ pub const INIT_LUA: &str = r#"
     vim.keymap.set('i', '<A-Up>', '<Esc><cmd>m .-2<CR>==gi', { noremap = true, silent = true })
     vim.keymap.set('i', '<A-Down>', '<Esc><cmd>m .+1<CR>==gi', { noremap = true, silent = true })
 
-    -- Auto-closing pairs so the Neovim surface matches Hybrid typing.
+    -- Auto-closing pairs for intuitive typing.
     if vim.g.mindforge_autopair ~= false then
         local function next_char()
             local col = vim.fn.col('.')

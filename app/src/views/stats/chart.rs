@@ -27,7 +27,10 @@ pub fn render_rhythm_chart(
     );
 
     p.text(
-        pos2(chart_container.min.x + 16.0 * scale, chart_container.min.y + 14.0 * scale),
+        pos2(
+            chart_container.min.x + 16.0 * scale,
+            chart_container.min.y + 14.0 * scale,
+        ),
         Align2::LEFT_TOP,
         "WRITING RHYTHM (RECENT DAYS)",
         FontId::monospace(11.5 * scale),
@@ -55,7 +58,8 @@ pub fn render_rhythm_chart(
     for (i, act) in display_days.iter().enumerate() {
         let bx = chart_container.min.x + 16.0 * scale + i as f32 * (bar_w + bar_gap);
         let h = ((act.active_seconds as f32 / max_secs) * max_chart_h).max(3.0);
-        let bar_rect = Rect::from_min_max(pos2(bx, chart_base_y - h), pos2(bx + bar_w, chart_base_y));
+        let bar_rect =
+            Rect::from_min_max(pos2(bx, chart_base_y - h), pos2(bx + bar_w, chart_base_y));
 
         let is_today = act.date == today_date;
         let is_active = act.active_seconds > 0;
@@ -79,7 +83,11 @@ pub fn render_rhythm_chart(
                 Align2::CENTER_TOP,
                 format!("{}m", act.active_seconds / 60),
                 FontId::monospace((9.0 * scale).max(9.5)),
-                if is_today { theme.highlight } else { Color32::from_gray(160) },
+                if is_today {
+                    theme.highlight
+                } else {
+                    Color32::from_gray(160)
+                },
             );
         }
 
@@ -97,7 +105,11 @@ pub fn render_rhythm_chart(
             Align2::CENTER_TOP,
             date_label,
             FontId::monospace((9.0 * scale).max(9.5)),
-            if is_today { theme.highlight } else { Color32::from_gray(120) },
+            if is_today {
+                theme.highlight
+            } else {
+                Color32::from_gray(120)
+            },
         );
     }
 }

@@ -19,7 +19,6 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::Command;
 
-
 // ─── Colours (ANSI) ──────────────────────────────────────────────────────────
 const GREEN: &str = "\x1b[32m";
 const YELLOW: &str = "\x1b[33m";
@@ -55,7 +54,10 @@ fn run(program: &str, args: &[&str], cwd: &Path) {
         .unwrap_or_else(|e| bail(&format!("failed to execute {program}: {e}")));
 
     if !status.success() {
-        bail(&format!("`{program} {}` exited with status {status}", args.join(" ")));
+        bail(&format!(
+            "`{program} {}` exited with status {status}",
+            args.join(" ")
+        ));
     }
 }
 
@@ -93,10 +95,7 @@ fn read_version(cargo_toml: &Path) -> (String, String) {
 }
 
 fn bump_patch(version: &str) -> String {
-    let parts: Vec<u64> = version
-        .split('.')
-        .filter_map(|p| p.parse().ok())
-        .collect();
+    let parts: Vec<u64> = version.split('.').filter_map(|p| p.parse().ok()).collect();
 
     if parts.len() != 3 {
         bail(&format!("Unexpected version format: {version}"));
@@ -164,7 +163,9 @@ fn main() {
         args[1].clone()
     } else {
         let bumped = bump_patch(&current_ver);
-        print!("\n{YELLOW}New version [{bumped}]? (press Enter to accept, or type a version): {RESET}");
+        print!(
+            "\n{YELLOW}New version [{bumped}]? (press Enter to accept, or type a version): {RESET}"
+        );
         io::stdout().flush().ok();
         let mut input = String::new();
         io::stdin().read_line(&mut input).ok();
@@ -192,7 +193,9 @@ fn main() {
     // ── 4. Check tag doesn't already exist ────────────────────────────────────
     let tag = format!("v{new_ver}");
     if tag_exists(&cwd, &tag) {
-        bail(&format!("Tag {tag} already exists. Bump to a higher version."));
+        bail(&format!(
+            "Tag {tag} already exists. Bump to a higher version."
+        ));
     }
 
     // ── 5. Run workspace tests ────────────────────────────────────────────────

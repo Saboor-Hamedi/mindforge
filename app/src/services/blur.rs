@@ -56,7 +56,10 @@ mod win32 {
         pub fn GetForegroundWindow() -> HWND;
         pub fn GetCurrentProcessId() -> DWORD;
         pub fn GetWindowThreadProcessId(hwnd: HWND, lpdwProcessId: *mut DWORD) -> DWORD;
-        pub fn EnumWindows(lpEnumFunc: Option<unsafe extern "system" fn(HWND, isize) -> BOOL>, lParam: isize) -> BOOL;
+        pub fn EnumWindows(
+            lpEnumFunc: Option<unsafe extern "system" fn(HWND, isize) -> BOOL>,
+            lParam: isize,
+        ) -> BOOL;
         pub fn IsWindowVisible(hwnd: HWND) -> BOOL;
     }
 
@@ -80,15 +83,11 @@ mod win32 {
         cbAttribute: DWORD,
     ) -> HRESULT;
 
-    pub type FnDwmExtendFrameIntoClientArea = unsafe extern "system" fn(
-        hwnd: HWND,
-        pMarInset: *const MARGINS,
-    ) -> HRESULT;
+    pub type FnDwmExtendFrameIntoClientArea =
+        unsafe extern "system" fn(hwnd: HWND, pMarInset: *const MARGINS) -> HRESULT;
 
-    pub type FnSetWindowCompositionAttribute = unsafe extern "system" fn(
-        hwnd: HWND,
-        data: *mut WindowCompositionAttributeData,
-    ) -> BOOL;
+    pub type FnSetWindowCompositionAttribute =
+        unsafe extern "system" fn(hwnd: HWND, data: *mut WindowCompositionAttributeData) -> BOOL;
 
     pub const DWMWA_USE_IMMERSIVE_DARK_MODE: DWORD = 20;
     pub const DWMWA_SYSTEMBACKDROP_TYPE: DWORD = 38;
@@ -167,7 +166,8 @@ pub fn apply_window_blur(_effect: BlurEffect) {
         let dwmapi = LoadLibraryA(b"dwmapi.dll\0".as_ptr() as LPCSTR);
         if !dwmapi.is_null() {
             // 1. Extend frame into client area so DWM backdrop renders across client rect
-            let extend_proc = GetProcAddress(dwmapi, b"DwmExtendFrameIntoClientArea\0".as_ptr() as LPCSTR);
+            let extend_proc =
+                GetProcAddress(dwmapi, b"DwmExtendFrameIntoClientArea\0".as_ptr() as LPCSTR);
             if !extend_proc.is_null() {
                 let extend_frame: FnDwmExtendFrameIntoClientArea = std::mem::transmute(extend_proc);
                 // Use zero margins on a decorations=false window.
@@ -184,7 +184,8 @@ pub fn apply_window_blur(_effect: BlurEffect) {
             }
 
             // 2. Set DWM window attributes
-            let set_attr_proc = GetProcAddress(dwmapi, b"DwmSetWindowAttribute\0".as_ptr() as LPCSTR);
+            let set_attr_proc =
+                GetProcAddress(dwmapi, b"DwmSetWindowAttribute\0".as_ptr() as LPCSTR);
             if !set_attr_proc.is_null() {
                 let set_attr: FnDwmSetWindowAttribute = std::mem::transmute(set_attr_proc);
 
@@ -258,9 +259,13 @@ pub fn apply_window_blur(_effect: BlurEffect) {
         if !dwm_success {
             let user32 = LoadLibraryA(b"user32.dll\0".as_ptr() as LPCSTR);
             if !user32.is_null() {
-                let set_comp_proc = GetProcAddress(user32, b"SetWindowCompositionAttribute\0".as_ptr() as LPCSTR);
+                let set_comp_proc = GetProcAddress(
+                    user32,
+                    b"SetWindowCompositionAttribute\0".as_ptr() as LPCSTR,
+                );
                 if !set_comp_proc.is_null() {
-                    let set_comp: FnSetWindowCompositionAttribute = std::mem::transmute(set_comp_proc);
+                    let set_comp: FnSetWindowCompositionAttribute =
+                        std::mem::transmute(set_comp_proc);
                     let (accent_state, gradient_color) = match effect {
                         BlurEffect::Acrylic => (ACCENT_ENABLE_ACRYLICBLURBEHIND, 0x01181818),
                         BlurEffect::Mica => (ACCENT_ENABLE_BLURBEHIND, 0),

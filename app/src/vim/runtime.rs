@@ -1,6 +1,6 @@
 //! Neovim process, startup, and pending-input state owned by the Vim mode.
 
-use crate::app::{App, EditorInputMode};
+use crate::app::App;
 use crate::editor::backend::EditorBackend;
 use crate::editor::events::EditorKeyEvent;
 use crate::mode::Mode;
@@ -57,15 +57,7 @@ impl VimRuntime {
 }
 
 /// Run Vim startup, RPC synchronization, and shutdown at the app frame boundary.
-pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start: EditorInputMode) {
-    let entering_vim = mode_at_frame_start == EditorInputMode::Vim
-        && app.services.editor_controller.last_observed_mode != EditorInputMode::Vim;
-    if entering_vim {
-        app.misc.caret.clear_transient_effects();
-        app.services.vim_runtime.start_error = None;
-    }
-
-    let mut vim_started_this_frame = false;
+pub fn update(app: &mut App, ctx: &egui::Context, now: f64) {
     let startup_result = app
         .services
         .vim_runtime
@@ -74,37 +66,32 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         .map(|rx| rx.try_recv());
     match startup_result {
         Some(Ok(Ok(mut backend))) => {
-            vim_started_this_frame = true;
             app.services.vim_runtime.start_rx = None;
-            if app.services.editor_controller.mode == EditorInputMode::Vim {
-                let pending = std::mem::take(&mut app.services.vim_runtime.pending_input);
-                for event in pending {
-                    match event {
-                        PendingVimInput::Text(text) => {
-                            let _ = backend.handle_text(&text);
-                        }
-                        PendingVimInput::Paste(text) => {
-                            let _ = backend.paste(&text);
-                        }
-                        PendingVimInput::Key(event) => {
-                            let _ = backend.handle_key(event);
-                        }
+            let pending = std::mem::take(&mut app.services.vim_runtime.pending_input);
+            for event in pending {
+                match event {
+                    PendingVimInput::Text(text) => {
+                        let _ = backend.handle_text(&text);
+                    }
+                    PendingVimInput::Paste(text) => {
+                        let _ = backend.paste(&text);
+                    }
+                    PendingVimInput::Key(event) => {
+                        let _ = backend.handle_key(event);
                     }
                 }
-                app.services.vim_runtime.backend = Some(backend);
-                if let (Some(backend), Some(root)) = (
-                    app.services.vim_runtime.backend.as_mut(),
-                    app.workspace.root.as_deref(),
-                ) {
-                    let _ = backend.set_workspace_root(root);
-                }
-                app.services.vim_runtime.note_id = app.services.vim_runtime.start_note_id;
-                app.services.vim_runtime.tab_index = app.services.vim_runtime.start_tab_index;
-                app.services.vim_runtime.language = app.services.vim_runtime.start_language;
-                app.services.vim_runtime.buffer_name = Some(app.active_buffer_name());
-            } else {
-                backend.shutdown();
             }
+            app.services.vim_runtime.backend = Some(backend);
+            if let (Some(backend), Some(root)) = (
+                app.services.vim_runtime.backend.as_mut(),
+                app.workspace.root.as_deref(),
+            ) {
+                let _ = backend.set_workspace_root(root);
+            }
+            app.services.vim_runtime.note_id = app.services.vim_runtime.start_note_id;
+            app.services.vim_runtime.tab_index = app.services.vim_runtime.start_tab_index;
+            app.services.vim_runtime.language = app.services.vim_runtime.start_language;
+            app.services.vim_runtime.buffer_name = Some(app.active_buffer_name());
         }
         Some(Ok(Err(error))) => {
             app.services.vim_runtime.start_rx = None;
@@ -120,14 +107,7 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         _ => {}
     }
 
-    if app.services.editor_controller.mode == EditorInputMode::Hybrid {
-        replay_pending_hybrid_input(app, now);
-        sync_neovim_changes(app, now);
-        return;
-    }
-
     let vim_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc)
-        && app.services.editor_controller.mode == EditorInputMode::Vim
         && (!app.misc.show_welcome || app.misc.mode == Mode::Doc)
         && (!app.open_notes.is_empty() || app.misc.mode == Mode::Doc);
 
@@ -135,23 +115,22 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
         return;
     }
 
-    let (active_doc_id, active_tab_idx, file_name, language) =
-        if app.misc.mode == Mode::Doc {
-            (
-                Some(-(app.tabs.active_doc_idx as i64 + 1)),
-                Some(app.tabs.active_doc_tab),
-                "note.md".to_string(),
-                crate::language::FileLanguage::Markdown,
-            )
-        } else {
-            let file_name = app.active_buffer_name();
-            (
-                app.notes.active_note_id,
-                Some(app.tabs.active_tab),
-                file_name,
-                app.active_language(),
-            )
-        };
+    let (active_doc_id, active_tab_idx, file_name, language) = if app.misc.mode == Mode::Doc {
+        (
+            Some(-(app.tabs.active_doc_idx as i64 + 1)),
+            Some(app.tabs.active_doc_tab),
+            "note.md".to_string(),
+            crate::language::FileLanguage::Markdown,
+        )
+    } else {
+        let file_name = app.active_buffer_name();
+        (
+            app.notes.active_note_id,
+            Some(app.tabs.active_tab),
+            file_name,
+            app.active_language(),
+        )
+    };
 
     if vim_active
         && app.services.vim_runtime.backend.is_none()
@@ -211,7 +190,7 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
             || app.services.vim_runtime.tab_index != active_tab_idx
             || app.services.vim_runtime.language != Some(language)
             || app.services.vim_runtime.buffer_name.as_deref() != Some(file_name.as_str());
-        if switched_document || (entering_vim && !vim_started_this_frame) {
+        if switched_document {
             let (active_text, active_row, active_col) = if app.misc.mode == Mode::Doc {
                 let (r, c) = app.editor.doc_ed.row_col();
                 (app.editor.doc_ed.text(), r, c)
@@ -220,30 +199,15 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
                 (app.editor.ed.text(), r, c)
             };
 
-            if entering_vim {
-                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-                    backend.tick();
-                    let _ = backend.take_text_update();
-                    let _ = backend.set_document_for_language(
-                        &active_text,
-                        active_row,
-                        active_col,
-                        &file_name,
-                        language,
-                    );
-                    backend.sync_theme(&app.misc.theme);
-                }
-            } else {
-                sync_neovim_changes(app, now);
-                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-                    let _ = backend.set_document_for_language(
-                        &active_text,
-                        active_row,
-                        active_col,
-                        &file_name,
-                        language,
-                    );
-                }
+            sync_neovim_changes(app, now);
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                let _ = backend.set_document_for_language(
+                    &active_text,
+                    active_row,
+                    active_col,
+                    &file_name,
+                    language,
+                );
             }
             app.services.vim_runtime.note_id = active_doc_id;
             app.services.vim_runtime.tab_index = active_tab_idx;
@@ -254,27 +218,7 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
     sync_neovim_changes(app, now);
 }
 
-fn replay_pending_hybrid_input(app: &mut App, now: f64) {
-    let pending = std::mem::take(&mut app.services.vim_runtime.pending_input);
-    for event in pending {
-        match event {
-            PendingVimInput::Text(text) => {
-                crate::input::editor::handle_editor_text(app, &text, now)
-            }
-            PendingVimInput::Paste(text) => {
-                crate::input::editor::handle_editor_paste(app, &text, now)
-            }
-            PendingVimInput::Key(event) => {
-                crate::input::editor::handle_editor_key(app, event.key, event.modifiers, now)
-            }
-        };
-    }
-}
-
 pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
-    if app.services.editor_controller.mode != EditorInputMode::Vim {
-        return;
-    }
     let (update, cursor, tab_index, note_id, backend_error) = {
         let Some(backend) = app.services.vim_runtime.backend.as_mut() else {
             return;

@@ -15,7 +15,8 @@ pub fn run(body: &str, _opts: &ScanOptions) -> Vec<Finding> {
         };
         let form_slice = &lower_body[abs_start..form_end];
 
-        let is_post = form_slice.contains("method=\"post\"") || form_slice.contains("method='post'");
+        let is_post =
+            form_slice.contains("method=\"post\"") || form_slice.contains("method='post'");
         if is_post {
             // Check for common anti-CSRF token fields
             let has_csrf = form_slice.contains("csrf")
@@ -28,7 +29,8 @@ pub fn run(body: &str, _opts: &ScanOptions) -> Vec<Finding> {
                     category: Category::Injection,
                     severity: Severity::Medium,
                     title: "Form missing anti-CSRF token".into(),
-                    description: "POST form without recognizable anti-CSRF token input detected.".into(),
+                    description: "POST form without recognizable anti-CSRF token input detected."
+                        .into(),
                 });
                 break; // Report once per page
             }

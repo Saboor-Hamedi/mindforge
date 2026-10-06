@@ -57,7 +57,10 @@ pub fn clean_note_topic_for_autocomplete(topic: &str) -> (String, String, String
     }
 
     // 2. Check for domain-like text with loose dots (e.g. `supabase.co` or `. supabase. co`)
-    let normalized_dots = clean.replace(" . ", ".").replace(". ", ".").replace(" .", ".");
+    let normalized_dots = clean
+        .replace(" . ", ".")
+        .replace(". ", ".")
+        .replace(" .", ".");
     let domain_badge = extract_domain_badge(&normalized_dots);
 
     // 3. Normalized path check
@@ -90,7 +93,8 @@ pub fn format_friendly_title(raw: &str, max_len: usize) -> String {
     // Shorten any ultra-long token (>16 chars) inside the text to prevent token explosions
     let mut words = Vec::new();
     for word in collapsed.split_whitespace() {
-        let clean_word = word.trim_matches(|c| c == ')' || c == '(' || c == ']' || c == '[' || c == ',');
+        let clean_word =
+            word.trim_matches(|c| c == ')' || c == '(' || c == ']' || c == '[' || c == ',');
         if clean_word.is_empty() {
             continue;
         }
@@ -124,8 +128,16 @@ pub fn truncate_clean_title(title: &str, max_len: usize) -> String {
 
 pub fn extract_domain_badge(text: &str) -> String {
     for word in text.split_whitespace() {
-        let clean = word.trim_matches(|c| c == '(' || c == ')' || c == '[' || c == ']' || c == ',' || c == '"' || c == '\'');
-        if clean.contains(".co") || clean.contains(".com") || clean.contains(".io") || clean.contains(".org") || clean.contains(".dev") || clean.contains(".net") {
+        let clean = word.trim_matches(|c| {
+            c == '(' || c == ')' || c == '[' || c == ']' || c == ',' || c == '"' || c == '\''
+        });
+        if clean.contains(".co")
+            || clean.contains(".com")
+            || clean.contains(".io")
+            || clean.contains(".org")
+            || clean.contains(".dev")
+            || clean.contains(".net")
+        {
             let domain = clean.rsplit('/').next().unwrap_or(clean);
             return crate::ui::truncate_with_ellipsis(domain, 16);
         }
@@ -289,11 +301,7 @@ pub enum AutocompleteAction {
 
 /// Applies autocomplete selection into the editor buffer, replacing the typed query
 /// and ensuring no duplicate `]]` are created if `[[]]` was already open.
-pub fn apply_autocomplete_insertion(
-    ed: &mut Editor,
-    trigger_start: usize,
-    target: &str,
-) -> String {
+pub fn apply_autocomplete_insertion(ed: &mut Editor, trigger_start: usize, target: &str) -> String {
     let replace_start = trigger_start + 2;
     let replace_end = ed.cur;
 
@@ -303,9 +311,8 @@ pub fn apply_autocomplete_insertion(
             && ed.buf[replace_end] == ']'
             && ed.buf[replace_end + 1] == ']';
 
-        let has_single_close = !has_double_close
-            && replace_end < ed.buf.len()
-            && ed.buf[replace_end] == ']';
+        let has_single_close =
+            !has_double_close && replace_end < ed.buf.len() && ed.buf[replace_end] == ']';
 
         ed.save_undo_snapshot();
 
@@ -404,19 +411,33 @@ pub fn compute_autocomplete_geometry(
     // Smart placement decision:
     let (placement, visible_count, menu_y) = if space_below >= ideal_h {
         // Fits completely below: place right under `[[`
-        (AutocompletePlacement::Bottom, ideal_visible, bottom_anchor_y)
+        (
+            AutocompletePlacement::Bottom,
+            ideal_visible,
+            bottom_anchor_y,
+        )
     } else if space_above >= ideal_h && space_above > space_below {
         // Fits above and top has more room: place right above `[[`
-        (AutocompletePlacement::Top, ideal_visible, top_anchor_y - ideal_h)
+        (
+            AutocompletePlacement::Top,
+            ideal_visible,
+            top_anchor_y - ideal_h,
+        )
     } else if space_below >= space_above {
         // Constrained space: bottom has more or equal room; adapt visible item count to fit space_below
-        let max_fit = (((space_below - padding_h) / item_h).floor() as usize).clamp(1, ideal_visible);
+        let max_fit =
+            (((space_below - padding_h) / item_h).floor() as usize).clamp(1, ideal_visible);
         (AutocompletePlacement::Bottom, max_fit, bottom_anchor_y)
     } else {
         // Constrained space: top has more room; adapt visible item count to fit space_above
-        let max_fit = (((space_above - padding_h) / item_h).floor() as usize).clamp(1, ideal_visible);
+        let max_fit =
+            (((space_above - padding_h) / item_h).floor() as usize).clamp(1, ideal_visible);
         let actual_h = max_fit as f32 * item_h + padding_h;
-        (AutocompletePlacement::Top, max_fit, (top_anchor_y - actual_h).max(safe_top))
+        (
+            AutocompletePlacement::Top,
+            max_fit,
+            (top_anchor_y - actual_h).max(safe_top),
+        )
     };
 
     let actual_h = visible_count as f32 * item_h + padding_h;
@@ -466,7 +487,10 @@ pub fn render_wikilink_autocomplete(
     // Dismiss dropdown immediately if the user touches or clicks anywhere else on screen
     let clicked_outside = ui.input(|i| {
         (i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary))
-            && i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()).map_or(false, |p| !menu_rect.contains(p))
+            && i.pointer
+                .interact_pos()
+                .or_else(|| i.pointer.hover_pos())
+                .map_or(false, |p| !menu_rect.contains(p))
     });
     if clicked_outside {
         state.dismiss(ed.cur);
@@ -523,7 +547,9 @@ pub fn render_wikilink_autocomplete(
             let target = item.insert_target.clone();
             let inserted = apply_autocomplete_insertion(ed, state.trigger_start, &target);
             state.dismiss(ed.cur);
-            return Some(AutocompleteAction::Inserted { inserted_text: inserted });
+            return Some(AutocompleteAction::Inserted {
+                inserted_text: inserted,
+            });
         } else {
             state.dismiss(ed.cur);
             return None;
@@ -543,10 +569,19 @@ pub fn render_wikilink_autocomplete(
 
     // Render items
     let mut cur_y = menu_rect.min.y + 6.0;
-    for (rel_idx, item) in state.filtered_items.iter().skip(scroll_offset).take(max_visible).enumerate() {
+    for (rel_idx, item) in state
+        .filtered_items
+        .iter()
+        .skip(scroll_offset)
+        .take(max_visible)
+        .enumerate()
+    {
         let idx = scroll_offset + rel_idx;
         let is_selected = idx == state.selected_index;
-        let item_rect = Rect::from_min_size(pos2(menu_rect.min.x + 6.0, cur_y), vec2(menu_w - 12.0, item_h));
+        let item_rect = Rect::from_min_size(
+            pos2(menu_rect.min.x + 6.0, cur_y),
+            vec2(menu_w - 12.0, item_h),
+        );
 
         let is_hovered = ui.rect_contains_pointer(item_rect);
         if is_hovered && ui.input(|i| i.pointer.primary_clicked()) {
@@ -554,7 +589,9 @@ pub fn render_wikilink_autocomplete(
             let target = item.insert_target.clone();
             let inserted = apply_autocomplete_insertion(ed, state.trigger_start, &target);
             state.dismiss(ed.cur);
-            return Some(AutocompleteAction::Inserted { inserted_text: inserted });
+            return Some(AutocompleteAction::Inserted {
+                inserted_text: inserted,
+            });
         }
 
         // Left icon
@@ -566,12 +603,19 @@ pub fn render_wikilink_autocomplete(
         } else {
             "doc"
         };
-        let icon_rect = Rect::from_center_size(pos2(item_rect.min.x + 14.0, item_rect.center().y), vec2(13.0, 13.0));
+        let icon_rect = Rect::from_center_size(
+            pos2(item_rect.min.x + 14.0, item_rect.center().y),
+            vec2(13.0, 13.0),
+        );
         crate::ui_components::render_vector_icon(
             painter,
             icon_name,
             icon_rect,
-            if is_selected { theme.accent } else { theme.muted },
+            if is_selected {
+                theme.accent
+            } else {
+                theme.muted
+            },
         );
 
         // Title: Text only highlight (NO background box, clean title ONLY without metadata clutter)
@@ -614,7 +658,7 @@ mod tests {
         assert!(display.len() <= 28);
         assert!(!display.contains("foldevzzxzlksrnhepytzaqqf")); // shortened long token
         assert!(!display.contains("-aJBCtxX8A5ULZK6QKy9DA_e7eTMpbt")); // shortened long token
-        // Full raw topic is preserved for link insertion
+                                                                       // Full raw topic is preserved for link insertion
         assert_eq!(insert, messy);
         // Recognizes domain badge
         assert!(!badge.is_empty());
@@ -624,9 +668,27 @@ mod tests {
     fn test_wikilink_autocomplete_trigger_and_filtering() {
         let now = Local::now().naive_local();
         let notes = vec![
-            Note { id: 1, topic: "Architecture".into(), body: "".into(), struggled_with: None, created_at: now },
-            Note { id: 2, topic: "docs/networking".into(), body: "".into(), struggled_with: None, created_at: now },
-            Note { id: 3, topic: "Personal Notes".into(), body: "".into(), struggled_with: None, created_at: now },
+            Note {
+                id: 1,
+                topic: "Architecture".into(),
+                body: "".into(),
+                struggled_with: None,
+                created_at: now,
+            },
+            Note {
+                id: 2,
+                topic: "docs/networking".into(),
+                body: "".into(),
+                struggled_with: None,
+                created_at: now,
+            },
+            Note {
+                id: 3,
+                topic: "Personal Notes".into(),
+                body: "".into(),
+                struggled_with: None,
+                created_at: now,
+            },
         ];
 
         let mut ed = Editor::new();
@@ -681,9 +743,13 @@ mod tests {
     #[test]
     fn test_wikilink_autocomplete_dismissal_suppression() {
         let now = chrono::Utc::now().naive_utc();
-        let notes = vec![
-            Note { id: 1, topic: "Architecture".into(), body: "".into(), struggled_with: None, created_at: now },
-        ];
+        let notes = vec![Note {
+            id: 1,
+            topic: "Architecture".into(),
+            body: "".into(),
+            struggled_with: None,
+            created_at: now,
+        }];
 
         let mut ed = Editor::new();
         ed.set_text("Reading [[arch");
@@ -699,13 +765,19 @@ mod tests {
 
         // Next frame check_trigger with identical caret must NOT reopen
         state.check_trigger(&ed, &notes);
-        assert!(!state.is_active, "Autocomplete must remain dismissed while cursor is at the same position");
+        assert!(
+            !state.is_active,
+            "Autocomplete must remain dismissed while cursor is at the same position"
+        );
 
         // Moving cursor away resets suppression and allows re-triggering
         ed.set_text("Reading [[archite");
         ed.cur = ed.buf.len();
         state.check_trigger(&ed, &notes);
-        assert!(state.is_active, "Autocomplete must reactivate when user types or moves cursor");
+        assert!(
+            state.is_active,
+            "Autocomplete must reactivate when user types or moves cursor"
+        );
     }
 
     #[test]
@@ -720,7 +792,10 @@ mod tests {
         assert_eq!(geo.max_visible, 6);
         // Popup starts right under [[
         assert_eq!(geo.menu_rect.min.y, trigger_bottom.y);
-        assert!(geo.menu_rect.min.y >= trigger_pos.y + trigger_lh, "Must be under trigger");
+        assert!(
+            geo.menu_rect.min.y >= trigger_pos.y + trigger_lh,
+            "Must be under trigger"
+        );
     }
 
     #[test]
@@ -735,8 +810,14 @@ mod tests {
         assert_eq!(geo.placement, AutocompletePlacement::Top);
         assert_eq!(geo.max_visible, 6);
         // Popup bottom is strictly above the trigger line (never overlapping [[)
-        assert!(geo.menu_rect.max.y <= trigger_pos.y, "Must be above [[ without overlapping");
-        assert!(geo.menu_rect.min.y >= window_bounds.min.y + 32.0, "Must stay within safe top margin");
+        assert!(
+            geo.menu_rect.max.y <= trigger_pos.y,
+            "Must be above [[ without overlapping"
+        );
+        assert!(
+            geo.menu_rect.min.y >= window_bounds.min.y + 32.0,
+            "Must stay within safe top margin"
+        );
     }
 
     #[test]

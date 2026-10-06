@@ -53,7 +53,10 @@ pub fn render_ai_tab(
 
     // Persistent show/hide toggle and edit buffer
     let reveal_id = egui::Id::new("deepseek_reveal_key");
-    let mut reveal = ui.ctx().data_mut(|d| d.get_temp::<bool>(reveal_id)).unwrap_or(false);
+    let mut reveal = ui
+        .ctx()
+        .data_mut(|d| d.get_temp::<bool>(reveal_id))
+        .unwrap_or(false);
 
     let mut current_key = deobfuscate_key(api_key_enc);
     let mut key_changed = false;
@@ -75,8 +78,19 @@ pub fn render_ai_tab(
     painter.rect(
         show_btn,
         4.0,
-        if show_hover { theme.surface().lerp_to_gamma(theme.accent, 0.15) } else { theme.bg },
-        Stroke::new(1.0_f32, if show_hover { theme.accent } else { theme.border() }),
+        if show_hover {
+            theme.surface().lerp_to_gamma(theme.accent, 0.15)
+        } else {
+            theme.bg
+        },
+        Stroke::new(
+            1.0_f32,
+            if show_hover {
+                theme.accent
+            } else {
+                theme.border()
+            },
+        ),
         egui::StrokeKind::Inside,
     );
     painter.text(
@@ -84,7 +98,11 @@ pub fn render_ai_tab(
         Align2::CENTER_CENTER,
         if reveal { "Hide" } else { "Show" },
         FontId::proportional(11.0),
-        if show_hover { theme.accent } else { theme.muted },
+        if show_hover {
+            theme.accent
+        } else {
+            theme.muted
+        },
     );
 
     // One-click Paste button
@@ -106,8 +124,19 @@ pub fn render_ai_tab(
     painter.rect(
         paste_btn,
         4.0,
-        if paste_hover { theme.surface().lerp_to_gamma(theme.accent, 0.15) } else { theme.bg },
-        Stroke::new(1.0_f32, if paste_hover { theme.accent } else { theme.border() }),
+        if paste_hover {
+            theme.surface().lerp_to_gamma(theme.accent, 0.15)
+        } else {
+            theme.bg
+        },
+        Stroke::new(
+            1.0_f32,
+            if paste_hover {
+                theme.accent
+            } else {
+                theme.border()
+            },
+        ),
         egui::StrokeKind::Inside,
     );
     painter.text(
@@ -115,12 +144,19 @@ pub fn render_ai_tab(
         Align2::CENTER_CENTER,
         "Paste",
         FontId::proportional(11.0),
-        if paste_hover { theme.accent } else { theme.muted },
+        if paste_hover {
+            theme.accent
+        } else {
+            theme.muted
+        },
     );
 
     // Optional Clear button when key is present
     let clear_btn_w = if !current_key.is_empty() { 42.0 } else { 0.0 };
-    let clear_btn = Rect::from_min_size(pos2(paste_btn.min.x - clear_btn_w - 4.0, btn_y), vec2(clear_btn_w, btn_h));
+    let clear_btn = Rect::from_min_size(
+        pos2(paste_btn.min.x - clear_btn_w - 4.0, btn_y),
+        vec2(clear_btn_w, btn_h),
+    );
     if !current_key.is_empty() {
         let clear_resp = ui.allocate_rect(clear_btn, egui::Sense::click());
         let clear_hover = clear_resp.hovered() || ui.rect_contains_pointer(clear_btn);
@@ -134,8 +170,19 @@ pub fn render_ai_tab(
         painter.rect(
             clear_btn,
             4.0,
-            if clear_hover { Color32::from_rgba_unmultiplied(220, 60, 60, 24) } else { theme.bg },
-            Stroke::new(1.0_f32, if clear_hover { Color32::from_rgb(220, 60, 60) } else { theme.border() }),
+            if clear_hover {
+                Color32::from_rgba_unmultiplied(220, 60, 60, 24)
+            } else {
+                theme.bg
+            },
+            Stroke::new(
+                1.0_f32,
+                if clear_hover {
+                    Color32::from_rgb(220, 60, 60)
+                } else {
+                    theme.border()
+                },
+            ),
             egui::StrokeKind::Inside,
         );
         painter.text(
@@ -143,12 +190,20 @@ pub fn render_ai_tab(
             Align2::CENTER_CENTER,
             "Clear",
             FontId::proportional(11.0),
-            if clear_hover { Color32::from_rgb(230, 80, 80) } else { theme.muted },
+            if clear_hover {
+                Color32::from_rgb(230, 80, 80)
+            } else {
+                theme.muted
+            },
         );
     }
 
     // Text Edit inside key_card using native egui password masking
-    let input_right = if !current_key.is_empty() { clear_btn.min.x - 8.0 } else { paste_btn.min.x - 8.0 };
+    let input_right = if !current_key.is_empty() {
+        clear_btn.min.x - 8.0
+    } else {
+        paste_btn.min.x - 8.0
+    };
     let input_rect = Rect::from_min_max(
         pos2(key_card.min.x + 12.0, key_card.min.y + 8.0),
         pos2(input_right, key_card.max.y - 8.0),
@@ -188,7 +243,11 @@ pub fn render_ai_tab(
     } else {
         let clean = current_key.trim();
         let masked = if clean.len() > 8 {
-            format!("✓ Key configured ({}...{})", &clean[..4], &clean[clean.len() - 4..])
+            format!(
+                "✓ Key configured ({}...{})",
+                &clean[..4],
+                &clean[clean.len() - 4..]
+            )
         } else {
             "✓ Key configured".to_string()
         };
@@ -241,7 +300,16 @@ pub fn render_ai_tab(
             opt_rect,
             6.0,
             bg,
-            Stroke::new(1.0_f32, if is_sel { theme.accent } else if opt_hover { theme.border().lerp_to_gamma(theme.accent, 0.4) } else { theme.border() }),
+            Stroke::new(
+                1.0_f32,
+                if is_sel {
+                    theme.accent
+                } else if opt_hover {
+                    theme.border().lerp_to_gamma(theme.accent, 0.4)
+                } else {
+                    theme.border()
+                },
+            ),
             egui::StrokeKind::Inside,
         );
 

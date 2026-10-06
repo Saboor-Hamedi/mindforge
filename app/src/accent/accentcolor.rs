@@ -50,7 +50,10 @@ impl AccentOverrides {
         }
     }
 
-    pub fn save_to_settings(&self, tx: &std::sync::mpsc::Sender<crate::services::db_worker::DbMsg>) {
+    pub fn save_to_settings(
+        &self,
+        tx: &std::sync::mpsc::Sender<crate::services::db_worker::DbMsg>,
+    ) {
         let put = |key: &str, c: Option<Color32>| {
             let _ = tx.send(crate::services::db_worker::DbMsg::SaveSetting {
                 key: key.to_string(),
@@ -166,8 +169,10 @@ pub fn render_accent_dropdown(
 
     // --- Header ---
     let header_h = 44.0;
-    let header_rect =
-        Rect::from_min_max(dropdown_rect.min, pos2(dropdown_rect.max.x, dropdown_rect.min.y + header_h));
+    let header_rect = Rect::from_min_max(
+        dropdown_rect.min,
+        pos2(dropdown_rect.max.x, dropdown_rect.min.y + header_h),
+    );
     painter.line_segment(
         [header_rect.left_bottom(), header_rect.right_bottom()],
         Stroke::new(1.0_f32, theme.border().gamma_multiply(open_t)),
@@ -187,10 +192,14 @@ pub fn render_accent_dropdown(
         theme.muted.gamma_multiply(open_t),
     );
 
-    let close_btn_rect =
-        Rect::from_center_size(pos2(header_rect.max.x - 18.0, header_rect.center().y), vec2(22.0, 22.0));
+    let close_btn_rect = Rect::from_center_size(
+        pos2(header_rect.max.x - 18.0, header_rect.center().y),
+        vec2(22.0, 22.0),
+    );
     let close_hovered = ui.rect_contains_pointer(close_btn_rect);
-    let close_t = ui.ctx().animate_bool(ui.id().with("close_btn_hover"), close_hovered);
+    let close_t = ui
+        .ctx()
+        .animate_bool(ui.id().with("close_btn_hover"), close_hovered);
     if close_t > 0.0 {
         let hover_bg = if theme.is_light() {
             Color32::from_black_alpha((18.0 * close_t) as u8)
@@ -224,16 +233,34 @@ pub fn render_accent_dropdown(
         ("Accent Color", &mut overrides.accent, default_theme.accent),
         ("Text Color", &mut overrides.text, default_theme.text),
     ] {
-        let rect = Rect::from_min_size(pos2(inner_rect.min.x, cur_y), vec2(inner_rect.width(), section_h));
-        render_color_section(ui, painter, rect, label, slot, default_color, theme, &mut changed);
+        let rect = Rect::from_min_size(
+            pos2(inner_rect.min.x, cur_y),
+            vec2(inner_rect.width(), section_h),
+        );
+        render_color_section(
+            ui,
+            painter,
+            rect,
+            label,
+            slot,
+            default_color,
+            theme,
+            &mut changed,
+        );
         cur_y += section_h + section_gap;
     }
 
     // --- Window Blur & Opacity Section ---
-    let backdrop_card_rect = Rect::from_min_size(pos2(inner_rect.min.x, cur_y), vec2(inner_rect.width(), 84.0));
+    let backdrop_card_rect = Rect::from_min_size(
+        pos2(inner_rect.min.x, cur_y),
+        vec2(inner_rect.width(), 84.0),
+    );
     // Clean transparent section with subtle divider — ZERO background fill
     painter.line_segment(
-        [backdrop_card_rect.left_top(), backdrop_card_rect.right_top()],
+        [
+            backdrop_card_rect.left_top(),
+            backdrop_card_rect.right_top(),
+        ],
         Stroke::new(1.0_f32, theme.border().gamma_multiply(open_t)),
     );
 
@@ -260,7 +287,10 @@ pub fn render_accent_dropdown(
 
     for (p_idx, &(p_label, p_eff)) in effect_pills.iter().enumerate() {
         let p_rect = Rect::from_min_size(
-            pos2(pills_start_x + p_idx as f32 * (pill_w + pill_gap), row1_y - 11.0),
+            pos2(
+                pills_start_x + p_idx as f32 * (pill_w + pill_gap),
+                row1_y - 11.0,
+            ),
             vec2(pill_w, pill_h),
         );
         let is_sel = *blur_effect == p_eff;
@@ -323,7 +353,11 @@ pub fn render_accent_dropdown(
     let slider_w = 120.0;
     let slider_x = backdrop_card_rect.max.x - 4.0 - slider_w - 42.0;
     let slider_rect = Rect::from_min_size(pos2(slider_x, row2_y - 9.0), vec2(slider_w, 18.0));
-    let slider_resp = ui.interact(slider_rect, ui.id().with("accent_opacity_slider"), Sense::click_and_drag());
+    let slider_resp = ui.interact(
+        slider_rect,
+        ui.id().with("accent_opacity_slider"),
+        Sense::click_and_drag(),
+    );
     let slider_hover = slider_resp.hovered() || slider_resp.dragged();
 
     if slider_resp.dragged() || slider_resp.clicked() {
@@ -340,13 +374,25 @@ pub fn render_accent_dropdown(
     }
 
     let track_y = slider_rect.center().y;
-    painter.rect_filled(Rect::from_min_size(pos2(slider_x, track_y - 2.0), vec2(slider_w, 4.0)), 2.0, theme.border());
+    painter.rect_filled(
+        Rect::from_min_size(pos2(slider_x, track_y - 2.0), vec2(slider_w, 4.0)),
+        2.0,
+        theme.border(),
+    );
     let active_w = slider_w * ((*opacity - 0.4) / 0.6).clamp(0.0, 1.0);
     if active_w > 0.0 {
-        painter.rect_filled(Rect::from_min_size(pos2(slider_x, track_y - 2.0), vec2(active_w, 4.0)), 2.0, theme.accent);
+        painter.rect_filled(
+            Rect::from_min_size(pos2(slider_x, track_y - 2.0), vec2(active_w, 4.0)),
+            2.0,
+            theme.accent,
+        );
     }
     let thumb_x = slider_x + active_w;
-    painter.circle_filled(pos2(thumb_x, track_y), if slider_hover { 6.0 } else { 5.0 }, theme.accent);
+    painter.circle_filled(
+        pos2(thumb_x, track_y),
+        if slider_hover { 6.0 } else { 5.0 },
+        theme.accent,
+    );
     painter.text(
         pos2(slider_rect.max.x + 8.0, track_y),
         Align2::LEFT_CENTER,
@@ -361,7 +407,9 @@ pub fn render_accent_dropdown(
         pos2(dropdown_rect.max.x - 10.0, dropdown_rect.max.y - 8.0),
     );
     let reset_resp = ui.interact(footer_rect, ui.id().with("reset_all"), Sense::click());
-    let reset_t = ui.ctx().animate_bool(reset_resp.id.with("hover"), reset_resp.hovered());
+    let reset_t = ui
+        .ctx()
+        .animate_bool(reset_resp.id.with("hover"), reset_resp.hovered());
     let reset_bg = lerp_color(
         Color32::from_rgba_unmultiplied(theme.bg.r(), theme.bg.g(), theme.bg.b(), 180),
         Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 45),
@@ -441,7 +489,9 @@ fn render_color_section(
         pos2(rect.max.x - pad, rect.min.y + pad + 18.0),
     );
     let badge_resp = ui.interact(badge_rect, id.with("copy"), Sense::click());
-    let badge_t = ui.ctx().animate_bool(id.with("copy_hover"), badge_resp.hovered());
+    let badge_t = ui
+        .ctx()
+        .animate_bool(id.with("copy_hover"), badge_resp.hovered());
     painter.rect(
         badge_rect,
         3.0,
@@ -454,27 +504,47 @@ fn render_color_section(
         Stroke::new(1.0_f32, lerp_color(theme.border(), theme.accent, badge_t)),
         egui::StrokeKind::Inside,
     );
-    let chip_rect = Rect::from_min_size(pos2(badge_rect.min.x + 3.0, badge_rect.min.y + 2.0), vec2(14.0, 14.0));
+    let chip_rect = Rect::from_min_size(
+        pos2(badge_rect.min.x + 3.0, badge_rect.min.y + 2.0),
+        vec2(14.0, 14.0),
+    );
     painter.rect_filled(chip_rect, 2.0, active_color);
     painter.text(
         pos2(chip_rect.max.x + 5.0, badge_rect.center().y),
         Align2::LEFT_CENTER,
         &hex_text,
         FontId::monospace(9.5),
-        if is_overridden { theme.accent } else { theme.muted },
+        if is_overridden {
+            theme.accent
+        } else {
+            theme.muted
+        },
     );
     if badge_resp.clicked() {
         ui.ctx().copy_text(hex_text.clone());
     }
-    badge_resp.on_hover_text(if is_overridden { "Click to copy" } else { "Default — click to copy" });
+    badge_resp.on_hover_text(if is_overridden {
+        "Click to copy"
+    } else {
+        "Default — click to copy"
+    });
 
     // Reset chip, only when overridden.
     if is_overridden {
-        let reset_chip = Rect::from_center_size(pos2(badge_rect.min.x - 10.0, badge_rect.center().y), vec2(14.0, 14.0));
+        let reset_chip = Rect::from_center_size(
+            pos2(badge_rect.min.x - 10.0, badge_rect.center().y),
+            vec2(14.0, 14.0),
+        );
         let reset_resp = ui.interact(reset_chip, id.with("reset"), Sense::click());
-        let reset_t = ui.ctx().animate_bool(id.with("reset_hover"), reset_resp.hovered());
+        let reset_t = ui
+            .ctx()
+            .animate_bool(id.with("reset_hover"), reset_resp.hovered());
         if reset_t > 0.0 {
-            painter.rect_filled(reset_chip, 3.0, Color32::from_white_alpha((25.0 * reset_t) as u8));
+            painter.rect_filled(
+                reset_chip,
+                3.0,
+                Color32::from_white_alpha((25.0 * reset_t) as u8),
+            );
         }
         painter.text(
             reset_chip.center(),
@@ -534,8 +604,18 @@ fn render_color_section(
     // Custom hex input — replaces the native egui color-picker popup so this
     // panel never breaks out of the app's own black/monospace look.
     let field_y = swatch_y + base_size + 8.0;
-    let field_rect = Rect::from_min_size(pos2(rect.min.x + pad, field_y), vec2(rect.width() - pad * 2.0, 20.0));
-    if let Some(new_color) = hex_input(ui, painter, field_rect, id.with("hex_field"), active_color, theme) {
+    let field_rect = Rect::from_min_size(
+        pos2(rect.min.x + pad, field_y),
+        vec2(rect.width() - pad * 2.0, 20.0),
+    );
+    if let Some(new_color) = hex_input(
+        ui,
+        painter,
+        field_rect,
+        id.with("hex_field"),
+        active_color,
+        theme,
+    ) {
         *current_override = Some(new_color);
         *changed = true;
     }
@@ -592,17 +672,20 @@ fn hex_input(
     );
 
     let resp = ui
-        .allocate_new_ui(egui::UiBuilder::new().max_rect(text_rect.shrink2(vec2(6.0, 2.0))), |ui| {
-            ui.style_mut().visuals.extreme_bg_color = Color32::TRANSPARENT;
-            ui.add(
-                egui::TextEdit::singleline(&mut buf)
-                    .font(FontId::monospace(11.0))
-                    .text_color(theme.text)
-                    .frame(false)
-                    .desired_width(text_rect.width() - 12.0)
-                    .hint_text("#RRGGBB"),
-            )
-        })
+        .allocate_new_ui(
+            egui::UiBuilder::new().max_rect(text_rect.shrink2(vec2(6.0, 2.0))),
+            |ui| {
+                ui.style_mut().visuals.extreme_bg_color = Color32::TRANSPARENT;
+                ui.add(
+                    egui::TextEdit::singleline(&mut buf)
+                        .font(FontId::monospace(11.0))
+                        .text_color(theme.text)
+                        .frame(false)
+                        .desired_width(text_rect.width() - 12.0)
+                        .hint_text("#RRGGBB"),
+                )
+            },
+        )
         .inner;
 
     if (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) || resp.lost_focus() {

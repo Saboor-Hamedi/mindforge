@@ -1,9 +1,8 @@
 //! Editor panes layout, splitters, tab strips, and view modes.
 
-use super::{App, EditorInputMode};
+use super::App;
 use crate::editor::backend::EditorBackend;
 use crate::mode::Mode;
-use crate::view_editor::{render_editor_body, render_inline_editor};
 use eframe::egui::{self, pos2, vec2, Color32, FontId, Rect, Stroke, Ui};
 
 impl App {
@@ -154,8 +153,9 @@ impl App {
         let show_dashboard = self.misc.mode == Mode::Normal
             && (self.misc.show_welcome || self.open_notes.is_empty());
 
-        let are_tabs_visible =
-            !show_dashboard && (self.misc.show_tabs || self.open_notes.len() > 1) && !self.misc.zen_mode;
+        let are_tabs_visible = !show_dashboard
+            && (self.misc.show_tabs || self.open_notes.len() > 1)
+            && !self.misc.zen_mode;
         if are_tabs_visible {
             if matches!(self.misc.mode, Mode::Normal | Mode::Stats) {
                 let in_stats = self.misc.mode == Mode::Stats;
@@ -364,107 +364,23 @@ impl App {
         } else {
             &self.editor.ed
         };
-        let active_language = if self.misc.mode == Mode::Doc {
-            crate::language::FileLanguage::Markdown
-        } else {
-            self.active_language()
-        };
-        let use_inline_markdown =
-            self.editor.inline_mode && active_language == crate::language::FileLanguage::Markdown;
-        let effective_editor_w = actual_editor_rect.width();
-
-        // In Vim mode Neovim owns the editor surface — skip the inline layout
-        // computation entirely; it's expensive and serves no purpose here.
-        let in_vim_mode = self.services.editor_controller.mode == EditorInputMode::Vim
-            && matches!(self.misc.mode, Mode::Normal | Mode::Doc);
-
-        self.editor.visual_lines = if in_vim_mode {
-            vec![crate::types::VisualLine {
-                char_start: 0,
-                char_end: target_ed.buf.len(),
-            }]
-        } else if use_inline_markdown {
-            let gutter_w = if self.editor.show_line_numbers {
-                let total_lines = (target_ed.buf.iter().filter(|&&c| c == '\n').count() + 1).max(1);
-                let digits = total_lines.to_string().len().max(2);
-                (digits as f32 * (ed_font_size * 0.55) + 14.0).max(28.0)
-            } else {
-                0.0
-            };
-            let pad_x = if self.editor.show_line_numbers {
-                16.0
-            } else {
-                24.0
-            };
-            let pad_y = 10.0;
-            let safe_w = effective_editor_w;
-            let effective_gutter_w = if safe_w > gutter_w + 40.0 {
-                gutter_w
-            } else {
-                0.0
-            };
-            let text_left = (actual_editor_rect.min.x + effective_gutter_w + pad_x)
-                .min(actual_editor_rect.max.x);
-            let curr_scroll_y = if self.misc.mode == Mode::Doc {
-                self.editor.doc_scroll_y
-            } else {
-                self.editor.scroll_y
-            };
-            let ed_origin = pos2(text_left, actual_editor_rect.min.y - curr_scroll_y + pad_y);
-            self.editor.last_ed_origin = Some(ed_origin);
-
-            let wrap_w = (effective_editor_w - effective_gutter_w - pad_x - 24.0).max(120.0);
-            let inline_layout = crate::view_editor::inline::compute_inline_layout_ctx(
-                ui.ctx(),
-                target_ed,
-                wrap_w,
-                ed_font_size,
-                &self.misc.theme,
-                text_left,
-            );
-            inline_layout.compute_visual_lines()
-        } else {
-            let prev_lines = self.editor.visual_lines.len().max(1);
-            let digits = prev_lines.to_string().len().max(2);
-            let gutter_space = if self.editor.show_line_numbers {
-                (digits as f32 * ed_cw + 10.0).max(22.0) + 14.0
-            } else {
-                22.0
-            };
-            let text_area_w = (effective_editor_w - gutter_space - 10.0).max(100.0);
-            let max_cols = (text_area_w / ed_cw).floor().max(15.0) as usize;
-            if self.editor.cached_visual_cols == Some(max_cols)
-                && self.editor.cached_buf_len == target_ed.buf.len()
-                && !self.editor.visual_lines.is_empty()
-            {
-                std::mem::take(&mut self.editor.visual_lines)
-            } else {
-                let lines = target_ed.compute_visual_lines(max_cols);
-                self.editor.cached_visual_cols = Some(max_cols);
-                self.editor.cached_buf_len = target_ed.buf.len();
-                lines
-            }
-        };
+        self.editor.visual_lines = vec![crate::types::VisualLine {
+            char_start: 0,
+            char_end: target_ed.buf.len(),
+        }];
 
         // Active View rendering delegated to dedicated view modules
         match self.misc.mode {
             Mode::Normal | Mode::Doc => {
                 let original_caret_kind = self.misc.caret.kind;
-                let active_vim_mode =
-                    if self.services.editor_controller.mode == EditorInputMode::Vim {
-                        self.services
-                            .vim_runtime
-                            .backend
-                            .as_ref()
-                            .map(|b| b.grid.mode.as_str())
-                    } else {
-                        None
-                    };
-                self.misc.caret.kind = crate::caret::resolve_caret_kind(
-                    self.services.editor_controller.mode,
-                    active_vim_mode,
-                    original_caret_kind,
-                );
+                let active_vim_mode = self
+                    .services
+                    .vim_runtime
+                    .backend
+                    .as_ref()
+                    .map(|b| b.grid.mode.as_str());
+                self.misc.caret.kind =
+                    crate::caret::resolve_caret_kind(active_vim_mode, original_caret_kind);
 
                 if let (Some(_), Some(divider_rect)) = (preview_rect_opt, divider_rect_opt) {
                     let available_w = (top_panel_rect.width() - divider_w).max(200.0);
@@ -547,14 +463,6 @@ impl App {
                     self.editor.dragging_splitter = false;
                 }
 
-                let (target_ed_mut, target_scroll_y) = if self.misc.mode == Mode::Doc {
-                    (&mut self.editor.doc_ed, &mut self.editor.doc_scroll_y)
-                } else {
-                    (&mut self.editor.ed, &mut self.editor.scroll_y)
-                };
-
-                let search_matches: Option<(&[usize], usize)> = None;
-
                 if show_dashboard {
                     let recent_workspaces = self.get_recent_workspaces();
                     if let Some(dash_action) = crate::views::dashboard::render_welcome_dashboard(
@@ -591,7 +499,9 @@ impl App {
                                     self.open_file_path(path, now);
                                 }
                             }
-                            crate::views::dashboard::DashboardAction::RemoveRecentWorkspace(path) => {
+                            crate::views::dashboard::DashboardAction::RemoveRecentWorkspace(
+                                path,
+                            ) => {
                                 self.remove_recent_workspace(&path);
                             }
                             crate::views::dashboard::DashboardAction::OpenTerminal => {
@@ -636,8 +546,7 @@ impl App {
                             }
                         }
                     }
-                } else if self.services.editor_controller.mode == EditorInputMode::Vim
-                    && matches!(self.misc.mode, Mode::Normal | Mode::Doc)
+                } else if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
                     && self.services.vim_runtime.backend.is_none()
                     && self.services.vim_runtime.start_error.is_some()
                 {
@@ -651,7 +560,6 @@ impl App {
                     });
                 } else if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
                     && self.services.vim_runtime.backend.is_some()
-                    && self.services.editor_controller.mode == EditorInputMode::Vim
                 {
                     if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
                         backend.render_in_rect(
@@ -667,64 +575,14 @@ impl App {
                             self.editor.show_line_numbers,
                         );
                     }
-                } else if use_inline_markdown {
-                    let mut dummy_dirty = false;
-                    let target_dirty = if self.misc.mode == Mode::Doc {
-                        &mut dummy_dirty
-                    } else {
-                        &mut self.editor.is_dirty
-                    };
-                    render_inline_editor(
-                        ui,
-                        painter,
-                        bounds,
-                        actual_editor_rect,
-                        target_ed_mut,
-                        &mut self.misc.caret,
-                        target_scroll_y,
-                        &self.misc.theme,
-                        ed_font_size,
-                        dt,
-                        now,
-                        typed,
-                        any_modal_open
-                            || self.editor.dragging_splitter
-                            || self.sidebar.dragging_splitter
-                            || self.services.hover_wikilink.is_mouse_inside_popup,
-                        search_matches,
-                        self.editor.show_line_numbers,
-                        &mut self.misc.sound,
-                        target_dirty,
-                    );
-                } else {
-                    render_editor_body(
-                        ui,
-                        painter,
-                        bounds,
-                        actual_editor_rect,
-                        target_ed_mut,
-                        &self.editor.visual_lines,
-                        &mut self.misc.caret,
-                        target_scroll_y,
-                        &self.misc.theme,
-                        ed_font_size,
-                        ed_cw,
-                        ed_lh,
-                        dt,
-                        now,
-                        typed,
-                        any_modal_open
-                            || self.editor.dragging_splitter
-                            || self.sidebar.dragging_splitter
-                            || self.services.hover_wikilink.is_mouse_inside_popup,
-                        search_matches,
-                        self.editor.show_line_numbers,
-                        if active_language == crate::language::FileLanguage::PlainText {
-                            None
-                        } else {
-                            Some(active_language)
-                        },
-                        active_vim_mode,
+                } else if self.open_notes.is_empty() && self.workspace.root.is_some() {
+                    let center = actual_editor_rect.center();
+                    painter.text(
+                        center,
+                        eframe::egui::Align2::CENTER_CENTER,
+                        "Select a file from the explorer (Ctrl+B) or open with Ctrl+O / :open",
+                        FontId::proportional(14.0),
+                        self.misc.theme.muted,
                     );
                 }
                 self.misc.caret.kind = original_caret_kind;
@@ -750,7 +608,7 @@ impl App {
                     now,
                 );
 
-                // Floating Keystroke Card (shown in both Vim and Hybrid modes)
+                // Floating Keystroke Card
                 if !show_dashboard {
                     let card_anchor = pos2(
                         actual_editor_rect.max.x - 16.0,

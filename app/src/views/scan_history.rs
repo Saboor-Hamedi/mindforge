@@ -8,7 +8,6 @@
 //!
 //! Returns the index of the selected scan when the user presses Enter
 /// or clicks, allowing the caller to load and display the full report.
-
 use crate::ui::theme::Theme;
 use core::ScanRecord;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
@@ -82,7 +81,10 @@ pub fn render_scan_history(
     // Divider
     p.line_segment(
         [pos2(start_x, current_y), pos2(start_x + max_w, current_y)],
-        Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 40)),
+        Stroke::new(
+            1.0_f32,
+            Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 40),
+        ),
     );
     current_y += 16.0;
 
@@ -114,7 +116,12 @@ pub fn render_scan_history(
             p.rect_filled(
                 item_rect,
                 4.0,
-                Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 28),
+                Color32::from_rgba_unmultiplied(
+                    theme.accent.r(),
+                    theme.accent.g(),
+                    theme.accent.b(),
+                    28,
+                ),
             );
             p.rect_stroke(
                 item_rect,
@@ -126,7 +133,12 @@ pub fn render_scan_history(
             p.rect_filled(
                 item_rect,
                 4.0,
-                Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 22),
+                Color32::from_rgba_unmultiplied(
+                    theme.muted.r(),
+                    theme.muted.g(),
+                    theme.muted.b(),
+                    22,
+                ),
             );
         }
 
@@ -141,7 +153,11 @@ pub fn render_scan_history(
             Align2::LEFT_TOP,
             &scan.url,
             FontId::monospace(font_size * 1.05),
-            if is_selected { theme.highlight } else { theme.text },
+            if is_selected {
+                theme.highlight
+            } else {
+                theme.text
+            },
         );
 
         p.text(

@@ -2,28 +2,21 @@
 //!
 //! Groups all fields that represent external systems or background workers:
 //! - Filesystem storage worker channel
-//! - Editor controller (Vim/Hybrid mode switching)
-//! - Vim runtime and hybrid engine
+//! - Vim runtime (Neovim engine)
 //! - AI agent state
 //! - LunaLine statusline config
 //! - Wikilink hover and autocomplete state
 //!
 //! These fields are typically not `Clone` and are owned exclusively by the `App`.
 
-use crate::editor::controller::EditorController;
-use crate::hybrid::HybridEngine;
 use crate::vim::VimRuntime;
 
 /// State for all external services and background engines.
 pub struct ServicesState {
     /// Channel sender for the background storage worker thread
     pub db_tx: std::sync::mpsc::Sender<crate::services::db_worker::DbMsg>,
-    /// Editor controller for switching between Vim and Hybrid modes
-    pub editor_controller: EditorController,
     /// Vim modal editing runtime
     pub vim_runtime: VimRuntime,
-    /// Hybrid editing engine (non-modal)
-    pub hybrid: HybridEngine,
     /// In-app GitHub updater
     pub updater: crate::services::updater::UpdateManager,
     /// DeepSeek Pro AI agent state
@@ -41,9 +34,7 @@ impl ServicesState {
     pub fn new(db_tx: std::sync::mpsc::Sender<crate::services::db_worker::DbMsg>) -> Self {
         Self {
             db_tx,
-            editor_controller: EditorController::new(crate::app::EditorInputMode::Hybrid),
             vim_runtime: VimRuntime::default(),
-            hybrid: HybridEngine::new(),
             updater: crate::services::updater::UpdateManager::new(),
             agent_state: crate::agent::AgentState::new(),
             lunaline_config: crate::lunaline::LunaLineConfig::default(),

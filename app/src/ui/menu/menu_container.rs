@@ -3,11 +3,11 @@
 //! Owns the common menu geometry, crisp non-rounded borders, positioning bounds
 //! checking (screen edge clamping), keyboard navigation, and outside-click dismiss.
 
-use eframe::egui::{self, pos2, vec2, Color32, Pos2, Rect, Stroke};
-use crate::ui::theme::Theme;
 use super::menu_item::{render_menu_item, ITEM_HEIGHT};
 use super::menu_model::{MenuAction, MenuItem};
 use super::menu_separator::{render_menu_separator, SEPARATOR_TOTAL_H};
+use crate::ui::theme::Theme;
+use eframe::egui::{self, pos2, vec2, Color32, Pos2, Rect, Stroke};
 
 pub const DEFAULT_MENU_WIDTH: f32 = 210.0;
 pub const MENU_VERTICAL_PAD: f32 = 4.0;
@@ -72,12 +72,18 @@ pub fn render_menu_container(
     if x + menu_w > right_bound {
         x = state.position.x - menu_w;
     }
-    x = x.clamp(window_rect.min.x + margin, (right_bound - menu_w).max(window_rect.min.x + margin));
+    x = x.clamp(
+        window_rect.min.x + margin,
+        (right_bound - menu_w).max(window_rect.min.x + margin),
+    );
 
     if y + total_h > bottom_bound {
         y = state.position.y - total_h;
     }
-    y = y.clamp(window_rect.min.y + margin, (bottom_bound - total_h).max(window_rect.min.y + margin));
+    y = y.clamp(
+        window_rect.min.y + margin,
+        (bottom_bound - total_h).max(window_rect.min.y + margin),
+    );
 
     let menu_rect = Rect::from_min_size(pos2(x, y), vec2(menu_w, total_h));
 
@@ -106,7 +112,9 @@ pub fn render_menu_container(
         .iter()
         .enumerate()
         .filter_map(|(idx, item)| match item {
-            MenuItem::Action { disabled: false, .. } => Some(idx),
+            MenuItem::Action {
+                disabled: false, ..
+            } => Some(idx),
             _ => None,
         })
         .collect();
@@ -131,14 +139,25 @@ pub fn render_menu_container(
                     let prev_pos = action_indices
                         .iter()
                         .position(|&i| i == curr)
-                        .map(|p| if p == 0 { action_indices.len() - 1 } else { p - 1 })
+                        .map(|p| {
+                            if p == 0 {
+                                action_indices.len() - 1
+                            } else {
+                                p - 1
+                            }
+                        })
                         .unwrap_or(0);
                     Some(action_indices[prev_pos])
                 }
             };
         } else if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
             if let Some(idx) = state.selected_index {
-                if let Some(MenuItem::Action { action, disabled: false, .. }) = state.items.get(idx) {
+                if let Some(MenuItem::Action {
+                    action,
+                    disabled: false,
+                    ..
+                }) = state.items.get(idx)
+                {
                     triggered_action = Some(action.clone());
                     should_close = true;
                 }
@@ -189,11 +208,7 @@ pub fn render_menu_container(
                 for (idx, item) in state.items.iter().enumerate() {
                     match item {
                         MenuItem::Separator => {
-                            render_menu_separator(
-                                ui,
-                                item_w,
-                                theme.border().gamma_multiply(0.35),
-                            );
+                            render_menu_separator(ui, item_w, theme.border().gamma_multiply(0.35));
                         }
                         MenuItem::Action {
                             label,

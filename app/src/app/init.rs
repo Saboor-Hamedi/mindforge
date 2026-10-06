@@ -1,6 +1,6 @@
 //! Application startup initialization, settings loading, and session persistence.
 
-use super::{App, EditorInputMode, OpenNote};
+use super::{App, OpenNote};
 
 /// One restorable tab, stored in order so notes, code files, and untitled tabs reopen together.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -163,7 +163,12 @@ impl App {
                     }
                 }
                 if app.open_notes.is_empty() {
-                    app.misc.show_welcome = true;
+                    if app.workspace.root.is_some() {
+                        app.misc.show_welcome = false;
+                        app.sidebar.open = true;
+                    } else {
+                        app.misc.show_welcome = true;
+                    }
                 } else {
                     app.misc.show_welcome = false;
                     app.misc.show_tabs = true;
@@ -179,6 +184,9 @@ impl App {
                     app.editor.ed = target.editor.clone();
                     app.editor.scroll_y = target.scroll_y;
                 }
+            } else if app.workspace.root.is_some() {
+                app.misc.show_welcome = false;
+                app.sidebar.open = true;
             } else {
                 app.misc.show_welcome = true;
             }
@@ -187,7 +195,10 @@ impl App {
         }
 
         // Restore daily activity and scan history
-        let today_str = chrono::Local::now().date_naive().format("%Y-%m-%d").to_string();
+        let today_str = chrono::Local::now()
+            .date_naive()
+            .format("%Y-%m-%d")
+            .to_string();
         let recent = crate::services::db_worker::get_recent_activity(14);
         if let Some(act) = recent.iter().find(|a| a.date == today_str) {
             app.activity.today_activity = act.clone();
@@ -286,13 +297,6 @@ impl App {
         if let Some(b) = map.get("backup_dir") {
             self.modal.backup_dir = b.clone();
         }
-        if let Some(m) = map.get("editor_mode") {
-            if m == "vim" {
-                self.services.editor_controller.mode = EditorInputMode::Vim;
-            } else {
-                self.services.editor_controller.mode = EditorInputMode::Hybrid;
-            }
-        }
         if let Some(s) = map.get("showcmd") {
             self.misc.showcmd.enabled = s != "off" && s != "false";
         }
@@ -379,15 +383,9 @@ impl App {
             saved.push(entry);
         }
         if let Ok(json) = serde_json::to_string(&saved) {
-            let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-                key: "open_tabs_v2".into(),
-                val: json,
-            });
+            crate::services::db_worker::save_setting_sync("open_tabs_v2", &json);
         }
-        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-            key: "open_tabs_v2_active".into(),
-            val: active.to_string(),
-        });
+        crate::services::db_worker::save_setting_sync("open_tabs_v2_active", &active.to_string());
     }
 
     pub fn sync_save_session(&mut self) {
@@ -447,37 +445,34 @@ impl App {
                 }
             }
         }
-        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-            key: "last_caret_pos".into(),
-            val: self.editor.ed.cur.to_string(),
-        });
-        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-            key: "last_scroll_y".into(),
-            val: self.editor.scroll_y.to_string(),
-        });
-        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-            key: "opacity".into(),
-            val: format!("{:.2}", self.misc.opacity),
-        });
         let blur_str = match self.misc.blur_effect {
             crate::services::blur::BlurEffect::Acrylic => "acrylic",
             crate::services::blur::BlurEffect::Mica => "mica",
             crate::services::blur::BlurEffect::None => "none",
         };
-        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-            key: "blur".into(),
-            val: blur_str.into(),
-        });
-        if let Ok(json) = serde_json::to_string(&self.command_bar.history) {
-            let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-                key: "command_history".into(),
-                val: json,
-            });
+        let mut batch: Vec<(&str, String)> = vec![
+            ("last_caret_pos", self.editor.ed.cur.to_string()),
+            ("last_scroll_y", self.editor.scroll_y.to_string()),
+            ("opacity", format!("{:.2}", self.misc.opacity)),
+            ("blur", blur_str.to_string()),
+            (
+                "sidebar",
+                if self.sidebar.open {
+                    "true".into()
+                } else {
+                    "false".into()
+                },
+            ),
+        ];
+        if let Some(root) = &self.workspace.root {
+            batch.push(("workspace_root", root.to_string_lossy().into_owned()));
+        } else {
+            batch.push(("workspace_root", String::new()));
         }
-        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-            key: "sidebar".into(),
-            val: if self.sidebar.open { "true".into() } else { "false".into() },
-        });
+        if let Ok(json) = serde_json::to_string(&self.command_bar.history) {
+            batch.push(("command_history", json));
+        }
+        crate::services::db_worker::save_settings_batch_sync(&batch);
         self.persist_workspace_expansion();
         self.save_open_tabs();
     }

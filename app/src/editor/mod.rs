@@ -1,6 +1,5 @@
-mod editing;
 pub mod backend;
-pub mod controller;
+mod editing;
 pub mod events;
 pub mod types;
 
@@ -14,7 +13,6 @@ mod visual;
 mod tests;
 
 pub use crate::types::{EditorSnapshot, VisualLine};
-pub use visual::caret_cell;
 
 #[derive(Default, Clone)]
 pub struct Editor {

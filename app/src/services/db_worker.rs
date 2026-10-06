@@ -180,6 +180,36 @@ pub fn get_all_stored_settings() -> HashMap<String, String> {
         .unwrap_or_default()
 }
 
+/// Synchronously saves a single setting directly to `settings.json`.
+pub fn save_setting_sync(key: &str, val: &str) {
+    let dir = storage_dir();
+    let settings_file = dir.join("settings.json");
+    let mut map: HashMap<String, String> = std::fs::read_to_string(&settings_file)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    map.insert(key.to_string(), val.to_string());
+    if let Ok(json) = serde_json::to_string_pretty(&map) {
+        let _ = std::fs::write(&settings_file, json);
+    }
+}
+
+/// Synchronously saves multiple settings atomically directly to `settings.json`.
+pub fn save_settings_batch_sync(entries: &[(&str, String)]) {
+    let dir = storage_dir();
+    let settings_file = dir.join("settings.json");
+    let mut map: HashMap<String, String> = std::fs::read_to_string(&settings_file)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    for (k, v) in entries {
+        map.insert((*k).to_string(), v.clone());
+    }
+    if let Ok(json) = serde_json::to_string_pretty(&map) {
+        let _ = std::fs::write(&settings_file, json);
+    }
+}
+
 /// Reads recent activity history from `activity.json`.
 pub fn get_recent_activity(days: usize) -> Vec<core::DailyActivity> {
     let path = storage_dir().join("activity.json");
@@ -248,4 +278,3 @@ pub fn save_stored_scan(url: &str, note: Option<&str>, findings_json: &str) {
         let _ = std::fs::write(path, json);
     }
 }
-

@@ -9,20 +9,68 @@ use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke
 pub fn caret_dot_color(kind: CaretKind, theme: &Theme) -> Color32 {
     let is_light = theme.is_light();
     match kind {
-        CaretKind::Block     => theme.accent,
-        CaretKind::Beam      => theme.accent,
+        CaretKind::Block => theme.accent,
+        CaretKind::Beam => theme.accent,
         CaretKind::Underline => theme.accent,
-        CaretKind::Candle    => if is_light { Color32::from_rgb(195, 120, 20) } else { Color32::from_rgb(255, 190, 70) },
-        CaretKind::Fire      => Color32::from_rgb(235, 95, 20),
-        CaretKind::Water     => if is_light { Color32::from_rgb(20, 130, 225) } else { Color32::from_rgb(65, 175, 255) },
-        CaretKind::Snow      => if is_light { Color32::from_rgb(35, 115, 185) } else { Color32::from_rgb(225, 245, 255) },
-        CaretKind::Electric  => if is_light { Color32::from_rgb(100, 70, 220) } else { Color32::from_rgb(190, 220, 255) },
-        CaretKind::Comet     => if is_light { Color32::from_rgb(120, 60, 200) } else { Color32::from_rgb(200, 200, 255) },
-        CaretKind::Rainbow   => Color32::from_rgb(225, 60, 170),
-        CaretKind::Matrix    => if is_light { Color32::from_rgb(25, 145, 55) } else { Color32::from_rgb(40, 255, 90) },
-        CaretKind::Ice       => if is_light { Color32::from_rgb(15, 140, 195) } else { Color32::from_rgb(130, 230, 255) },
-        CaretKind::Glitch    => Color32::from_rgb(235, 45, 95),
-        CaretKind::Neon      => if is_light { Color32::from_rgb(25, 150, 60) } else { Color32::from_rgb(180, 255, 180) },
+        CaretKind::Candle => {
+            if is_light {
+                Color32::from_rgb(195, 120, 20)
+            } else {
+                Color32::from_rgb(255, 190, 70)
+            }
+        }
+        CaretKind::Fire => Color32::from_rgb(235, 95, 20),
+        CaretKind::Water => {
+            if is_light {
+                Color32::from_rgb(20, 130, 225)
+            } else {
+                Color32::from_rgb(65, 175, 255)
+            }
+        }
+        CaretKind::Snow => {
+            if is_light {
+                Color32::from_rgb(35, 115, 185)
+            } else {
+                Color32::from_rgb(225, 245, 255)
+            }
+        }
+        CaretKind::Electric => {
+            if is_light {
+                Color32::from_rgb(100, 70, 220)
+            } else {
+                Color32::from_rgb(190, 220, 255)
+            }
+        }
+        CaretKind::Comet => {
+            if is_light {
+                Color32::from_rgb(120, 60, 200)
+            } else {
+                Color32::from_rgb(200, 200, 255)
+            }
+        }
+        CaretKind::Rainbow => Color32::from_rgb(225, 60, 170),
+        CaretKind::Matrix => {
+            if is_light {
+                Color32::from_rgb(25, 145, 55)
+            } else {
+                Color32::from_rgb(40, 255, 90)
+            }
+        }
+        CaretKind::Ice => {
+            if is_light {
+                Color32::from_rgb(15, 140, 195)
+            } else {
+                Color32::from_rgb(130, 230, 255)
+            }
+        }
+        CaretKind::Glitch => Color32::from_rgb(235, 45, 95),
+        CaretKind::Neon => {
+            if is_light {
+                Color32::from_rgb(25, 150, 60)
+            } else {
+                Color32::from_rgb(180, 255, 180)
+            }
+        }
         CaretKind::Heartbeat => Color32::from_rgb(235, 50, 90),
     }
 }
@@ -48,7 +96,10 @@ pub fn render_carets_tab(
     painter.text(
         p_origin + vec2(0.0, 20.0),
         Align2::LEFT_TOP,
-        format!("Choose from {} animated styles & particle effects", CaretKind::ALL.len()),
+        format!(
+            "Choose from {} animated styles & particle effects",
+            CaretKind::ALL.len()
+        ),
         FontId::proportional(11.5),
         theme.muted,
     );
@@ -124,19 +175,16 @@ pub fn render_carets_tab(
     // ── Description card ─────────────────────────────────────────────
     let rows = (CaretKind::ALL.len() + 3) / 4;
     let desc_y = chip_start_y + rows as f32 * (row_h + row_gap) + 10.0;
-    let desc_rect = Rect::from_min_size(
-        pos2(p_origin.x, desc_y),
-        vec2(available_w, 36.0),
-    );
-    painter.rect_filled(
-        desc_rect,
-        5.0,
-        theme.surface(),
-    );
+    let desc_rect = Rect::from_min_size(pos2(p_origin.x, desc_y), vec2(available_w, 36.0));
+    painter.rect_filled(desc_rect, 5.0, theme.surface());
     painter.text(
         pos2(desc_rect.min.x + 14.0, desc_rect.center().y),
         Align2::LEFT_CENTER,
-        format!("{}  —  {}", caret.kind.name().to_uppercase(), caret.kind.description()),
+        format!(
+            "{}  —  {}",
+            caret.kind.name().to_uppercase(),
+            caret.kind.description()
+        ),
         FontId::monospace(11.5),
         theme.text,
     );
@@ -196,7 +244,11 @@ pub fn render_carets_tab(
     painter.circle_filled(
         pos2(thumb_x, track_y),
         if slider_hover { 8.5 } else { 7.5 },
-        if slider_hover { Color32::WHITE } else { theme.accent },
+        if slider_hover {
+            Color32::WHITE
+        } else {
+            theme.accent
+        },
     );
     painter.circle_stroke(
         pos2(thumb_x, track_y),
@@ -227,7 +279,10 @@ pub fn render_carets_tab(
         theme,
         "caret_blink_toggle",
     ) {
-        on_save_setting("caret_blinking", if caret.blink_enabled { "on" } else { "off" });
+        on_save_setting(
+            "caret_blinking",
+            if caret.blink_enabled { "on" } else { "off" },
+        );
     }
 
     // ── Controls row 2: Effects on Left, Living Animations on Right ───
@@ -253,6 +308,13 @@ pub fn render_carets_tab(
         theme,
         "caret_anim_toggle",
     ) {
-        on_save_setting("caret_animations", if caret.animations_enabled { "on" } else { "off" });
+        on_save_setting(
+            "caret_animations",
+            if caret.animations_enabled {
+                "on"
+            } else {
+                "off"
+            },
+        );
     }
 }

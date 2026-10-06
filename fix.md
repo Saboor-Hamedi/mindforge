@@ -1,142 +1,209 @@
-# MindForge — Focused Fixes
+# MindForge — Final Deep Cleanup Audit
 
-Fix these issues only. Do not perform a large architectural rewrite.
+You have already removed Hybrid mode and the old SQLite architecture.
 
-### 1. Ctrl+Shift+N — New Project Window
+Do NOT repeat the migration blindly.
 
-`Ctrl+Shift+N` must:
+Now perform a FINAL repository-wide cleanup and audit.
 
-- open a completely new MindForge window;
-- start with **no project/workspace loaded**;
-- show the Welcome page so I can choose/drag a new project;
-- keep the existing project/window completely untouched;
-- NOT appear directly on top of the existing window.
+The goal is to find anything that was missed, became dead, duplicated, misleading, or unnecessary after those removals.
 
-Position the new window slightly offset/down from the existing window, like a professional multi-window IDE.
+## 1. Search Everything
 
----
+Search the ENTIRE repository, not only `app/src`.
 
-### 2. Smart Context Menu
+Look for:
 
-The Explorer context menu must intelligently position itself.
+- db
+- database
+- sqlite
+- rusqlite
+- db_worker
+- Hybrid
+- hybrid
+- editor_mode
+- mode switching
+- legacy editor
+- old editor abstractions
+- migration code
+- compatibility code
+- dead modules
+- unused files
+- TODO/FIXME leftovers
+- commented-out implementations
 
-If I right-click a file near the bottom of the Explorer, the menu must NOT open underneath the sidebar footer or outside the visible area.
+Do not assume something is obsolete just because its name looks old. Inspect each result and determine whether it is still needed.
 
-The menu must calculate available space and automatically reposition:
+## 2. Database Cleanup
 
-```text
-normal → open below/right
+We no longer use SQLite.
 
-near bottom → open above
+Find every remaining database-related file, module, name, function, comment, dependency, and abstraction.
 
-near right edge → shift left
+If `db_worker` is now only handling `.mindforge/settings.json` or other JSON persistence, it should NOT continue to be called a database worker.
 
-near corner → adjust both
-```
+Refactor/rename it to accurately represent its real responsibility.
 
-The menu must always remain fully visible.
+Do not delete valid persistence functionality.
 
-Keep the menu corners at approximately **2px radius** — sharp, professional, not rounded-card style.
+The final architecture must clearly distinguish:
 
----
+Filesystem → user files/source of truth
 
-### 3. Markdown Highlighting
+`.mindforge` → application metadata/settings/session state
 
-Neovim Markdown highlighting currently does not look as good as the Hybrid/editor styling.
+No database/document-storage layer.
 
-Improve Neovim Markdown highlighting so Markdown has the same polished MindForge visual language as Hybrid.
+## 3. Hybrid Cleanup
 
-Keep the existing Markdown semantics.
+Hybrid has been removed.
 
----
+Verify that there are no remaining:
 
-### 4. New Files Must Stay Inside the Current Project
+- Hybrid modules
+- Hybrid state
+- editor-mode enums
+- mode switching
+- Hybrid settings
+- Hybrid commands
+- Hybrid UI
+- Hybrid tests
+- Hybrid compatibility code
+- unused abstractions created for supporting two editors
 
-I dragged a project into MindForge successfully.
+Neovim is now the ONLY editor engine.
 
-When I create:
+## 4. Dead Code
 
-```text
-testpython.py
-```
+Find and remove:
 
-it must be created inside the **currently opened project/workspace**, not somewhere else.
+- unused functions
+- unused structs
+- unused enums
+- unused fields
+- unused modules
+- unused imports
+- unreachable code
+- obsolete helpers
+- obsolete comments
+- stale documentation
+- compatibility wrappers
+- migration leftovers
 
-Example:
+Actually remove them. Do not merely report them.
 
-```text
-B:\Projects\MyProject\
-    testpython.py
-```
+## 5. Duplicate Code
 
-The active workspace root must always be the default parent for root-level new files.
+Look for duplicate implementations of:
 
-Never silently save a newly created file to another directory.
+- filesystem operations
+- workspace operations
+- persistence
+- path handling
+- tab management
+- Neovim communication
+- editor state
+- Explorer operations
+- menu handling
+- configuration
+- error handling
 
----
+If two pieces of code perform essentially the same responsibility, determine the correct implementation and consolidate them.
 
-### 5. Hybrid Ctrl+Z
+Do not create unnecessary abstractions just to make code look DRY.
 
-`Ctrl+Z` currently does not undo correctly in Hybrid.
+## 6. Misleading Names
 
-Fix undo so:
+Look for names that still describe the old architecture.
 
-```text
-type text
-Ctrl+Z
-```
+Examples:
 
-actually restores the previous editor state.
+- `db_worker`
+- `database`
+- `hybrid`
+- `editor_mode`
+- `legacy`
+- `migration`
+- `manager` where a more precise name is appropriate
 
-Make sure undo is handled by the correct Hybrid editor state and is not intercepted by global shortcuts.
+Rename code when the current name no longer reflects its responsibility.
 
----
+## 7. God Files
 
-### 6. Ctrl+Enter in Hybrid
+Identify genuinely oversized modules with multiple unrelated responsibilities.
 
-`Ctrl+Enter` should insert/move the caret to the next line correctly.
+Only split them when there is a clear architectural benefit.
 
-Expected:
+Do not turn one large file into dozens of tiny files.
 
-```text
-hello|
-```
+Each module should have a clear responsibility.
 
-Press:
+## 8. Dependencies
 
-```text
-Ctrl+Enter
-```
+Inspect `Cargo.toml` and workspace dependencies.
 
-Result:
+Remove dependencies that are no longer required after:
 
-```text
-hello
-|
-```
+- SQLite removal
+- Hybrid removal
+- old inline editor removal
 
-Do not trigger unrelated application commands.
+Then verify the dependency tree is clean.
 
-Make sure the shortcut reaches the active editor when Hybrid has focus.
+## 9. Final Repository Search
 
----
+After cleanup, run repository-wide searches again for:
 
-### Final requirement
+`db`
+`database`
+`sqlite`
+`rusqlite`
+`Hybrid`
+`hybrid`
+`editor_mode`
+`legacy`
+`migration`
 
-After fixing these, run the actual application and manually verify all six behaviors.
+Review every remaining occurrence.
 
-Do not just run `cargo check`.
+Some legitimate occurrences may remain, but every one must have a valid reason.
 
-Do not break:
+## 10. Verification
 
-- filesystem Explorer;
-- tabs;
-- workspace state;
-- Neovim;
-- Hybrid;
-- LSP;
-- Markdown;
-- drag/drop;
-- context menus.
+Run:
 
-Keep the implementation clean and minimal.
+- cargo fmt
+- cargo check --workspace
+- cargo test --workspace
+
+Then launch the actual application.
+
+Verify:
+
+- workspace restoration
+- Explorer
+- file opening
+- Neovim editing
+- undo/redo
+- LSP
+- Markdown
+- tabs
+- menus
+- persistence
+- application shutdown/startup
+
+Do not stop at compilation.
+
+## Important
+
+Do not perform another massive rewrite.
+
+Do not add features.
+
+Do not change working behavior unnecessarily.
+
+This is a forensic cleanup pass:
+
+FIND → INSPECT → REMOVE/REFACTOR → VERIFY.
+
+The final codebase should look like these old systems never existed.

@@ -33,7 +33,6 @@ impl App {
                 painter,
                 bounds,
                 &mut self.modal,
-                &mut self.services.editor_controller.mode,
                 &mut self.misc.caret,
                 &mut self.misc.sound,
                 &mut self.misc.theme,
@@ -97,17 +96,20 @@ impl App {
                 match item.action {
                     crate::services::fuzzy::PaletteAction::OpenNote(id) => {
                         self.modal.search_open = false;
-                        if let Some(n) = self.notes.notes_list.iter().find(|n| n.id == id).cloned() {
+                        if let Some(n) = self.notes.notes_list.iter().find(|n| n.id == id).cloned()
+                        {
                             self.load_note(n.id, n.topic, n.body, now);
                         }
                     }
                     crate::services::fuzzy::PaletteAction::OpenWorkspaceFile(path) => {
-                        self.modal.search_open=false;
-                        self.open_file_path(path,now);
+                        self.modal.search_open = false;
+                        self.open_file_path(path, now);
                     }
                     crate::services::fuzzy::PaletteAction::OpenWorkspaceFolder(path) => {
-                        self.modal.search_open=false;
-                        if self.workspace.reveal(&path){self.persist_workspace_expansion();}
+                        self.modal.search_open = false;
+                        if self.workspace.reveal(&path) {
+                            self.persist_workspace_expansion();
+                        }
                     }
                     crate::services::fuzzy::PaletteAction::ApplyTheme(theme_kind) => {
                         self.misc.theme = crate::ui::theme::Theme::from_kind(theme_kind);
@@ -425,35 +427,6 @@ impl App {
                         crate::notes::update_search_results(self);
                         self.set_status(&format!("Font family: {}", self.misc.selected_font), now);
                     }
-                    crate::services::fuzzy::PaletteAction::OpenModePicker => {
-                        self.modal.search_query = ">mode ".to_string();
-                        self.modal.search_selected = 0;
-                        self.update_search_results();
-                    }
-                    crate::services::fuzzy::PaletteAction::ApplyEditorMode(mode) => {
-                        self.services.editor_controller.mode = mode;
-                        self.services.vim_runtime.start_error = None;
-                        let mode_str = match mode {
-                            crate::app::EditorInputMode::Vim => "vim",
-                            crate::app::EditorInputMode::Hybrid => "hybrid",
-                        };
-                        let _ = self.services.db_tx.send(DbMsg::SaveSetting {
-                            key: "editor_mode".into(),
-                            val: mode_str.into(),
-                        });
-                        crate::notes::update_search_results(self);
-                        self.set_status(
-                            &format!(
-                                "Editor mode: {}",
-                                if mode == crate::app::EditorInputMode::Vim {
-                                    "Vim"
-                                } else {
-                                    "Hybrid"
-                                }
-                            ),
-                            now,
-                        );
-                    }
                 }
             }
             if act.should_close {
@@ -483,25 +456,26 @@ impl App {
 
         // 4. Delete Confirmation Modal
         if self.modal.delete_confirm_open {
-            let (target_title, is_folder) = if let Some(path) = self.modal.pending_delete_path.as_ref() {
-                let name = path
-                    .file_name()
-                    .unwrap_or(path.as_os_str())
-                    .to_string_lossy()
-                    .into_owned();
-                (name, path.is_dir())
-            } else if let Some(del_id) = self.modal.pending_delete_note_id {
-                let name = self
-                    .notes
-                    .notes_list
-                    .iter()
-                    .find(|n| n.id == del_id)
-                    .map(|n| n.topic.clone())
-                    .unwrap_or_else(|| "this note".to_string());
-                (name, false)
-            } else {
-                (self.notes.active_note_title.clone(), false)
-            };
+            let (target_title, is_folder) =
+                if let Some(path) = self.modal.pending_delete_path.as_ref() {
+                    let name = path
+                        .file_name()
+                        .unwrap_or(path.as_os_str())
+                        .to_string_lossy()
+                        .into_owned();
+                    (name, path.is_dir())
+                } else if let Some(del_id) = self.modal.pending_delete_note_id {
+                    let name = self
+                        .notes
+                        .notes_list
+                        .iter()
+                        .find(|n| n.id == del_id)
+                        .map(|n| n.topic.clone())
+                        .unwrap_or_else(|| "this note".to_string());
+                    (name, false)
+                } else {
+                    (self.notes.active_note_title.clone(), false)
+                };
 
             let title = if is_folder {
                 "Delete Folder"
@@ -553,7 +527,10 @@ impl App {
                             self.set_status(format!("Deleted {}", file_name_disp), now);
                         }
                         Err(e) => {
-                            self.set_status(format!("Failed to delete {}: {}", file_name_disp, e), now);
+                            self.set_status(
+                                format!("Failed to delete {}: {}", file_name_disp, e),
+                                now,
+                            );
                         }
                     }
                 } else if let Some(del_id) = self.modal.pending_delete_note_id.take() {
@@ -610,7 +587,9 @@ impl App {
                 match act {
                     crate::accent::AccentAction::Changed => {
                         self.misc.accent_overrides.apply(&mut self.misc.theme);
-                        self.misc.accent_overrides.save_to_settings(&self.services.db_tx);
+                        self.misc
+                            .accent_overrides
+                            .save_to_settings(&self.services.db_tx);
                         if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
                             backend.sync_theme(&self.misc.theme);
                         }
@@ -619,7 +598,9 @@ impl App {
                     crate::accent::AccentAction::ResetAll => {
                         self.misc.accent_overrides.clear();
                         self.misc.theme = crate::ui::theme::Theme::from_kind(self.misc.theme.kind);
-                        self.misc.accent_overrides.save_to_settings(&self.services.db_tx);
+                        self.misc
+                            .accent_overrides
+                            .save_to_settings(&self.services.db_tx);
                         if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
                             backend.sync_theme(&self.misc.theme);
                         }

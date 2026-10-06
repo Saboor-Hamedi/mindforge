@@ -140,7 +140,11 @@ pub fn quick_save_active_note(app: &mut App, now: f64) {
     } else {
         app.notes.active_note_title.trim().to_string()
     };
-    let file_name = if topic.ends_with(".md") { topic.clone() } else { format!("{}.md", topic) };
+    let file_name = if topic.ends_with(".md") {
+        topic.clone()
+    } else {
+        format!("{}.md", topic)
+    };
     let notes_dir = crate::workspace::default_workspace_dir().join("Notes");
     let _ = std::fs::create_dir_all(&notes_dir);
     let path = notes_dir.join(&file_name);
@@ -267,12 +271,20 @@ pub fn update_search_results(app: &mut App) {
         app.misc.sound.profile,
         app.misc.caret.kind,
         &app.misc.selected_font,
-        app.services.editor_controller.mode,
         app.services.lunaline_config.style,
     );
     let indexed_paths: Vec<std::path::PathBuf> = Vec::new();
-    app.modal.search_results.extend(crate::services::fuzzy::search_workspace(query,app.workspace.root.as_deref(),&app.workspace.search_entries,&indexed_paths));
-    app.modal.search_results.sort_by(|a,b|b.score.cmp(&a.score));
+    app.modal
+        .search_results
+        .extend(crate::services::fuzzy::search_workspace(
+            query,
+            app.workspace.root.as_deref(),
+            &app.workspace.search_entries,
+            &indexed_paths,
+        ));
+    app.modal
+        .search_results
+        .sort_by(|a, b| b.score.cmp(&a.score));
     if app.modal.search_selected >= app.modal.search_results.len() {
         app.modal.search_selected = 0;
     }

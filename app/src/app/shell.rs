@@ -1,6 +1,6 @@
 //! Application shell: titlebar, layout frame, splitters, bottom dock, and sidebar interactions.
 
-use super::{App, EditorInputMode, OpenNote, RightPaneTab};
+use super::{App, OpenNote, RightPaneTab};
 use crate::mode::Mode;
 use crate::sidebar::{render_sidebar, SidebarAction};
 use eframe::egui::{self, pos2, vec2, Color32, Rect, Stroke, Ui};
@@ -266,9 +266,21 @@ impl App {
             typed,
         );
 
-        let editor_drop = ui.interact(editor_panel_rect, egui::Id::new("workspace_editor_drop"), egui::Sense::hover());
-        if editor_drop.dnd_hover_payload::<Vec<std::path::PathBuf>>().is_some() {
-            painter.rect_stroke(editor_panel_rect.shrink(2.0), 4.0, Stroke::new(2.0, self.misc.theme.accent), egui::StrokeKind::Inside);
+        let editor_drop = ui.interact(
+            editor_panel_rect,
+            egui::Id::new("workspace_editor_drop"),
+            egui::Sense::hover(),
+        );
+        if editor_drop
+            .dnd_hover_payload::<Vec<std::path::PathBuf>>()
+            .is_some()
+        {
+            painter.rect_stroke(
+                editor_panel_rect.shrink(2.0),
+                4.0,
+                Stroke::new(2.0, self.misc.theme.accent),
+                egui::StrokeKind::Inside,
+            );
             ui.ctx().set_cursor_icon(egui::CursorIcon::Copy);
         }
         if let Some(paths) = editor_drop.dnd_release_payload::<Vec<std::path::PathBuf>>() {
@@ -280,14 +292,10 @@ impl App {
         }
 
         // Update ShowCmd card timeout
-        if self.services.editor_controller.mode == EditorInputMode::Vim {
-            self.misc.showcmd.update(now);
-        }
+        self.misc.showcmd.update(now);
 
         // Bottom Dock (active editing mode badge, status feedback, word stats)
-        let (row, col) = if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
-            && self.services.editor_controller.mode == EditorInputMode::Vim
-        {
+        let (row, col) = if matches!(self.misc.mode, Mode::Normal | Mode::Doc) {
             self.services
                 .vim_runtime
                 .backend
@@ -300,9 +308,7 @@ impl App {
             self.editor.ed.visual_row_col(&self.editor.visual_lines)
         };
         let (total_rows, word_count, total_chars) =
-            if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
-                && self.services.editor_controller.mode == EditorInputMode::Vim
-            {
+            if matches!(self.misc.mode, Mode::Normal | Mode::Doc) {
                 self.services
                     .vim_runtime
                     .backend
@@ -314,16 +320,13 @@ impl App {
             } else {
                 self.editor.ed.document_stats()
             };
-        let mode_badge_str = match self.services.editor_controller.mode {
-            EditorInputMode::Vim => self
-                .services
-                .vim_runtime
-                .backend
-                .as_ref()
-                .map(|backend| backend.grid.mode.to_uppercase())
-                .unwrap_or_else(|| "NORMAL".into()),
-            EditorInputMode::Hybrid => "NORMAL".to_string(),
-        };
+        let mode_badge_str = self
+            .services
+            .vim_runtime
+            .backend
+            .as_ref()
+            .map(|backend| backend.grid.mode.to_uppercase())
+            .unwrap_or_else(|| "NORMAL".into());
 
         let search_prompt: Option<(&str, &str, usize)> = None;
 
@@ -456,7 +459,9 @@ impl App {
                     self.sidebar.needs_scroll,
                     any_modal_open,
                     &mut self.workspace,
-                    self.open_notes.get(self.tabs.active_tab).and_then(|tab| tab.file_path.as_deref()),
+                    self.open_notes
+                        .get(self.tabs.active_tab)
+                        .and_then(|tab| tab.file_path.as_deref()),
                 );
                 self.sidebar.needs_scroll = false;
 
@@ -488,8 +493,8 @@ impl App {
                             SidebarAction::WorkspaceCreate(parent, kind) => {
                                 self.workspace.dialog_parent = parent;
                                 self.workspace.dialog_name.clear();
-                                self.workspace.dialog_error=None;
-                                self.workspace.dialog_focus_requested=true;
+                                self.workspace.dialog_error = None;
+                                self.workspace.dialog_focus_requested = true;
                                 self.workspace.selected_path = None;
                                 self.workspace.dialog = Some(kind);
                             }
@@ -499,8 +504,8 @@ impl App {
                                     .unwrap_or_default()
                                     .to_string_lossy()
                                     .into_owned();
-                                self.workspace.dialog_error=None;
-                                self.workspace.dialog_focus_requested=true;
+                                self.workspace.dialog_error = None;
+                                self.workspace.dialog_focus_requested = true;
                                 self.workspace.selected_path = Some(path.clone());
                                 self.workspace.dialog_parent = path
                                     .parent()
@@ -521,7 +526,10 @@ impl App {
                                 crate::workspace::reveal_in_file_manager(&path);
                             }
                             SidebarAction::WorkspaceCommit => self.perform_workspace_dialog(now),
-                            SidebarAction::WorkspaceCancel => {self.workspace.dialog=None;self.workspace.dialog_error=None;}
+                            SidebarAction::WorkspaceCancel => {
+                                self.workspace.dialog = None;
+                                self.workspace.dialog_error = None;
+                            }
                             SidebarAction::WorkspaceRefresh => {
                                 let _ = self.workspace.refresh();
                                 self.set_status("Workspace refreshed", now);
@@ -599,7 +607,7 @@ impl App {
             }
         }
 
-        if self.workspace.dialog==Some(crate::workspace::WorkspaceDialog::Delete) {
+        if self.workspace.dialog == Some(crate::workspace::WorkspaceDialog::Delete) {
             let title = "Delete item?";
             let mut open = true;
             egui::Window::new(title)
@@ -609,7 +617,11 @@ impl App {
                 .show(ui.ctx(), |ui| {
                     ui.label(format!(
                         "Permanently delete {}?",
-                        self.workspace.selected_path.as_deref().unwrap_or(std::path::Path::new("")).display()
+                        self.workspace
+                            .selected_path
+                            .as_deref()
+                            .unwrap_or(std::path::Path::new(""))
+                            .display()
                     ));
                     ui.label("Folder deletion removes all nested files and folders.");
                     ui.horizontal(|ui| {
@@ -618,7 +630,7 @@ impl App {
                         }
                         if ui.button("Cancel").clicked() {
                             self.workspace.dialog = None;
-                            self.workspace.dialog_error=None;
+                            self.workspace.dialog_error = None;
                         }
                     });
                 });
@@ -723,15 +735,12 @@ impl App {
                 .max(1.0);
             let (_, _, line_h) = self.misc.zoom.editor_metrics(self.misc.font_size, ui.ctx());
 
-            let is_inserting = match self.services.editor_controller.mode {
-                EditorInputMode::Vim => self
-                    .services
-                    .vim_runtime
-                    .backend
-                    .as_ref()
-                    .is_some_and(|backend| backend.is_insert_mode()),
-                EditorInputMode::Hybrid => true,
-            };
+            let is_inserting = self
+                .services
+                .vim_runtime
+                .backend
+                .as_ref()
+                .is_some_and(|backend| backend.is_insert_mode());
             // Wikilinks belong to Markdown. In code files their overlays can
             // cover HTML/LSP completion and turn a click into opening a note.
             let wikilinks_allowed =
@@ -744,56 +753,32 @@ impl App {
 
                 if self.services.wikilink_autocomplete.is_active {
                     let idx = self.services.wikilink_autocomplete.trigger_start;
-                    let trigger_pos = if self.services.editor_controller.mode
-                        == EditorInputMode::Vim
-                    {
-                        self.services.vim_runtime.backend.as_ref().map(|backend| {
-                            // Vim's app-side visual_lines intentionally stays compact; use
-                            // Neovim's rendered grid to locate the opening `[[`, not the
-                            // caret at the end of the typed query.
-                            let cursor = backend.grid.cursor;
-                            let number_columns = if self.editor.show_line_numbers { 4 } else { 0 };
-                            let text_column = cursor.column.saturating_sub(number_columns);
-                            let trigger_offset = self.editor.ed.cur.saturating_sub(idx);
-                            let grid_text_width =
-                                backend.grid.width.saturating_sub(number_columns).max(1);
-                            let (trigger_row, trigger_column) = if trigger_offset <= text_column {
-                                (cursor.row, text_column - trigger_offset)
-                            } else {
-                                let columns_back = trigger_offset - text_column;
-                                let rows_back = columns_back.div_ceil(grid_text_width);
-                                let column = (text_column + grid_text_width
-                                    - trigger_offset % grid_text_width)
-                                    % grid_text_width;
-                                (cursor.row.saturating_sub(rows_back), column)
-                            };
-                            pos2(
-                                text_left + trigger_column as f32 * cell_w,
-                                actual_editor_rect.min.y
-                                    + pad_y
-                                    + (trigger_row as f32 + 1.0) * line_h
-                                    + 4.0,
-                            )
-                        })
-                    } else {
-                        self.editor
-                            .visual_lines
-                            .iter()
-                            .find(|line| idx >= line.char_start && idx <= line.char_end)
-                            .map(|line| {
-                                let row = self
-                                    .editor
-                                    .visual_lines
-                                    .iter()
-                                    .position(|candidate| std::ptr::eq(candidate, line))
-                                    .unwrap_or(0);
-                                let col = idx.saturating_sub(line.char_start);
-                                pos2(
-                                    ed_origin.x + col as f32 * cell_w,
-                                    ed_origin.y + row as f32 * line_h + line_h + 6.0,
-                                )
-                            })
-                    };
+                    let trigger_pos = self.services.vim_runtime.backend.as_ref().map(|backend| {
+                        // Neovim rendered grid to locate the opening `[[`
+                        let cursor = backend.grid.cursor;
+                        let number_columns = if self.editor.show_line_numbers { 4 } else { 0 };
+                        let text_column = cursor.column.saturating_sub(number_columns);
+                        let trigger_offset = self.editor.ed.cur.saturating_sub(idx);
+                        let grid_text_width =
+                            backend.grid.width.saturating_sub(number_columns).max(1);
+                        let (trigger_row, trigger_column) = if trigger_offset <= text_column {
+                            (cursor.row, text_column - trigger_offset)
+                        } else {
+                            let columns_back = trigger_offset - text_column;
+                            let rows_back = columns_back.div_ceil(grid_text_width);
+                            let column = (text_column + grid_text_width
+                                - trigger_offset % grid_text_width)
+                                % grid_text_width;
+                            (cursor.row.saturating_sub(rows_back), column)
+                        };
+                        pos2(
+                            text_left + trigger_column as f32 * cell_w,
+                            actual_editor_rect.min.y
+                                + pad_y
+                                + (trigger_row as f32 + 1.0) * line_h
+                                + 4.0,
+                        )
+                    });
                     if let Some(trigger_pos) = trigger_pos {
                         self.services.wikilink_autocomplete.trigger_screen_pos = trigger_pos;
                         self.services.wikilink_autocomplete.trigger_line_height = line_h;
@@ -815,17 +800,15 @@ impl App {
                     // Autocomplete is an application feature. Commit its edit to
                     // Neovim at this explicit boundary so the Vim buffer remains
                     // the single editing source of truth.
-                    if self.services.editor_controller.mode == EditorInputMode::Vim {
-                        let (row, column) = self.editor.ed.row_col();
-                        if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
-                            if let Err(error) =
-                                backend.set_document(&self.editor.ed.text(), row, column)
-                            {
-                                self.set_status(
-                                    &format!("Could not sync autocomplete to Neovim: {error}"),
-                                    now,
-                                );
-                            }
+                    let (row, column) = self.editor.ed.row_col();
+                    if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+                        if let Err(error) =
+                            backend.set_document(&self.editor.ed.text(), row, column)
+                        {
+                            self.set_status(
+                                &format!("Could not sync autocomplete to Neovim: {error}"),
+                                now,
+                            );
                         }
                     }
                     self.editor.is_dirty = true;
@@ -835,14 +818,12 @@ impl App {
                 self.services.wikilink_autocomplete.clear();
             }
 
-            let vim_completion_visible = self.services.editor_controller.mode
-                == EditorInputMode::Vim
-                && self
-                    .services
-                    .vim_runtime
-                    .backend
-                    .as_ref()
-                    .is_some_and(|backend| backend.popup_visible());
+            let vim_completion_visible = self
+                .services
+                .vim_runtime
+                .backend
+                .as_ref()
+                .is_some_and(|backend| backend.popup_visible());
             if !wikilinks_allowed || vim_completion_visible {
                 self.services.hover_wikilink.clear();
             } else if let Some(pos) = pointer_pos {
@@ -882,7 +863,8 @@ impl App {
                             if let Some(line) = self.editor.visual_lines.get(row) {
                                 let anchor = pos2(
                                     ed_origin.x
-                                        + link.start.saturating_sub(line.char_start) as f32 * cell_w,
+                                        + link.start.saturating_sub(line.char_start) as f32
+                                            * cell_w,
                                     ed_origin.y + (row + 1) as f32 * line_h,
                                 );
                                 found_hover = Some((link.target.clone(), anchor));

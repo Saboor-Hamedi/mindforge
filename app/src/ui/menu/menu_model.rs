@@ -98,15 +98,57 @@ pub fn file_menu(path: &Path) -> Vec<MenuItem> {
     let p = path.to_path_buf();
     let parent = p.parent().unwrap_or(path).to_path_buf();
     vec![
-        MenuItem::action("open", "Open", Some("📄"), Some("Enter"), MenuAction::OpenFile(p.clone())),
-        MenuItem::action("new_file", "New File", Some("📄+"), None, MenuAction::NewFile(parent.clone())),
-        MenuItem::action("new_folder", "New Folder", Some("📁+"), None, MenuAction::NewFolder(parent)),
+        MenuItem::action(
+            "open",
+            "Open",
+            Some("📄"),
+            Some("Enter"),
+            MenuAction::OpenFile(p.clone()),
+        ),
+        MenuItem::action(
+            "new_file",
+            "New File",
+            Some("📄+"),
+            None,
+            MenuAction::NewFile(parent.clone()),
+        ),
+        MenuItem::action(
+            "new_folder",
+            "New Folder",
+            Some("📁+"),
+            None,
+            MenuAction::NewFolder(parent),
+        ),
         MenuItem::Separator,
-        MenuItem::action("rename", "Rename", Some("✏"), Some("F2"), MenuAction::Rename(p.clone())),
-        MenuItem::destructive("delete", "Delete", Some("🗑"), Some("Del"), MenuAction::Delete(p.clone())),
+        MenuItem::action(
+            "rename",
+            "Rename",
+            Some("✏"),
+            Some("F2"),
+            MenuAction::Rename(p.clone()),
+        ),
+        MenuItem::destructive(
+            "delete",
+            "Delete",
+            Some("🗑"),
+            Some("Del"),
+            MenuAction::Delete(p.clone()),
+        ),
         MenuItem::Separator,
-        MenuItem::action("copy_path", "Copy Path", Some("📋"), None, MenuAction::CopyPath(p.clone())),
-        MenuItem::action("reveal", "Reveal in File Explorer", Some("↗"), None, MenuAction::Reveal(p)),
+        MenuItem::action(
+            "copy_path",
+            "Copy Path",
+            Some("📋"),
+            None,
+            MenuAction::CopyPath(p.clone()),
+        ),
+        MenuItem::action(
+            "reveal",
+            "Reveal in File Explorer",
+            Some("↗"),
+            None,
+            MenuAction::Reveal(p),
+        ),
     ]
 }
 
@@ -117,15 +159,57 @@ pub fn folder_menu(path: &Path, is_expanded: bool) -> Vec<MenuItem> {
     let toggle_icon = if is_expanded { "▾" } else { "▸" };
 
     vec![
-        MenuItem::action("toggle", toggle_label, Some(toggle_icon), Some("Enter"), MenuAction::ToggleFolder(p.clone())),
-        MenuItem::action("new_file", "New File", Some("📄+"), None, MenuAction::NewFile(p.clone())),
-        MenuItem::action("new_folder", "New Folder", Some("📁+"), None, MenuAction::NewFolder(p.clone())),
+        MenuItem::action(
+            "toggle",
+            toggle_label,
+            Some(toggle_icon),
+            Some("Enter"),
+            MenuAction::ToggleFolder(p.clone()),
+        ),
+        MenuItem::action(
+            "new_file",
+            "New File",
+            Some("📄+"),
+            None,
+            MenuAction::NewFile(p.clone()),
+        ),
+        MenuItem::action(
+            "new_folder",
+            "New Folder",
+            Some("📁+"),
+            None,
+            MenuAction::NewFolder(p.clone()),
+        ),
         MenuItem::Separator,
-        MenuItem::action("rename", "Rename", Some("✏"), Some("F2"), MenuAction::Rename(p.clone())),
-        MenuItem::destructive("delete", "Delete", Some("🗑"), Some("Del"), MenuAction::Delete(p.clone())),
+        MenuItem::action(
+            "rename",
+            "Rename",
+            Some("✏"),
+            Some("F2"),
+            MenuAction::Rename(p.clone()),
+        ),
+        MenuItem::destructive(
+            "delete",
+            "Delete",
+            Some("🗑"),
+            Some("Del"),
+            MenuAction::Delete(p.clone()),
+        ),
         MenuItem::Separator,
-        MenuItem::action("copy_path", "Copy Path", Some("📋"), None, MenuAction::CopyPath(p.clone())),
-        MenuItem::action("reveal", "Reveal in File Explorer", Some("↗"), None, MenuAction::Reveal(p)),
+        MenuItem::action(
+            "copy_path",
+            "Copy Path",
+            Some("📋"),
+            None,
+            MenuAction::CopyPath(p.clone()),
+        ),
+        MenuItem::action(
+            "reveal",
+            "Reveal in File Explorer",
+            Some("↗"),
+            None,
+            MenuAction::Reveal(p),
+        ),
     ]
 }
 
@@ -133,14 +217,50 @@ pub fn folder_menu(path: &Path, is_expanded: bool) -> Vec<MenuItem> {
 pub fn root_menu(root: &Path) -> Vec<MenuItem> {
     let p = root.to_path_buf();
     vec![
-        MenuItem::action("new_file", "New File", Some("📄+"), None, MenuAction::NewFile(p.clone())),
-        MenuItem::action("new_folder", "New Folder", Some("📁+"), None, MenuAction::NewFolder(p.clone())),
+        MenuItem::action(
+            "new_file",
+            "New File",
+            Some("📄+"),
+            None,
+            MenuAction::NewFile(p.clone()),
+        ),
+        MenuItem::action(
+            "new_folder",
+            "New Folder",
+            Some("📁+"),
+            None,
+            MenuAction::NewFolder(p.clone()),
+        ),
         MenuItem::Separator,
-        MenuItem::action("refresh", "Refresh Explorer", Some("↻"), None, MenuAction::RefreshWorkspace),
+        MenuItem::action(
+            "refresh",
+            "Refresh Explorer",
+            Some("↻"),
+            None,
+            MenuAction::RefreshWorkspace,
+        ),
         MenuItem::Separator,
-        MenuItem::action("copy_path", "Copy Path", Some("📋"), None, MenuAction::CopyPath(p.clone())),
-        MenuItem::action("reveal", "Reveal in File Explorer", Some("↗"), None, MenuAction::Reveal(p)),
+        MenuItem::action(
+            "copy_path",
+            "Copy Path",
+            Some("📋"),
+            None,
+            MenuAction::CopyPath(p.clone()),
+        ),
+        MenuItem::action(
+            "reveal",
+            "Reveal in File Explorer",
+            Some("↗"),
+            None,
+            MenuAction::Reveal(p),
+        ),
         MenuItem::Separator,
-        MenuItem::action("close_workspace", "Close Workspace", Some("✖"), None, MenuAction::CloseWorkspace),
+        MenuItem::action(
+            "close_workspace",
+            "Close Workspace",
+            Some("✖"),
+            None,
+            MenuAction::CloseWorkspace,
+        ),
     ]
 }

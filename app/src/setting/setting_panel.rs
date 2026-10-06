@@ -4,7 +4,6 @@
 //! keybindings, shortcuts, AI configuration, backups, updates, and status line).
 
 use super::setting_tab::SettingTab;
-use crate::app::EditorInputMode;
 use crate::caret::Caret;
 use crate::services::sound::SoundEngine;
 use crate::services::updater::UpdateManager;
@@ -25,7 +24,6 @@ pub fn render_setting_panel(
     painter: &egui::Painter,
     panel_rect: Rect,
     active_tab: SettingTab,
-    editor_input_mode: &mut EditorInputMode,
     caret: &mut Caret,
     sound: &mut SoundEngine,
     theme: &mut Theme,
@@ -74,18 +72,6 @@ pub fn render_setting_panel(
             );
             None
         }
-        SettingTab::EditorMode => {
-            super::editor_mode::render_editor_mode_tab(
-                ui,
-                painter,
-                panel_rect,
-                p_origin,
-                editor_input_mode,
-                theme,
-                on_save_setting,
-            );
-            None
-        }
         SettingTab::Sounds => {
             super::sound::render_sounds_tab(
                 ui,
@@ -127,18 +113,16 @@ pub fn render_setting_panel(
             );
             None
         }
-        SettingTab::Backup => {
-            super::backup::render_backup_tab(
-                ui,
-                painter,
-                panel_rect,
-                p_origin,
-                backup_dir,
-                last_backup_status,
-                theme,
-                on_save_setting,
-            )
-        }
+        SettingTab::Backup => super::backup::render_backup_tab(
+            ui,
+            painter,
+            panel_rect,
+            p_origin,
+            backup_dir,
+            last_backup_status,
+            theme,
+            on_save_setting,
+        ),
         SettingTab::Updates => {
             super::updates::render_updates_tab(ui, painter, panel_rect, p_origin, updater, theme)
         }

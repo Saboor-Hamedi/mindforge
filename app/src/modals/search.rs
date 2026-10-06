@@ -32,25 +32,43 @@ pub fn render_search_modal(
     let is_sound_picker = query.starts_with(">sound") || query.starts_with("> sound");
     let is_caret_picker = query.starts_with(">caret") || query.starts_with("> caret");
     let is_font_picker = query.starts_with(">font") || query.starts_with("> font");
-    let is_mode_picker = query.starts_with(">mode") || query.starts_with("> mode");
     let is_luna_picker = query.starts_with(">luna") || query.starts_with("> luna");
     let is_cmd_mode = query.starts_with('>');
     let (icon_str, hint_str) = if is_theme_picker {
-        ("🎨", "Search themes (↑↓/Ctrl+J/K to navigate  ·  Enter to apply live)...")
+        (
+            "🎨",
+            "Search themes (↑↓/Ctrl+J/K to navigate  ·  Enter to apply live)...",
+        )
     } else if is_sound_picker {
-        ("🔊", "Search sounds (↑↓/Ctrl+J/K to navigate  ·  Enter to preview live)...")
+        (
+            "🔊",
+            "Search sounds (↑↓/Ctrl+J/K to navigate  ·  Enter to preview live)...",
+        )
     } else if is_caret_picker {
-        ("✦", "Search caret styles (↑↓/Ctrl+J/K to navigate  ·  Enter to apply live)...")
+        (
+            "✦",
+            "Search caret styles (↑↓/Ctrl+J/K to navigate  ·  Enter to apply live)...",
+        )
     } else if is_font_picker {
-        ("🔤", "Search font families (↑↓/Ctrl+J/K to navigate  ·  Enter to apply live)...")
-    } else if is_mode_picker {
-        ("⚡", "Switch editor mode (↑↓/Ctrl+J/K to navigate  ·  Enter to apply)...")
+        (
+            "🔤",
+            "Search font families (↑↓/Ctrl+J/K to navigate  ·  Enter to apply live)...",
+        )
     } else if is_luna_picker {
-        ("🎨", "Search LunaLine styles (↑↓/Ctrl+J/K to navigate  ·  Enter to apply)...")
+        (
+            "🎨",
+            "Search LunaLine styles (↑↓/Ctrl+J/K to navigate  ·  Enter to apply)...",
+        )
     } else if is_cmd_mode {
-        ("⚡", "Type a command or setting (↑↓/Ctrl+J/K to navigate  ·  Enter to run)...")
+        (
+            "⚡",
+            "Type a command or setting (↑↓/Ctrl+J/K to navigate  ·  Enter to run)...",
+        )
     } else {
-        ("🔍", "Search notes or type > for commands (Ctrl+Shift+P)...")
+        (
+            "🔍",
+            "Search notes or type > for commands (Ctrl+Shift+P)...",
+        )
     };
 
     // Dimmed translucent backdrop
@@ -79,9 +97,8 @@ pub fn render_search_modal(
     let modal_rect = Rect::from_min_size(pos2(modal_x, modal_top), vec2(modal_w, modal_h));
 
     // Click outside dismisses modal (Mac Spotlight behavior, debounced to ignore opening click)
-    let outside_click = !just_opened
-        && (now - opened_at) > 0.35
-        && ui.input(|i| i.pointer.primary_clicked());
+    let outside_click =
+        !just_opened && (now - opened_at) > 0.35 && ui.input(|i| i.pointer.primary_clicked());
     if outside_click {
         if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
             if !modal_rect.contains(pos) {
@@ -93,13 +110,22 @@ pub fn render_search_modal(
     // Modern macOS Spotlight container: surface matching active theme with smooth rounded corners
     let glass_bg = theme.surface();
     let glass_border = Stroke::new(1.0_f32, theme.border());
-    painter.rect(modal_rect, 10.0, glass_bg, glass_border, egui::StrokeKind::Inside);
+    painter.rect(
+        modal_rect,
+        10.0,
+        glass_bg,
+        glass_border,
+        egui::StrokeKind::Inside,
+    );
 
     // ── Search Bar Input Row ────────────────────────────────────────────────
     let bar_center_y = modal_rect.min.y + bar_h * 0.5;
 
     // Search icon vertically centered as modern vector graphic
-    let search_icon_rect = Rect::from_center_size(pos2(modal_rect.min.x + 24.0, bar_center_y), vec2(16.0, 16.0));
+    let search_icon_rect = Rect::from_center_size(
+        pos2(modal_rect.min.x + 24.0, bar_center_y),
+        vec2(16.0, 16.0),
+    );
     crate::ui_components::render_vector_icon(painter, icon_str, search_icon_rect, theme.accent);
 
     // Escape shortcut text on far right of search bar, vertically centered (borderless typography, no background box)
@@ -112,46 +138,54 @@ pub fn render_search_modal(
     );
 
     // Keyboard navigation: ArrowUp/Down and vim-style Ctrl+K/J before TextEdit consumes them
-    let (nav_up, nav_down, nav_enter, nav_esc, switch_to_cmd, switch_to_notes) = ui.input_mut(|i| {
-        let ctrl_shift_p = (i.modifiers.ctrl || i.modifiers.command)
-            && i.modifiers.shift
-            && i.key_pressed(egui::Key::P);
-        let ctrl_p = (i.modifiers.ctrl || i.modifiers.command)
-            && !i.modifiers.shift
-            && i.key_pressed(egui::Key::P);
+    let (nav_up, nav_down, nav_enter, nav_esc, switch_to_cmd, switch_to_notes) =
+        ui.input_mut(|i| {
+            let ctrl_shift_p = (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.shift
+                && i.key_pressed(egui::Key::P);
+            let ctrl_p = (i.modifiers.ctrl || i.modifiers.command)
+                && !i.modifiers.shift
+                && i.key_pressed(egui::Key::P);
 
-        let ctrl_k = i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt
-            && i.key_pressed(egui::Key::K);
-        let ctrl_j = i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt
-            && i.key_pressed(egui::Key::J);
-        let up   = i.key_pressed(egui::Key::ArrowUp)   || ctrl_k;
-        let down = i.key_pressed(egui::Key::ArrowDown) || ctrl_j;
-        let enter = i.key_pressed(egui::Key::Enter);
-        let esc   = i.key_pressed(egui::Key::Escape);
+            let ctrl_k = i.modifiers.ctrl
+                && !i.modifiers.shift
+                && !i.modifiers.alt
+                && i.key_pressed(egui::Key::K);
+            let ctrl_j = i.modifiers.ctrl
+                && !i.modifiers.shift
+                && !i.modifiers.alt
+                && i.key_pressed(egui::Key::J);
+            let up = i.key_pressed(egui::Key::ArrowUp) || ctrl_k;
+            let down = i.key_pressed(egui::Key::ArrowDown) || ctrl_j;
+            let enter = i.key_pressed(egui::Key::Enter);
+            let esc = i.key_pressed(egui::Key::Escape);
 
-        if i.key_pressed(egui::Key::ArrowUp) {
-            i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp);
-        }
-        if i.key_pressed(egui::Key::ArrowDown) {
-            i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown);
-        }
-        if ctrl_k {
-            i.consume_key(egui::Modifiers::CTRL, egui::Key::K);
-        }
-        if ctrl_j {
-            i.consume_key(egui::Modifiers::CTRL, egui::Key::J);
-        }
-        if ctrl_shift_p {
-            i.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::P);
-            i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::P);
-        }
-        if ctrl_p {
-            i.consume_key(egui::Modifiers::CTRL, egui::Key::P);
-            i.consume_key(egui::Modifiers::COMMAND, egui::Key::P);
-        }
+            if i.key_pressed(egui::Key::ArrowUp) {
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp);
+            }
+            if i.key_pressed(egui::Key::ArrowDown) {
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown);
+            }
+            if ctrl_k {
+                i.consume_key(egui::Modifiers::CTRL, egui::Key::K);
+            }
+            if ctrl_j {
+                i.consume_key(egui::Modifiers::CTRL, egui::Key::J);
+            }
+            if ctrl_shift_p {
+                i.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::P);
+                i.consume_key(
+                    egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                    egui::Key::P,
+                );
+            }
+            if ctrl_p {
+                i.consume_key(egui::Modifiers::CTRL, egui::Key::P);
+                i.consume_key(egui::Modifiers::COMMAND, egui::Key::P);
+            }
 
-        (up, down, enter, esc, ctrl_shift_p, ctrl_p)
-    });
+            (up, down, enter, esc, ctrl_shift_p, ctrl_p)
+        });
 
     if switch_to_cmd {
         *query = ">".to_string();
@@ -220,16 +254,6 @@ pub fn render_search_modal(
                     action.selected_item = Some(item.clone());
                     action.should_close = false;
                 }
-                crate::services::fuzzy::PaletteAction::OpenModePicker => {
-                    *query = ">mode ".to_string();
-                    *selected_idx = 0;
-                    action.new_query = Some(">mode ".to_string());
-                    action.should_close = false;
-                }
-                crate::services::fuzzy::PaletteAction::ApplyEditorMode(_) => {
-                    action.selected_item = Some(item.clone());
-                    action.should_close = false;
-                }
                 _ => {
                     action.selected_item = Some(item.clone());
                     action.should_close = true;
@@ -238,7 +262,8 @@ pub fn render_search_modal(
         }
     }
     if nav_esc {
-        if is_theme_picker || is_sound_picker || is_caret_picker || is_font_picker || is_mode_picker || is_luna_picker {
+        if is_theme_picker || is_sound_picker || is_caret_picker || is_font_picker || is_luna_picker
+        {
             *query = ">".to_string();
             *selected_idx = 0;
             action.new_query = Some(">".to_string());
@@ -273,7 +298,11 @@ pub fn render_search_modal(
         response.request_focus();
         let end_idx = query.chars().count();
         let mut state = egui::TextEdit::load_state(ui.ctx(), response.id).unwrap_or_default();
-        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(end_idx))));
+        state
+            .cursor
+            .set_char_range(Some(egui::text::CCursorRange::one(
+                egui::text::CCursor::new(end_idx),
+            )));
         state.store(ui.ctx(), response.id);
     } else if !response.has_focus() && !ui.input(|i| i.key_pressed(egui::Key::Escape)) {
         response.request_focus();
@@ -317,9 +346,19 @@ pub fn render_search_modal(
                 if is_selected || is_hovered {
                     let sel_bg = if is_selected {
                         if theme.is_light() {
-                            Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 14)
+                            Color32::from_rgba_unmultiplied(
+                                theme.accent.r(),
+                                theme.accent.g(),
+                                theme.accent.b(),
+                                14,
+                            )
                         } else {
-                            Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 20)
+                            Color32::from_rgba_unmultiplied(
+                                theme.accent.r(),
+                                theme.accent.g(),
+                                theme.accent.b(),
+                                20,
+                            )
                         }
                     } else if theme.is_light() {
                         Color32::from_rgba_unmultiplied(0, 0, 0, 8)
@@ -372,16 +411,6 @@ pub fn render_search_modal(
                             action.selected_item = Some(item.clone());
                             action.should_close = false;
                         }
-                        crate::services::fuzzy::PaletteAction::OpenModePicker => {
-                            *query = ">mode ".to_string();
-                            *selected_idx = 0;
-                            action.new_query = Some(">mode ".to_string());
-                            action.should_close = false;
-                        }
-                        crate::services::fuzzy::PaletteAction::ApplyEditorMode(_) => {
-                            action.selected_item = Some(item.clone());
-                            action.should_close = false;
-                        }
                         _ => {
                             action.selected_item = Some(item.clone());
                             action.should_close = true;
@@ -398,7 +427,11 @@ pub fn render_search_modal(
                     painter,
                     item.icon,
                     icon_rect,
-                    if is_selected { theme.accent } else { theme.muted },
+                    if is_selected {
+                        theme.accent
+                    } else {
+                        theme.muted
+                    },
                 );
 
                 // Note / Command Title & Snippet
@@ -459,7 +492,10 @@ pub fn render_search_modal(
         // Minimalist footer bar
         let footer_y = modal_rect.max.y - 28.0;
         painter.line_segment(
-            [pos2(modal_rect.min.x + 16.0, footer_y - 4.0), pos2(modal_rect.max.x - 16.0, footer_y - 4.0)],
+            [
+                pos2(modal_rect.min.x + 16.0, footer_y - 4.0),
+                pos2(modal_rect.max.x - 16.0, footer_y - 4.0),
+            ],
             Stroke::new(1.0_f32, theme.border()),
         );
         let footer_hint = if is_theme_picker {
@@ -470,8 +506,6 @@ pub fn render_search_modal(
             "↑↓ / Ctrl+J/K  ·  ↵ Apply Caret Live  ·  esc → Commands"
         } else if is_font_picker {
             "↑↓ / Ctrl+J/K  ·  ↵ Apply Font Live  ·  esc → Commands"
-        } else if is_mode_picker {
-            "↑↓ / Ctrl+J/K  ·  ↵ Switch Editor Mode  ·  esc → Commands"
         } else if is_luna_picker {
             "↑↓ / Ctrl+J/K  ·  ↵ Apply LunaLine Style  ·  esc → Commands"
         } else if is_cmd_mode {

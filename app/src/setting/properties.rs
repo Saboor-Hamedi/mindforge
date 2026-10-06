@@ -107,12 +107,7 @@ pub fn render_toggle(
 }
 
 /// Renders a card container frame with uniform padding and subtle border stroke.
-pub fn render_card_frame(
-    painter: &egui::Painter,
-    rect: Rect,
-    corner_radius: f32,
-    theme: &Theme,
-) {
+pub fn render_card_frame(painter: &egui::Painter, rect: Rect, corner_radius: f32, theme: &Theme) {
     let card_bg = if theme.is_light() {
         Color32::from_white_alpha(180)
     } else {
@@ -143,11 +138,7 @@ pub fn render_property_slider(
 ) -> bool {
     let mut changed = false;
     ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(label)
-                .size(12.0)
-                .color(theme.text),
-        );
+        ui.label(egui::RichText::new(label).size(12.0).color(theme.text));
         let slider = egui::Slider::new(value, min..=max)
             .show_value(true)
             .trailing_fill(true);
@@ -159,12 +150,7 @@ pub fn render_property_slider(
 }
 
 /// Renders a selection chip/tag button.
-pub fn render_choice_chip(
-    ui: &mut Ui,
-    label: &str,
-    is_selected: bool,
-    theme: &Theme,
-) -> bool {
+pub fn render_choice_chip(ui: &mut Ui, label: &str, is_selected: bool, theme: &Theme) -> bool {
     let chip_bg = if is_selected {
         theme.accent
     } else if theme.is_light() {
@@ -178,13 +164,9 @@ pub fn render_choice_chip(
         theme.text
     };
 
-    let btn = egui::Button::new(
-        egui::RichText::new(label)
-            .size(12.0)
-            .color(text_color),
-    )
-    .fill(chip_bg)
-    .corner_radius(4.0);
+    let btn = egui::Button::new(egui::RichText::new(label).size(12.0).color(text_color))
+        .fill(chip_bg)
+        .corner_radius(4.0);
 
     ui.add(btn).clicked()
 }

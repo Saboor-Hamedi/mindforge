@@ -80,12 +80,23 @@ pub fn render_outline_panel(
         let icon_rect = Rect::from_center_size(pos2(center.x, center.y - 32.0), vec2(28.0, 28.0));
         let stroke = Stroke::new(
             1.8_f32,
-            eframe::egui::Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 130),
+            eframe::egui::Color32::from_rgba_unmultiplied(
+                theme.accent.r(),
+                theme.accent.g(),
+                theme.accent.b(),
+                130,
+            ),
         );
         let ic = icon_rect.center();
-        painter.line_segment([pos2(ic.x - 9.0, ic.y - 6.0), pos2(ic.x + 9.0, ic.y - 6.0)], stroke);
+        painter.line_segment(
+            [pos2(ic.x - 9.0, ic.y - 6.0), pos2(ic.x + 9.0, ic.y - 6.0)],
+            stroke,
+        );
         painter.line_segment([pos2(ic.x - 9.0, ic.y), pos2(ic.x + 6.0, ic.y)], stroke);
-        painter.line_segment([pos2(ic.x - 9.0, ic.y + 6.0), pos2(ic.x + 3.0, ic.y + 6.0)], stroke);
+        painter.line_segment(
+            [pos2(ic.x - 9.0, ic.y + 6.0), pos2(ic.x + 3.0, ic.y + 6.0)],
+            stroke,
+        );
 
         // Centered Title
         painter.text(
@@ -137,11 +148,15 @@ pub fn render_outline_panel(
 
         if up && *selected_idx > 0 {
             *selected_idx -= 1;
-            action = Some(OutlineAction::JumpToChar(headings[*selected_idx].char_offset));
+            action = Some(OutlineAction::JumpToChar(
+                headings[*selected_idx].char_offset,
+            ));
         }
         if down && *selected_idx + 1 < headings.len() {
             *selected_idx += 1;
-            action = Some(OutlineAction::JumpToChar(headings[*selected_idx].char_offset));
+            action = Some(OutlineAction::JumpToChar(
+                headings[*selected_idx].char_offset,
+            ));
         }
         if enter {
             if let Some(h) = headings.get(*selected_idx) {
@@ -173,7 +188,10 @@ pub fn render_outline_panel(
                     // Indent based on heading level: H1 = 0px, H2 = 10px, H3 = 20px, etc.
                     let indent = (h.level.saturating_sub(1) as f32) * 11.0;
 
-                    let (item_rect, resp) = ui.allocate_exact_size(vec2(rect.width() - 8.0, item_h), egui::Sense::click());
+                    let (item_rect, resp) = ui.allocate_exact_size(
+                        vec2(rect.width() - 8.0, item_h),
+                        egui::Sense::click(),
+                    );
                     let is_hovered = resp.hovered();
 
                     if resp.clicked() {
@@ -197,7 +215,11 @@ pub fn render_outline_panel(
                         Align2::LEFT_CENTER,
                         tag,
                         FontId::monospace(9.5),
-                        if is_selected || is_active { theme.accent } else { theme.muted },
+                        if is_selected || is_active {
+                            theme.accent
+                        } else {
+                            theme.muted
+                        },
                     );
 
                     // Heading title

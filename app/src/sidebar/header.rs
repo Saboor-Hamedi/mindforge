@@ -1,9 +1,9 @@
 //! Sidebar header component: MindForge branding, Stats toggle, and Workspace controls.
 
-use eframe::egui::{self, pos2, Rect, Stroke, Ui};
 use crate::sidebar::SidebarAction;
 use crate::ui::theme::Theme;
 use crate::workspace::{WorkspaceDialog, WorkspaceState};
+use eframe::egui::{self, pos2, Rect, Stroke, Ui};
 
 /// Renders the top header of the sidebar with exact bounding rect and clean 5px section boundaries.
 pub fn render_sidebar_header(
@@ -34,16 +34,22 @@ pub fn render_sidebar_header(
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let is_stats_active = active_mode_idx == 1;
                     let stats_btn = ui.add(
-                        egui::Button::new(
-                            egui::RichText::new("📊 Stats")
-                                .size(11.0)
-                                .color(if is_stats_active { theme.accent } else { theme.muted }),
-                        )
+                        egui::Button::new(egui::RichText::new("📊 Stats").size(11.0).color(
+                            if is_stats_active {
+                                theme.accent
+                            } else {
+                                theme.muted
+                            },
+                        ))
                         .frame(false),
                     );
 
                     if stats_btn.clicked() && !any_modal_open {
-                        action = Some(SidebarAction::SwitchMode(if is_stats_active { 0 } else { 1 }));
+                        action = Some(SidebarAction::SwitchMode(if is_stats_active {
+                            0
+                        } else {
+                            1
+                        }));
                     }
                 });
             });
@@ -69,13 +75,17 @@ pub fn render_sidebar_header(
                         .sense(egui::Sense::click_and_drag()),
                     );
 
-                    if let Some(sources) = root_btn.dnd_release_payload::<Vec<std::path::PathBuf>>() {
+                    if let Some(sources) = root_btn.dnd_release_payload::<Vec<std::path::PathBuf>>()
+                    {
                         action = Some(SidebarAction::WorkspaceMove(
                             (*sources).clone(),
                             root.clone(),
                         ));
                     }
-                    if root_btn.dnd_hover_payload::<Vec<std::path::PathBuf>>().is_some() {
+                    if root_btn
+                        .dnd_hover_payload::<Vec<std::path::PathBuf>>()
+                        .is_some()
+                    {
                         ui.painter().rect_stroke(
                             root_btn.rect,
                             2.0,
@@ -84,7 +94,8 @@ pub fn render_sidebar_header(
                         );
                     }
                     if root_btn.secondary_clicked() && !any_modal_open {
-                        let pointer_pos = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+                        let pointer_pos = ui
+                            .input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
                             .unwrap_or(root_btn.rect.left_bottom());
                         workspace.context_menu = Some(crate::ui::menu::MenuState::new(
                             pointer_pos,
@@ -96,21 +107,28 @@ pub fn render_sidebar_header(
                     // Right-aligned icons for creating folder and file
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
-                            .add(egui::Button::new(egui::RichText::new("↗").size(12.0)).frame(false))
+                            .add(
+                                egui::Button::new(egui::RichText::new("↗").size(12.0)).frame(false),
+                            )
                             .on_hover_text("Open workspace folder...")
                             .clicked()
                         {
                             action = Some(SidebarAction::OpenWorkspace);
                         }
                         if ui
-                            .add(egui::Button::new(egui::RichText::new("↻").size(12.0)).frame(false))
+                            .add(
+                                egui::Button::new(egui::RichText::new("↻").size(12.0)).frame(false),
+                            )
                             .on_hover_text("Refresh explorer")
                             .clicked()
                         {
                             action = Some(SidebarAction::WorkspaceRefresh);
                         }
                         if ui
-                            .add(egui::Button::new(egui::RichText::new("📁+").size(11.5)).frame(false))
+                            .add(
+                                egui::Button::new(egui::RichText::new("📁+").size(11.5))
+                                    .frame(false),
+                            )
                             .on_hover_text("New Folder")
                             .clicked()
                         {
@@ -120,7 +138,10 @@ pub fn render_sidebar_header(
                             ));
                         }
                         if ui
-                            .add(egui::Button::new(egui::RichText::new("📄+").size(11.5)).frame(false))
+                            .add(
+                                egui::Button::new(egui::RichText::new("📄+").size(11.5))
+                                    .frame(false),
+                            )
                             .on_hover_text("New File")
                             .clicked()
                         {
@@ -138,7 +159,10 @@ pub fn render_sidebar_header(
     // Clean horizontal divider line dividing Header from the 5px gap below
     let sep_y = header_rect.max.y;
     painter.line_segment(
-        [pos2(header_rect.min.x, sep_y), pos2(header_rect.max.x, sep_y)],
+        [
+            pos2(header_rect.min.x, sep_y),
+            pos2(header_rect.max.x, sep_y),
+        ],
         Stroke::new(1.0, theme.border().gamma_multiply(0.35)),
     );
 

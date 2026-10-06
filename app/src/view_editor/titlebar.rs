@@ -87,7 +87,14 @@ pub fn render_full_titlebar(
     );
 
     // 6. Right side: Accent button, Drag gripper, and Window Controls
-    render_window_controls(ui, painter, titlebar_rect, theme, accent_dropdown_open, opacity)
+    render_window_controls(
+        ui,
+        painter,
+        titlebar_rect,
+        theme,
+        accent_dropdown_open,
+        opacity,
+    )
 }
 
 /// Renders modern window controls (Accent Picker, Drag Button, Minimize, Maximize/Restore, Close).
@@ -144,7 +151,11 @@ pub fn render_window_controls(
         painter,
         "palette",
         palette_rect,
-        if is_accent_hovered || accent_dropdown_open { theme.accent } else { theme.text },
+        if is_accent_hovered || accent_dropdown_open {
+            theme.accent
+        } else {
+            theme.text
+        },
     );
     // Indicator dot showing active accent color
     painter.circle_filled(
@@ -163,9 +174,17 @@ pub fn render_window_controls(
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
     }
     if is_drag_hovered {
-        painter.rect_filled(drag_rect, 0.0, Color32::from_rgba_unmultiplied(255, 255, 255, 16));
+        painter.rect_filled(
+            drag_rect,
+            0.0,
+            Color32::from_rgba_unmultiplied(255, 255, 255, 16),
+        );
     }
-    let grip_color = if is_drag_hovered { theme.accent } else { theme.muted };
+    let grip_color = if is_drag_hovered {
+        theme.accent
+    } else {
+        theme.muted
+    };
     let drag_c = drag_rect.center();
     for col in 0..2 {
         for row in 0..3 {
@@ -182,9 +201,14 @@ pub fn render_window_controls(
     );
     let min_hovered = ui.rect_contains_pointer(min_rect);
     if min_hovered {
-        painter.rect_filled(min_rect, 0.0, Color32::from_rgba_unmultiplied(255, 255, 255, 22));
+        painter.rect_filled(
+            min_rect,
+            0.0,
+            Color32::from_rgba_unmultiplied(255, 255, 255, 22),
+        );
         if ui.input(|i| i.pointer.primary_clicked()) {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Minimized(true));
         }
     }
     let min_stroke_color = if min_hovered { theme.text } else { theme.muted };
@@ -205,9 +229,14 @@ pub fn render_window_controls(
     let max_hovered = ui.rect_contains_pointer(max_rect);
     let is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
     if max_hovered {
-        painter.rect_filled(max_rect, 0.0, Color32::from_rgba_unmultiplied(255, 255, 255, 22));
+        painter.rect_filled(
+            max_rect,
+            0.0,
+            Color32::from_rgba_unmultiplied(255, 255, 255, 22),
+        );
         if ui.input(|i| i.pointer.primary_clicked()) {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
         }
     }
     let max_stroke_color = if max_hovered { theme.text } else { theme.muted };
@@ -216,7 +245,10 @@ pub fn render_window_controls(
         let s = 4.2;
         // Background window (offset up-right)
         painter.rect_stroke(
-            Rect::from_center_size(pos2(max_c.x + 2.0, max_c.y - 2.0), vec2(s * 2.0 - 1.0, s * 2.0 - 1.0)),
+            Rect::from_center_size(
+                pos2(max_c.x + 2.0, max_c.y - 2.0),
+                vec2(s * 2.0 - 1.0, s * 2.0 - 1.0),
+            ),
             1.0,
             Stroke::new(1.2_f32, max_stroke_color),
             egui::StrokeKind::Inside,
@@ -245,15 +277,17 @@ pub fn render_window_controls(
     }
 
     // 5. Close Button (✕) - outer right corner matches 5.0 titlebar radius
-    let close_rect = Rect::from_min_max(
-        pos2(right_x - btn_w, top_y),
-        pos2(right_x, bottom_y),
-    );
+    let close_rect = Rect::from_min_max(pos2(right_x - btn_w, top_y), pos2(right_x, bottom_y));
     let close_hovered = ui.rect_contains_pointer(close_rect);
     if close_hovered {
         painter.rect(
             close_rect,
-            egui::CornerRadius { nw: 0, ne: 5, sw: 0, se: 5 },
+            egui::CornerRadius {
+                nw: 0,
+                ne: 5,
+                sw: 0,
+                se: 5,
+            },
             Color32::from_rgb(225, 45, 57),
             Stroke::NONE,
             egui::StrokeKind::Inside,
@@ -262,15 +296,25 @@ pub fn render_window_controls(
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
         }
     }
-    let close_stroke_color = if close_hovered { Color32::WHITE } else { theme.muted };
+    let close_stroke_color = if close_hovered {
+        Color32::WHITE
+    } else {
+        theme.muted
+    };
     let close_c = close_rect.center();
     let d = 4.4;
     painter.line_segment(
-        [pos2(close_c.x - d, close_c.y - d), pos2(close_c.x + d, close_c.y + d)],
+        [
+            pos2(close_c.x - d, close_c.y - d),
+            pos2(close_c.x + d, close_c.y + d),
+        ],
         Stroke::new(1.5_f32, close_stroke_color),
     );
     painter.line_segment(
-        [pos2(close_c.x + d, close_c.y - d), pos2(close_c.x - d, close_c.y + d)],
+        [
+            pos2(close_c.x + d, close_c.y - d),
+            pos2(close_c.x - d, close_c.y + d),
+        ],
         Stroke::new(1.5_f32, close_stroke_color),
     );
 

@@ -69,4 +69,3 @@ pub struct ScanRecord {
     pub findings_json: String,
     pub scanned_at: String,
 }
-

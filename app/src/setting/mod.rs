@@ -4,7 +4,6 @@ pub mod ai_engine;
 pub mod appearance;
 pub mod backup;
 pub mod carets;
-pub mod editor_mode;
 pub mod keybindings_tab;
 pub mod keymap;
 pub mod lunaline_tab;

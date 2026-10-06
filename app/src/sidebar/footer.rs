@@ -1,8 +1,8 @@
 //! Sidebar footer component: Round settings icon button with shortcut tooltip.
 
-use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke, Ui};
 use crate::sidebar::SidebarAction;
 use crate::ui::theme::Theme;
+use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke, Ui};
 
 /// Renders the bottom footer of the sidebar inside the allocated footer_rect.
 pub fn render_sidebar_footer(
@@ -16,11 +16,18 @@ pub fn render_sidebar_footer(
 
     let btn_size = 28.0;
     let btn_rect = Rect::from_min_size(
-        pos2(footer_rect.min.x + 2.0, footer_rect.center().y - btn_size * 0.5),
+        pos2(
+            footer_rect.min.x + 2.0,
+            footer_rect.center().y - btn_size * 0.5,
+        ),
         vec2(btn_size, btn_size),
     );
 
-    let sense = if any_modal_open { egui::Sense::hover() } else { egui::Sense::click() };
+    let sense = if any_modal_open {
+        egui::Sense::hover()
+    } else {
+        egui::Sense::click()
+    };
     let resp = ui.allocate_rect(btn_rect, sense);
     let center = btn_rect.center();
     let is_hovered = !any_modal_open && (resp.hovered() || ui.rect_contains_pointer(btn_rect));
@@ -53,7 +60,9 @@ pub fn render_sidebar_footer(
     // Hover tooltip showing shortcut
     let resp = resp.on_hover_text("Settings (Ctrl+,)");
 
-    if !any_modal_open && (resp.clicked() || (is_hovered && ui.input(|inp| inp.pointer.primary_clicked()))) {
+    if !any_modal_open
+        && (resp.clicked() || (is_hovered && ui.input(|inp| inp.pointer.primary_clicked())))
+    {
         action = Some(SidebarAction::OpenSettings);
     }
 

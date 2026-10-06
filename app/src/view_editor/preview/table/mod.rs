@@ -46,7 +46,13 @@ pub fn render_preview_table(
     let header_galleys: Vec<_> = headers
         .iter()
         .map(|h_text| {
-            let job = build_inline_job(h_text, font_size * 0.95, header_color, theme, col_w - cell_pad_x * 2.0);
+            let job = build_inline_job(
+                h_text,
+                font_size * 0.95,
+                header_color,
+                theme,
+                col_w - cell_pad_x * 2.0,
+            );
             painter.layout_job(job)
         })
         .collect();
@@ -66,7 +72,13 @@ pub fn render_preview_table(
         let mut max_cell_h = row_min_h;
         for c_idx in 0..col_count {
             let cell_text = row.get(c_idx).map(|s| s.as_str()).unwrap_or("");
-            let job = build_inline_job(cell_text, font_size * 0.90, row_text_color, theme, col_w - cell_pad_x * 2.0);
+            let job = build_inline_job(
+                cell_text,
+                font_size * 0.90,
+                row_text_color,
+                theme,
+                col_w - cell_pad_x * 2.0,
+            );
             let galley = painter.layout_job(job);
             if galley.size().y + 6.0 > max_cell_h {
                 max_cell_h = galley.size().y + 6.0;
@@ -81,7 +93,8 @@ pub fn render_preview_table(
 
     // Viewport frustum culling
     if current_y + total_table_h >= viewport_rect.min.y && current_y <= viewport_rect.max.y {
-        let table_rect = Rect::from_min_size(pos2(start_x, current_y), vec2(table_w, total_table_h));
+        let table_rect =
+            Rect::from_min_size(pos2(start_x, current_y), vec2(table_w, total_table_h));
         let header_rect = Rect::from_min_size(pos2(start_x, current_y), vec2(table_w, header_h));
 
         // Horizontal scrolling state & input handling (invisible scrollbar)
@@ -122,12 +135,7 @@ pub fn render_preview_table(
         scroll_x = scroll_x.clamp(0.0, max_scroll_x);
 
         // Outer container border and header decorations matching editor styling directly (DRY)
-        render_table_block_decorations(
-            content_painter,
-            table_rect,
-            Some(header_rect),
-            theme,
-        );
+        render_table_block_decorations(content_painter, table_rect, Some(header_rect), theme);
 
         // Strictly clip table cell drawing so zoomed or horizontally scrolled text never bleeds past table boundary
         let table_painter = content_painter.with_clip_rect(table_rect.intersect(viewport_rect));
@@ -141,7 +149,8 @@ pub fn render_preview_table(
 
         // Render data rows
         let mut row_y = current_y + header_h;
-        for (r_idx, (r_galleys, &rh)) in row_galleys_list.iter().zip(row_heights.iter()).enumerate() {
+        for (r_idx, (r_galleys, &rh)) in row_galleys_list.iter().zip(row_heights.iter()).enumerate()
+        {
             let row_rect = Rect::from_min_size(pos2(start_x, row_y), vec2(table_w, rh));
             let is_last = r_idx + 1 == rows.len();
 

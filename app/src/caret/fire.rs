@@ -1,5 +1,5 @@
-use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect};
 use super::particles::{ember_color, Particle};
+use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect};
 
 pub fn emit_fire(particles: &mut Vec<Particle>, pos: Pos2, w: f32, n: usize) {
     for _ in 0..n {
@@ -16,14 +16,7 @@ pub fn emit_fire(particles: &mut Vec<Particle>, pos: Pos2, w: f32, n: usize) {
     }
 }
 
-pub fn paint_fire(
-    p: &Painter,
-    pos: Pos2,
-    w: f32,
-    lh: f32,
-    now: f64,
-    particles: &[Particle],
-) {
+pub fn paint_fire(p: &Painter, pos: Pos2, w: f32, lh: f32, now: f64, particles: &[Particle]) {
     // Pure small fire: clean warm flame beam
     let flick = 0.90 + 0.10 * ((now * 18.0).sin() as f32);
     p.rect_filled(

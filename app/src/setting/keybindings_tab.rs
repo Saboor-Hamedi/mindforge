@@ -1,8 +1,10 @@
 //! VSCode-style dynamic keybinding configuration settings tab.
 
-use crate::ui::theme::Theme;
-use crate::settings::keymap::{key_stroke_display, KeyStroke, KeybindCapture, KeymapMode, VimKeymap};
+use crate::settings::keymap::{
+    key_stroke_display, KeyStroke, KeybindCapture, KeymapMode, VimKeymap,
+};
 use crate::settings::types::{InsertPosition, VimAction, VimMotion, VimOperator};
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Id, Key, Pos2, Rect, Sense, Stroke};
 
 pub fn render_keybindings_tab(
@@ -89,8 +91,19 @@ pub fn render_keybindings_tab(
     painter.rect(
         reset_all_rect,
         4.0,
-        if reset_all_hov { theme.surface() } else { theme.bg },
-        Stroke::new(1.0_f32, if reset_all_hov { theme.accent } else { theme.border() }),
+        if reset_all_hov {
+            theme.surface()
+        } else {
+            theme.bg
+        },
+        Stroke::new(
+            1.0_f32,
+            if reset_all_hov {
+                theme.accent
+            } else {
+                theme.border()
+            },
+        ),
         egui::StrokeKind::Inside,
     );
     painter.text(
@@ -98,14 +111,22 @@ pub fn render_keybindings_tab(
         Align2::LEFT_CENTER,
         "↺",
         FontId::monospace(13.0),
-        if reset_all_hov { theme.highlight } else { theme.muted },
+        if reset_all_hov {
+            theme.highlight
+        } else {
+            theme.muted
+        },
     );
     painter.text(
         pos2(reset_all_rect.min.x + 28.0, reset_all_rect.center().y),
         Align2::LEFT_CENTER,
         "Reset All Defaults",
         FontId::proportional(11.5),
-        if reset_all_hov { theme.highlight } else { theme.muted },
+        if reset_all_hov {
+            theme.highlight
+        } else {
+            theme.muted
+        },
     );
     if reset_all_resp.clicked() && !pointer_in_modal {
         *keymap = VimKeymap::new_standard();
@@ -121,10 +142,20 @@ pub fn render_keybindings_tab(
         .unwrap_or(KeymapMode::Normal);
 
     let mode_toggle_y = p_origin.y + 34.0;
-    let normal_btn_rect = Rect::from_min_size(pos2(panel_rect.min.x + 20.0, mode_toggle_y), vec2(110.0, 26.0));
-    let visual_btn_rect = Rect::from_min_size(pos2(normal_btn_rect.max.x + 8.0, mode_toggle_y), vec2(110.0, 26.0));
+    let normal_btn_rect = Rect::from_min_size(
+        pos2(panel_rect.min.x + 20.0, mode_toggle_y),
+        vec2(110.0, 26.0),
+    );
+    let visual_btn_rect = Rect::from_min_size(
+        pos2(normal_btn_rect.max.x + 8.0, mode_toggle_y),
+        vec2(110.0, 26.0),
+    );
 
-    let normal_resp = ui.interact(normal_btn_rect, Id::new("keymap_mode_normal"), Sense::click());
+    let normal_resp = ui.interact(
+        normal_btn_rect,
+        Id::new("keymap_mode_normal"),
+        Sense::click(),
+    );
     if normal_resp.clicked() && !pointer_in_modal {
         active_mode = KeymapMode::Normal;
         ui.ctx().data_mut(|d| d.insert_temp(mode_id, active_mode));
@@ -140,7 +171,14 @@ pub fn render_keybindings_tab(
         normal_btn_rect,
         4.0,
         normal_bg,
-        Stroke::new(1.0_f32, if is_normal { theme.accent } else { theme.border() }),
+        Stroke::new(
+            1.0_f32,
+            if is_normal {
+                theme.accent
+            } else {
+                theme.border()
+            },
+        ),
         egui::StrokeKind::Inside,
     );
     painter.text(
@@ -151,7 +189,11 @@ pub fn render_keybindings_tab(
         if is_normal { theme.accent } else { theme.muted },
     );
 
-    let visual_resp = ui.interact(visual_btn_rect, Id::new("keymap_mode_visual"), Sense::click());
+    let visual_resp = ui.interact(
+        visual_btn_rect,
+        Id::new("keymap_mode_visual"),
+        Sense::click(),
+    );
     if visual_resp.clicked() && !pointer_in_modal {
         active_mode = KeymapMode::Visual;
         ui.ctx().data_mut(|d| d.insert_temp(mode_id, active_mode));
@@ -167,7 +209,14 @@ pub fn render_keybindings_tab(
         visual_btn_rect,
         4.0,
         visual_bg,
-        Stroke::new(1.0_f32, if is_visual { theme.accent } else { theme.border() }),
+        Stroke::new(
+            1.0_f32,
+            if is_visual {
+                theme.accent
+            } else {
+                theme.border()
+            },
+        ),
         egui::StrokeKind::Inside,
     );
     painter.text(
@@ -217,13 +266,22 @@ pub fn render_keybindings_tab(
             .text_color(theme.text),
     );
     if edit_resp.changed() {
-        ui.ctx().data_mut(|d| d.insert_temp(search_id, search_query.clone()));
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(search_id, search_query.clone()));
     }
 
     // ── 7. Snapshot Current Keymap Entries ───────────────────────────────────
     let current_entries: Vec<(KeyStroke, VimAction)> = match active_mode {
-        KeymapMode::Normal => keymap.normal.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-        KeymapMode::Visual => keymap.visual.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+        KeymapMode::Normal => keymap
+            .normal
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
+        KeymapMode::Visual => keymap
+            .visual
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
     };
 
     let mut all_actions = canonical_actions_for_mode(active_mode);
@@ -327,7 +385,12 @@ pub fn render_keybindings_tab(
     let mut stroke_to_unbind: Option<KeyStroke> = None;
     let mut action_to_reset_default: Option<VimAction> = None;
     let mut next_capture: Option<Option<KeybindCapture>> = None;
-    let mut stroke_to_commit_before_switch: Option<(KeymapMode, Option<KeyStroke>, KeyStroke, VimAction)> = None;
+    let mut stroke_to_commit_before_switch: Option<(
+        KeymapMode,
+        Option<KeyStroke>,
+        KeyStroke,
+        VimAction,
+    )> = None;
 
     for (idx, action) in filtered_actions.iter().enumerate() {
         let y = list_top - scroll + idx as f32 * row_h;
@@ -343,7 +406,12 @@ pub fn render_keybindings_tab(
         let row_rect = Rect::from_min_size(pos2(row_left, y), vec2(row_w, row_h - 4.0));
 
         if is_capturing_this {
-            let row_bg = Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 26);
+            let row_bg = Color32::from_rgba_unmultiplied(
+                theme.accent.r(),
+                theme.accent.g(),
+                theme.accent.b(),
+                26,
+            );
             row_painter.rect_filled(row_rect, 4.0, row_bg);
         }
 
@@ -354,7 +422,11 @@ pub fn render_keybindings_tab(
             Align2::LEFT_CENTER,
             action_name,
             FontId::proportional(13.0),
-            if is_capturing_this { theme.highlight } else { theme.text },
+            if is_capturing_this {
+                theme.highlight
+            } else {
+                theme.text
+            },
         );
 
         // Right side: Individual Key Slots + Add Button + Individual Reset Button
@@ -382,8 +454,19 @@ pub fn render_keybindings_tab(
             row_painter.rect(
                 reset_rect,
                 3.0,
-                if reset_hov { theme.surface() } else { Color32::TRANSPARENT },
-                Stroke::new(1.0_f32, if reset_hov { theme.accent } else { theme.border() }),
+                if reset_hov {
+                    theme.surface()
+                } else {
+                    Color32::TRANSPARENT
+                },
+                Stroke::new(
+                    1.0_f32,
+                    if reset_hov {
+                        theme.accent
+                    } else {
+                        theme.border()
+                    },
+                ),
                 egui::StrokeKind::Inside,
             );
             row_painter.text(
@@ -391,7 +474,11 @@ pub fn render_keybindings_tab(
                 Align2::CENTER_CENTER,
                 "↺",
                 FontId::proportional(12.5),
-                if reset_hov { theme.highlight } else { theme.muted },
+                if reset_hov {
+                    theme.highlight
+                } else {
+                    theme.muted
+                },
             );
             if reset_resp.clicked() && !pointer_in_modal {
                 action_to_reset_default = Some(action.clone());
@@ -412,8 +499,19 @@ pub fn render_keybindings_tab(
         row_painter.rect(
             add_rect,
             3.0,
-            if add_hov { theme.surface() } else { Color32::TRANSPARENT },
-            Stroke::new(1.0_f32, if add_hov { theme.accent } else { theme.border() }),
+            if add_hov {
+                theme.surface()
+            } else {
+                Color32::TRANSPARENT
+            },
+            Stroke::new(
+                1.0_f32,
+                if add_hov {
+                    theme.accent
+                } else {
+                    theme.border()
+                },
+            ),
             egui::StrokeKind::Inside,
         );
         row_painter.text(
@@ -421,12 +519,21 @@ pub fn render_keybindings_tab(
             Align2::CENTER_CENTER,
             "+",
             FontId::monospace(13.0),
-            if add_hov { theme.highlight } else { theme.muted },
+            if add_hov {
+                theme.highlight
+            } else {
+                theme.muted
+            },
         );
         if add_resp.clicked() && !pointer_in_modal {
             if let Some(ref cap) = capture.as_ref() {
                 if let Some(ref staged) = cap.staged_stroke {
-                    stroke_to_commit_before_switch = Some((cap.mode, cap.old_stroke.clone(), staged.clone(), cap.action.clone()));
+                    stroke_to_commit_before_switch = Some((
+                        cap.mode,
+                        cap.old_stroke.clone(),
+                        staged.clone(),
+                        cap.action.clone(),
+                    ));
                 }
             }
             next_capture = Some(Some(KeybindCapture {
@@ -466,7 +573,11 @@ pub fn render_keybindings_tab(
 
                 let is_capturing_this_stroke = capture
                     .as_ref()
-                    .map(|c| c.mode == active_mode && c.action == *action && c.old_stroke.as_ref() == Some(stroke))
+                    .map(|c| {
+                        c.mode == active_mode
+                            && c.action == *action
+                            && c.old_stroke.as_ref() == Some(stroke)
+                    })
                     .unwrap_or(false);
 
                 let slot_id = Id::new(("key_slot", active_mode, &disp));
@@ -477,7 +588,12 @@ pub fn render_keybindings_tab(
                     pill_rect,
                     3.0,
                     if is_capturing_this_stroke {
-                        Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 35)
+                        Color32::from_rgba_unmultiplied(
+                            theme.accent.r(),
+                            theme.accent.g(),
+                            theme.accent.b(),
+                            35,
+                        )
                     } else if slot_hov {
                         theme.surface()
                     } else {
@@ -485,7 +601,11 @@ pub fn render_keybindings_tab(
                     },
                     Stroke::new(
                         1.0_f32,
-                        if is_capturing_this_stroke || slot_hov { theme.accent } else { theme.border() },
+                        if is_capturing_this_stroke || slot_hov {
+                            theme.accent
+                        } else {
+                            theme.border()
+                        },
                     ),
                     egui::StrokeKind::Inside,
                 );
@@ -495,14 +615,23 @@ pub fn render_keybindings_tab(
                     Align2::LEFT_CENTER,
                     &disp,
                     FontId::monospace(11.0),
-                    if is_capturing_this_stroke { theme.highlight } else { theme.text },
+                    if is_capturing_this_stroke {
+                        theme.highlight
+                    } else {
+                        theme.text
+                    },
                 );
 
                 // Clicking the key text area edits this specific key
                 if slot_resp.clicked() && !pointer_in_modal {
                     if let Some(ref cap) = capture.as_ref() {
                         if let Some(ref staged) = cap.staged_stroke {
-                            stroke_to_commit_before_switch = Some((cap.mode, cap.old_stroke.clone(), staged.clone(), cap.action.clone()));
+                            stroke_to_commit_before_switch = Some((
+                                cap.mode,
+                                cap.old_stroke.clone(),
+                                staged.clone(),
+                                cap.action.clone(),
+                            ));
                         }
                     }
                     next_capture = Some(Some(KeybindCapture {
@@ -528,7 +657,11 @@ pub fn render_keybindings_tab(
                     Align2::CENTER_CENTER,
                     "✕",
                     FontId::monospace(9.5),
-                    if del_hov { Color32::from_rgb(220, 70, 70) } else { theme.muted },
+                    if del_hov {
+                        Color32::from_rgb(220, 70, 70)
+                    } else {
+                        theme.muted
+                    },
                 );
                 if del_resp.clicked() && !pointer_in_modal {
                     stroke_to_unbind = Some(stroke.clone());
@@ -607,15 +740,35 @@ pub fn render_keybindings_tab(
         let badge_w = if cap.old_stroke.is_some() { 68.0 } else { 60.0 };
         let badge_rect = Rect::from_min_size(m_origin, vec2(badge_w, 20.0));
         let (badge_bg, badge_text_col) = if theme.is_light() {
-            (Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 26), theme.accent)
+            (
+                Color32::from_rgba_unmultiplied(
+                    theme.accent.r(),
+                    theme.accent.g(),
+                    theme.accent.b(),
+                    26,
+                ),
+                theme.accent,
+            )
         } else {
-            (Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 36), theme.highlight)
+            (
+                Color32::from_rgba_unmultiplied(
+                    theme.accent.r(),
+                    theme.accent.g(),
+                    theme.accent.b(),
+                    36,
+                ),
+                theme.highlight,
+            )
         };
         painter.rect_filled(badge_rect, 4.0, badge_bg);
         painter.text(
             badge_rect.center(),
             Align2::CENTER_CENTER,
-            if cap.old_stroke.is_some() { "EDIT KEY" } else { "NEW KEY" },
+            if cap.old_stroke.is_some() {
+                "EDIT KEY"
+            } else {
+                "NEW KEY"
+            },
             FontId::monospace(10.0),
             badge_text_col,
         );
@@ -623,7 +776,11 @@ pub fn render_keybindings_tab(
         painter.text(
             m_origin + vec2(badge_w + 10.0, 1.0),
             Align2::LEFT_TOP,
-            if cap.old_stroke.is_some() { "Edit Keybinding" } else { "Add Keybinding" },
+            if cap.old_stroke.is_some() {
+                "Edit Keybinding"
+            } else {
+                "Add Keybinding"
+            },
             FontId::monospace(14.5),
             theme.highlight,
         );
@@ -650,7 +807,8 @@ pub fn render_keybindings_tab(
         );
 
         // Single-Line Input Box for Key Combination
-        let input_rect = Rect::from_min_size(m_origin + vec2(0.0, 68.0), vec2(modal_w - 48.0, 34.0));
+        let input_rect =
+            Rect::from_min_size(m_origin + vec2(0.0, 68.0), vec2(modal_w - 48.0, 34.0));
         let input_bg = if theme.is_light() {
             Color32::from_rgb(255, 255, 255)
         } else {
@@ -660,7 +818,14 @@ pub fn render_keybindings_tab(
             input_rect,
             5.0,
             input_bg,
-            Stroke::new(1.0_f32, if cap.staged_stroke.is_some() { theme.accent } else { theme.border() }),
+            Stroke::new(
+                1.0_f32,
+                if cap.staged_stroke.is_some() {
+                    theme.accent
+                } else {
+                    theme.border()
+                },
+            ),
             egui::StrokeKind::Inside,
         );
 
@@ -674,7 +839,11 @@ pub fn render_keybindings_tab(
             Align2::CENTER_CENTER,
             &input_display,
             FontId::monospace(13.5),
-            if cap.staged_stroke.is_some() { theme.highlight } else { theme.muted },
+            if cap.staged_stroke.is_some() {
+                theme.highlight
+            } else {
+                theme.muted
+            },
         );
 
         // Conflict Detection Check
@@ -722,8 +891,14 @@ pub fn render_keybindings_tab(
         let save_w = 125.0;
         let cancel_w = 110.0;
 
-        let save_rect = Rect::from_min_size(pos2(modal_rect.max.x - 24.0 - save_w, btn_y), vec2(save_w, btn_h));
-        let cancel_rect = Rect::from_min_size(pos2(modal_rect.max.x - 24.0 - save_w - 12.0 - cancel_w, btn_y), vec2(cancel_w, btn_h));
+        let save_rect = Rect::from_min_size(
+            pos2(modal_rect.max.x - 24.0 - save_w, btn_y),
+            vec2(save_w, btn_h),
+        );
+        let cancel_rect = Rect::from_min_size(
+            pos2(modal_rect.max.x - 24.0 - save_w - 12.0 - cancel_w, btn_y),
+            vec2(cancel_w, btn_h),
+        );
 
         let cancel_hover = ui.rect_contains_pointer(cancel_rect);
         let save_hover = ui.rect_contains_pointer(save_rect);
@@ -731,15 +906,27 @@ pub fn render_keybindings_tab(
         // Cancel button
         let (cancel_bg, cancel_stroke, cancel_fg) = if theme.is_light() {
             if cancel_hover {
-                (Color32::from_rgb(228, 231, 238), theme.border(), theme.highlight)
+                (
+                    Color32::from_rgb(228, 231, 238),
+                    theme.border(),
+                    theme.highlight,
+                )
             } else {
                 (Color32::from_rgb(241, 243, 247), theme.border(), theme.text)
             }
         } else {
             if cancel_hover {
-                (Color32::from_rgb(28, 30, 38), Color32::from_gray(80), Color32::WHITE)
+                (
+                    Color32::from_rgb(28, 30, 38),
+                    Color32::from_gray(80),
+                    Color32::WHITE,
+                )
             } else {
-                (Color32::from_rgb(22, 23, 28), Color32::from_gray(50), Color32::from_gray(180))
+                (
+                    Color32::from_rgb(22, 23, 28),
+                    Color32::from_gray(50),
+                    Color32::from_gray(180),
+                )
             }
         };
 
@@ -762,15 +949,27 @@ pub fn render_keybindings_tab(
         let has_staged = cap.staged_stroke.is_some();
         let (save_bg, save_stroke, save_fg) = if theme.is_light() {
             if !has_staged {
-                (Color32::from_rgb(241, 243, 247), theme.border(), theme.muted)
+                (
+                    Color32::from_rgb(241, 243, 247),
+                    theme.border(),
+                    theme.muted,
+                )
             } else if save_hover {
-                (Color32::from_rgb(37, 99, 235), Color32::from_rgb(29, 78, 216), Color32::WHITE)
+                (
+                    Color32::from_rgb(37, 99, 235),
+                    Color32::from_rgb(29, 78, 216),
+                    Color32::WHITE,
+                )
             } else {
                 (theme.accent, theme.accent, Color32::WHITE)
             }
         } else {
             if !has_staged {
-                (Color32::from_rgb(22, 23, 28), Color32::from_gray(50), Color32::from_gray(120))
+                (
+                    Color32::from_rgb(22, 23, 28),
+                    Color32::from_gray(50),
+                    Color32::from_gray(120),
+                )
             } else if save_hover {
                 (theme.highlight, theme.highlight, Color32::WHITE)
             } else {
@@ -800,7 +999,12 @@ pub fn render_keybindings_tab(
             close_recorder = true;
         } else if save_clicked {
             if let Some(new_stroke) = cap.staged_stroke.clone() {
-                commit_from_modal = Some((cap.mode, cap.old_stroke.clone(), new_stroke, cap.action.clone()));
+                commit_from_modal = Some((
+                    cap.mode,
+                    cap.old_stroke.clone(),
+                    new_stroke,
+                    cap.action.clone(),
+                ));
             }
         }
     }
@@ -808,7 +1012,9 @@ pub fn render_keybindings_tab(
     // Dismiss recorder when clicking outside the recorder card (Mac Spotlight/Delete modal behavior)
     let primary_clicked = ui.input(|i| i.pointer.primary_clicked());
     let click_pos = ui.input(|i| i.pointer.interact_pos());
-    let clicked_outside_modal = capture.is_some() && primary_clicked && click_pos.map(|p| !modal_rect.contains(p)).unwrap_or(false);
+    let clicked_outside_modal = capture.is_some()
+        && primary_clicked
+        && click_pos.map(|p| !modal_rect.contains(p)).unwrap_or(false);
 
     if clicked_outside_modal && next_capture.is_none() {
         close_recorder = true;
@@ -828,7 +1034,10 @@ pub fn render_keybindings_tab(
     // Sleek custom scrollbar matching Shortcuts tab
     if max_scroll > 0.0 {
         let track_x = panel_rect.max.x - 8.0;
-        let track = Rect::from_min_max(pos2(track_x, list_top), pos2(track_x + 3.0, panel_rect.max.y - 8.0));
+        let track = Rect::from_min_max(
+            pos2(track_x, list_top),
+            pos2(track_x + 3.0, panel_rect.max.y - 8.0),
+        );
         let track_color = if theme.is_light() {
             Color32::from_rgba_unmultiplied(0, 0, 0, 15)
         } else {

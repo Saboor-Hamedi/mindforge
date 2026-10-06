@@ -71,7 +71,8 @@ mod tests {
         assert_eq!(due, today + Duration::days(1));
 
         // Second good rating
-        let (ease2, interval2, reps2, due2) = calculate_sm2(ease, interval, reps, Quality::Good, due);
+        let (ease2, interval2, reps2, due2) =
+            calculate_sm2(ease, interval, reps, Quality::Good, due);
         assert_eq!(reps2, 2);
         assert_eq!(interval2, 6);
         assert_eq!(due2, due + Duration::days(6));

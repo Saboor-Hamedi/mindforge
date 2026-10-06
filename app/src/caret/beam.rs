@@ -17,5 +17,9 @@ pub fn paint_beam(p: &Painter, pos: Pos2, w: f32, lh: f32, color: Color32) {
 
 pub fn paint_underline(p: &Painter, pos: Pos2, cw: f32, w: f32, lh: f32, color: Color32) {
     let y = pos.y + lh - w;
-    p.rect_filled(Rect::from_min_size(eframe::egui::pos2(pos.x, y), vec2(cw, w)), 0.0, color);
+    p.rect_filled(
+        Rect::from_min_size(eframe::egui::pos2(pos.x, y), vec2(cw, w)),
+        0.0,
+        color,
+    );
 }

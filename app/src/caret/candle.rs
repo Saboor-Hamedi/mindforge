@@ -1,5 +1,5 @@
-use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect, Stroke};
 use super::particles::{ember_color, Particle};
+use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect, Stroke};
 
 pub fn paint_candle(
     p: &Painter,

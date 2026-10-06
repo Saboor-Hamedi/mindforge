@@ -20,7 +20,10 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
 
     // New Note (Ctrl+N)
     let ctrl_n = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::N)
+        (i.modifiers.ctrl || i.modifiers.command)
+            && !i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(egui::Key::N)
     });
     if ctrl_n {
         app.create_new_note(now);
@@ -40,7 +43,10 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
 
     // Rename Active Note (Ctrl+R)
     let ctrl_r = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::R)
+        (i.modifiers.ctrl || i.modifiers.command)
+            && !i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(egui::Key::R)
     });
     if ctrl_r && !app.command_bar.in_command {
         if app.misc.mode == Mode::Doc {
@@ -55,7 +61,9 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
             app.set_status("Code file names are managed by the filesystem", now);
             return Some(false);
         }
-        if !app.misc.show_welcome && (!app.open_notes.is_empty() || app.notes.active_note_id.is_some()) {
+        if !app.misc.show_welcome
+            && (!app.open_notes.is_empty() || app.notes.active_note_id.is_some())
+        {
             let title = if !app.notes.active_note_title.is_empty() {
                 app.notes.active_note_title.clone()
             } else if let Some(tab) = app.open_notes.get(app.tabs.active_tab) {
@@ -72,7 +80,10 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
 
     // Delete Active Note (Ctrl+D)
     let ctrl_d = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::D)
+        (i.modifiers.ctrl || i.modifiers.command)
+            && !i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(egui::Key::D)
     });
     if ctrl_d && !app.command_bar.in_command {
         if app.misc.mode == Mode::Doc {
@@ -87,17 +98,24 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
             app.set_status("Code files cannot be deleted from MindForge", now);
             return Some(false);
         }
-        if !app.misc.show_welcome && (!app.open_notes.is_empty() || app.notes.active_note_id.is_some()) {
+        if !app.misc.show_welcome
+            && (!app.open_notes.is_empty() || app.notes.active_note_id.is_some())
+        {
             app.modal.delete_confirm_open = true;
             app.modal.delete_just_opened = true;
-            app.modal.pending_delete_note_id = app.notes.active_note_id.or_else(|| app.open_notes.get(app.tabs.active_tab).map(|t| t.id));
+            app.modal.pending_delete_note_id = app
+                .notes
+                .active_note_id
+                .or_else(|| app.open_notes.get(app.tabs.active_tab).map(|t| t.id));
             return Some(false);
         }
     }
 
     // Tab Navigation: Ctrl+Tab and Ctrl+Shift+Tab
-    let ctrl_tab = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::Tab));
-    let ctrl_shift_tab = ctx.input(|i| i.modifiers.ctrl && i.modifiers.shift && i.key_pressed(egui::Key::Tab));
+    let ctrl_tab =
+        ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::Tab));
+    let ctrl_shift_tab =
+        ctx.input(|i| i.modifiers.ctrl && i.modifiers.shift && i.key_pressed(egui::Key::Tab));
 
     if ctrl_shift_tab {
         if app.misc.mode == Mode::Doc {
@@ -133,10 +151,19 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
             return None;
         }
         for (idx, key) in [
-            egui::Key::Num1, egui::Key::Num2, egui::Key::Num3,
-            egui::Key::Num4, egui::Key::Num5, egui::Key::Num6,
-            egui::Key::Num7, egui::Key::Num8, egui::Key::Num9,
-        ].iter().enumerate() {
+            egui::Key::Num1,
+            egui::Key::Num2,
+            egui::Key::Num3,
+            egui::Key::Num4,
+            egui::Key::Num5,
+            egui::Key::Num6,
+            egui::Key::Num7,
+            egui::Key::Num8,
+            egui::Key::Num9,
+        ]
+        .iter()
+        .enumerate()
+        {
             if i.key_pressed(*key) {
                 return Some(idx);
             }

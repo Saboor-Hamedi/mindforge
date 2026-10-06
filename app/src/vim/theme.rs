@@ -38,8 +38,8 @@ impl VimBackend {
 
         let bold_fg = hl_hex.clone();
         let italic_fg = if is_light { "#0284c7" } else { "#61afef" };
-        let code_fg = "#d19a66"; // amber, exactly matching Hybrid syntax
-        let wikilink_fg = "#c678dd"; // purple, exactly matching Hybrid syntax
+        let code_fg = "#d19a66"; // amber
+        let wikilink_fg = "#c678dd"; // purple
         let stmt_fg = if is_light { "#9333ea" } else { "#c678dd" };
         let ident_fg = if is_light { "#0284c7" } else { "#61afef" };
         let str_fg = if is_light { "#16a34a" } else { "#98c379" };

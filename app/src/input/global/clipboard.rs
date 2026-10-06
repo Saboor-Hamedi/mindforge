@@ -120,37 +120,49 @@ pub fn get_clipboard_text(app: &App) -> Option<String> {
 
 pub fn handle_clipboard_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Option<bool> {
     // Select All (Ctrl+A)
-    let ctrl_a = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::A));
+    let ctrl_a =
+        ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::A));
     if ctrl_a {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.command_bar.in_command {
-            return None;
-        }
         if app.command_bar.in_command {
             app.editor.cmd_ed.select_all();
-        } else if app.misc.mode == Mode::Doc {
-            app.editor.doc_ed.select_all();
-        } else {
-            app.editor.ed.select_all();
-            return Some(true);
+            app.misc.sound.play();
+            app.set_status("Selected all text (Ctrl+A)", now);
+            return Some(false);
         }
-        app.misc.sound.play();
-        app.set_status("Selected all text (Ctrl+A)", now);
-        return Some(false);
-    }
-
-    // Clipboard Copy (Ctrl+C)
-    let ctrl_c = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::C));
-    if ctrl_c {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.command_bar.in_command {
+        let editor_visible = matches!(app.misc.mode, Mode::Normal | Mode::Doc)
+            && (!app.misc.show_welcome || app.misc.mode == Mode::Doc);
+        if !editor_visible {
             return None;
         }
-        let text = if app.command_bar.in_command {
-            app.editor.cmd_ed.selected_text()
-        } else if app.misc.mode == Mode::Doc {
-            app.editor.doc_ed.selected_text()
-        } else {
-            app.editor.ed.selected_text()
-        };
+        // Leave Insert/Visual mode, then visually select the whole buffer in Neovim.
+        if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+            if let Err(error) = backend.send_input("<C-\\><C-n>ggVG") {
+                app.set_status(&format!("Neovim input failed: {error}"), now);
+                return Some(false);
+            }
+            app.set_status("Selected all text (Ctrl+A)", now);
+            return Some(true);
+        }
+        return None;
+    }
+
+    // egui-winit turns Ctrl+C / Ctrl+X into `Event::Copy` / `Event::Cut` and
+    // does not emit the matching key press, so accept either form.
+    let ctrl_only = |m: egui::Modifiers| m.ctrl && !m.shift;
+    let (ctrl_c, ctrl_x) = ctx.input(|i| {
+        let copy = i.events.iter().any(|e| matches!(e, egui::Event::Copy))
+            || (ctrl_only(i.modifiers) && i.key_pressed(egui::Key::C));
+        let cut = i.events.iter().any(|e| matches!(e, egui::Event::Cut))
+            || (ctrl_only(i.modifiers) && i.key_pressed(egui::Key::X));
+        (copy, cut)
+    });
+
+    // Clipboard Copy (Ctrl+C)
+    if ctrl_c {
+        if !app.command_bar.in_command {
+            return None;
+        }
+        let text = app.editor.cmd_ed.selected_text();
         if let Some(t) = text {
             app.misc.clipboard_text = Some(t.clone());
             set_win32_clipboard(&t);
@@ -163,42 +175,26 @@ pub fn handle_clipboard_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) 
     }
 
     // Clipboard Cut (Ctrl+X)
-    let ctrl_x = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::X));
     if ctrl_x {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim && !app.command_bar.in_command {
+        if !app.command_bar.in_command {
             return None;
         }
-        let text = if app.command_bar.in_command {
-            let t = app.editor.cmd_ed.selected_text();
-            app.editor.cmd_ed.delete_selection();
-            t
-        } else if app.misc.mode == Mode::Doc {
-            let t = app.editor.doc_ed.selected_text();
-            if app.editor.doc_ed.delete_selection() {
-                app.misc.sound.play();
-                app.set_status("Cut selection", now);
-            }
-            t
-        } else {
-            let t = app.editor.ed.selected_text();
-            if app.editor.ed.delete_selection() {
-                app.editor.is_dirty = true;
-                app.misc.sound.play();
-                app.set_status("Cut selection", now);
-            }
-            t
-        };
-        if let Some(t) = text {
-            app.misc.clipboard_text = Some(t.clone());
-            set_win32_clipboard(&t);
-            ctx.copy_text(t);
+        let t = app.editor.cmd_ed.selected_text();
+        app.editor.cmd_ed.delete_selection();
+        if let Some(text) = t {
+            app.misc.clipboard_text = Some(text.clone());
+            set_win32_clipboard(&text);
+            ctx.copy_text(text);
+            app.misc.sound.play();
+            app.set_status("Cut selection", now);
             return Some(true);
         }
         return Some(false);
     }
 
     // Clipboard Paste (Ctrl+V)
-    let ctrl_v = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::V));
+    let ctrl_v =
+        ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::V));
     if ctrl_v {
         if let Some(text) = get_clipboard_text(app) {
             if app.command_bar.in_command {
@@ -212,19 +208,15 @@ pub fn handle_clipboard_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) 
             } else if app.modal.rename_open {
                 app.modal.rename_input.push_str(&text);
                 return Some(true);
-            } else if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-                && app.misc.mode == Mode::Normal && !app.command_bar.in_command
-            {
+            } else if app.misc.mode == Mode::Normal && !app.command_bar.in_command {
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     let _ = backend.paste(&text);
                 } else {
-                    app.services.vim_runtime.queue_input(crate::vim::PendingVimInput::Paste(text));
+                    app.services
+                        .vim_runtime
+                        .queue_input(crate::vim::PendingVimInput::Paste(text));
                 }
                 return Some(true);
-            } else if app.misc.mode == Mode::Normal || app.misc.mode == Mode::Doc {
-                if crate::input::editor::handle_editor_paste(app, &text, now) {
-                    return Some(true);
-                }
             }
         }
         return Some(false);

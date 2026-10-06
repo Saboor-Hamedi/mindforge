@@ -17,10 +17,10 @@ use eframe::egui;
 /// Returns `Some(typed)` if a global shortcut fully handled the frame, or `None` to continue to typing.
 pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Option<bool> {
     if app.workspace.dialog.is_some() {
-        if ctx.input(|i|i.key_pressed(egui::Key::Escape)) {
-            app.workspace.dialog=None;
-            app.workspace.dialog_error=None;
-            app.workspace.dialog_focus_requested=false;
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            app.workspace.dialog = None;
+            app.workspace.dialog_error = None;
+            app.workspace.dialog_focus_requested = false;
         }
         return Some(false);
     }
@@ -70,7 +70,9 @@ pub fn handle_global_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> 
     }
     if app.services.wikilink_autocomplete.is_active {
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            app.services.wikilink_autocomplete.dismiss(app.editor.ed.cur);
+            app.services
+                .wikilink_autocomplete
+                .dismiss(app.editor.ed.cur);
             return Some(false);
         }
     }

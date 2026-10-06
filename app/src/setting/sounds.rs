@@ -7,12 +7,12 @@ use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke
 /// Waveform bar heights representing audio character of each profile.
 pub fn sound_wave_heights(profile: SoundProfile) -> [f32; 7] {
     match profile {
-        SoundProfile::Off    => [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        SoundProfile::Off => [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         SoundProfile::Thocky => [3.0, 6.0, 9.0, 11.0, 8.0, 5.0, 2.0],
         SoundProfile::Clacky => [4.0, 9.0, 12.0, 10.0, 7.0, 4.0, 2.0],
         SoundProfile::Creamy => [2.0, 5.0, 8.0, 10.0, 8.0, 5.0, 2.0],
         SoundProfile::Marbly => [5.0, 10.0, 13.0, 10.0, 6.0, 3.0, 1.0],
-        SoundProfile::Poppy  => [6.0, 11.0, 13.0, 9.0, 5.0, 2.0, 1.0],
+        SoundProfile::Poppy => [6.0, 11.0, 13.0, 9.0, 5.0, 2.0, 1.0],
         SoundProfile::Clicky => [4.0, 8.0, 13.0, 12.0, 8.0, 4.0, 2.0],
     }
 }
@@ -84,9 +84,17 @@ pub fn render_sounds_tab(
     painter.text(
         mute_btn.center(),
         Align2::CENTER_CENTER,
-        if is_muted { "🔇 Muted" } else { "🔊 Sound: On" },
+        if is_muted {
+            "🔇 Muted"
+        } else {
+            "🔊 Sound: On"
+        },
         FontId::proportional(11.0),
-        if is_muted { Color32::from_rgb(220, 80, 80) } else { theme.text },
+        if is_muted {
+            Color32::from_rgb(220, 80, 80)
+        } else {
+            theme.text
+        },
     );
 
     // ── Sound Chips (4 responsive columns) ───────────────────────────
@@ -174,10 +182,7 @@ pub fn render_sounds_tab(
     // ── Description card ─────────────────────────────────────────────
     let rows_used = SoundProfile::ALL.len().div_ceil(cols);
     let desc_y = sound_start_y + rows_used as f32 * (s_row_h + row_gap) + 8.0;
-    let desc_rect = Rect::from_min_size(
-        pos2(p_origin.x, desc_y),
-        vec2(available_w, 32.0),
-    );
+    let desc_rect = Rect::from_min_size(pos2(p_origin.x, desc_y), vec2(available_w, 32.0));
     painter.rect(
         desc_rect,
         5.0,
@@ -188,7 +193,11 @@ pub fn render_sounds_tab(
     painter.text(
         pos2(desc_rect.min.x + 12.0, desc_rect.center().y),
         Align2::LEFT_CENTER,
-        format!("{}  —  {}", sound.profile.name(), sound.profile.description()),
+        format!(
+            "{}  —  {}",
+            sound.profile.name(),
+            sound.profile.description()
+        ),
         FontId::proportional(12.0),
         theme.muted,
     );

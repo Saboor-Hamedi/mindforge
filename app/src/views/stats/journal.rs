@@ -58,7 +58,14 @@ pub fn render_activity_journal(
                 } else {
                     theme.surface()
                 },
-                Stroke::new(1.0_f32, if is_today { theme.highlight } else { theme.border() }),
+                Stroke::new(
+                    1.0_f32,
+                    if is_today {
+                        theme.highlight
+                    } else {
+                        theme.border()
+                    },
+                ),
                 egui::StrokeKind::Inside,
             );
 
@@ -75,7 +82,11 @@ pub fn render_activity_journal(
                 Align2::LEFT_CENTER,
                 display_date,
                 FontId::monospace((11.0 * scale).max(11.5)),
-                if is_today { theme.highlight } else { theme.text },
+                if is_today {
+                    theme.highlight
+                } else {
+                    theme.text
+                },
             );
 
             if avail_w >= 600.0 {

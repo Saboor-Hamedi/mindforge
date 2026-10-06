@@ -9,8 +9,8 @@
 //! The zoom level is stored in `ZoomState` and applied by the renderer
 //! when calculating font sizes and layout metrics.
 
-use eframe::egui::{self, vec2, Color32, FontId, Rect, Stroke};
 use crate::ui::theme::Theme;
+use eframe::egui::{self, vec2, Color32, FontId, Rect, Stroke};
 
 /// Minimum allowed zoom level (50%)
 pub const MIN_ZOOM: f32 = 0.5;
@@ -111,14 +111,16 @@ impl ZoomState {
             }
 
             // Ctrl + Mouse Wheel (or smooth trackpad vertical scroll with Ctrl)
-            let (ctrl_down, wheel_y) = ui.input(|i| (
-                i.modifiers.ctrl || i.modifiers.command,
-                if i.raw_scroll_delta.y.abs() > 0.0 {
-                    i.raw_scroll_delta.y
-                } else {
-                    i.smooth_scroll_delta.y
-                },
-            ));
+            let (ctrl_down, wheel_y) = ui.input(|i| {
+                (
+                    i.modifiers.ctrl || i.modifiers.command,
+                    if i.raw_scroll_delta.y.abs() > 0.0 {
+                        i.raw_scroll_delta.y
+                    } else {
+                        i.smooth_scroll_delta.y
+                    },
+                )
+            });
             if ctrl_down && wheel_y.abs() > 0.0 {
                 let factor = (1.0 + wheel_y * 0.002).clamp(0.85, 1.15);
                 let new_zoom = (self.level * factor).clamp(MIN_ZOOM, MAX_ZOOM);
@@ -211,7 +213,13 @@ impl ZoomState {
         } else {
             Color32::from_rgba_unmultiplied(20, 22, 28, (alpha * 230.0) as u8)
         };
-        painter.rect(pill_rect, 8.0, pill_bg, Stroke::NONE, egui::StrokeKind::Inside);
+        painter.rect(
+            pill_rect,
+            8.0,
+            pill_bg,
+            Stroke::NONE,
+            egui::StrokeKind::Inside,
+        );
         painter.galley(hud_center - galley.size() * 0.5, galley, hud_col);
     }
 }

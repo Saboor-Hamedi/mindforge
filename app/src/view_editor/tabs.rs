@@ -56,7 +56,13 @@ pub fn render_tab_bar(
         };
         let max_chars = 22;
         let display_title = if title_clean.chars().count() > max_chars {
-            format!("{}...", title_clean.chars().take(max_chars.saturating_sub(3)).collect::<String>())
+            format!(
+                "{}...",
+                title_clean
+                    .chars()
+                    .take(max_chars.saturating_sub(3))
+                    .collect::<String>()
+            )
         } else {
             title_clean.to_string()
         };
@@ -214,7 +220,11 @@ pub fn render_tab_bar(
             clip_painter.circle_filled(
                 close_rect.center(),
                 3.0,
-                if tab.is_active { theme.accent } else { theme.muted },
+                if tab.is_active {
+                    theme.accent
+                } else {
+                    theme.muted
+                },
             );
         }
 
@@ -236,7 +246,10 @@ pub fn render_tab_bar(
             let tick_x = tab_rect.max.x + 1.0;
             let tick_mid_y = tab_bar_rect.center().y;
             clip_painter.line_segment(
-                [pos2(tick_x, tick_mid_y - 6.0), pos2(tick_x, tick_mid_y + 6.0)],
+                [
+                    pos2(tick_x, tick_mid_y - 6.0),
+                    pos2(tick_x, tick_mid_y + 6.0),
+                ],
                 Stroke::new(1.0_f32, theme.border()),
             );
         }

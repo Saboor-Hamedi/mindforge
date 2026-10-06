@@ -33,19 +33,33 @@ Paragraph text
         assert!(matches!(blocks[3], MdBlock::Heading4(ref t) if t == "Minor"));
 
         // Checkboxes
-        assert!(matches!(blocks[4], MdBlock::ListItem { checked: Some(false), ref text, .. } if text == "Unchecked task"));
-        assert!(matches!(blocks[5], MdBlock::ListItem { checked: Some(true), ref text, .. } if text == "Checked task"));
-        assert!(matches!(blocks[6], MdBlock::ListItem { checked: None, ref text, .. } if text == "Normal bullet"));
-        assert!(matches!(blocks[7], MdBlock::ListItem { checked: None, ref text, .. } if text == "First step"));
+        assert!(
+            matches!(blocks[4], MdBlock::ListItem { checked: Some(false), ref text, .. } if text == "Unchecked task")
+        );
+        assert!(
+            matches!(blocks[5], MdBlock::ListItem { checked: Some(true), ref text, .. } if text == "Checked task")
+        );
+        assert!(
+            matches!(blocks[6], MdBlock::ListItem { checked: None, ref text, .. } if text == "Normal bullet")
+        );
+        assert!(
+            matches!(blocks[7], MdBlock::ListItem { checked: None, ref text, .. } if text == "First step")
+        );
 
         // Code block
-        assert!(matches!(blocks[8], MdBlock::CodeBlock { ref lang, ref code } if lang == "rust" && code.contains("println!")));
+        assert!(
+            matches!(blocks[8], MdBlock::CodeBlock { ref lang, ref code } if lang == "rust" && code.contains("println!"))
+        );
 
         // Quote
         assert!(matches!(blocks[9], MdBlock::Quote { ref text, .. } if text == "A famous quote"));
 
         // Table
-        if let MdBlock::Table { ref headers, ref rows } = blocks[10] {
+        if let MdBlock::Table {
+            ref headers,
+            ref rows,
+        } = blocks[10]
+        {
             assert_eq!(headers, &["Header A", "Header B"]);
             assert_eq!(rows.len(), 1);
             assert_eq!(rows[0], &["Val 1", "Val 2"]);
@@ -63,10 +77,18 @@ Paragraph text
         let md = "- Level 0\n  - Level 1\n    - Level 2\n  1. Nested numbered\n";
         let blocks = parse_markdown(md);
         assert_eq!(blocks.len(), 4);
-        assert!(matches!(blocks[0], MdBlock::ListItem { indent_level: 0, ref text, .. } if text == "Level 0"));
-        assert!(matches!(blocks[1], MdBlock::ListItem { indent_level: 1, ref text, .. } if text == "Level 1"));
-        assert!(matches!(blocks[2], MdBlock::ListItem { indent_level: 2, ref text, .. } if text == "Level 2"));
-        assert!(matches!(blocks[3], MdBlock::ListItem { indent_level: 1, ref text, .. } if text == "Nested numbered"));
+        assert!(
+            matches!(blocks[0], MdBlock::ListItem { indent_level: 0, ref text, .. } if text == "Level 0")
+        );
+        assert!(
+            matches!(blocks[1], MdBlock::ListItem { indent_level: 1, ref text, .. } if text == "Level 1")
+        );
+        assert!(
+            matches!(blocks[2], MdBlock::ListItem { indent_level: 2, ref text, .. } if text == "Level 2")
+        );
+        assert!(
+            matches!(blocks[3], MdBlock::ListItem { indent_level: 1, ref text, .. } if text == "Nested numbered")
+        );
     }
 
     #[test]
@@ -84,7 +106,11 @@ Paragraph text
         let md = "| name | age | country |\n| saboor | 34 | afghanistan\n| akjdf |";
         let blocks = parse_markdown(md);
         assert_eq!(blocks.len(), 1);
-        if let MdBlock::Table { ref headers, ref rows } = blocks[0] {
+        if let MdBlock::Table {
+            ref headers,
+            ref rows,
+        } = blocks[0]
+        {
             assert_eq!(headers, &["name", "age", "country"]);
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[0], &["saboor", "34", "afghanistan"]);
@@ -149,13 +175,31 @@ Paragraph text
             let viewport = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 600.0));
 
             let h_depth1 = super::super::blockquote::render_preview_blockquote(
-                &painter, &painter, 10.0, 10.0, 500.0, 14.0, 1, "Simple quote", &theme, viewport,
+                &painter,
+                &painter,
+                10.0,
+                10.0,
+                500.0,
+                14.0,
+                1,
+                "Simple quote",
+                &theme,
+                viewport,
             );
             assert!(h_depth1 > 0.0);
 
             // Large depth clamp check
             let h_deep = super::super::blockquote::render_preview_blockquote(
-                &painter, &painter, 10.0, 10.0, 500.0, 14.0, 99, "Deep quote", &theme, viewport,
+                &painter,
+                &painter,
+                10.0,
+                10.0,
+                500.0,
+                14.0,
+                99,
+                "Deep quote",
+                &theme,
+                viewport,
             );
             assert!(h_deep > 0.0);
         });
@@ -181,7 +225,8 @@ Paragraph text
                 ];
 
                 let table_h = super::super::table::render_preview_table(
-                    ui, &painter, &painter, 10.0, 10.0, 500.0, 14.0, &headers, &rows, &theme, 0, viewport,
+                    ui, &painter, &painter, 10.0, 10.0, 500.0, 14.0, &headers, &rows, &theme, 0,
+                    viewport,
                 );
                 assert!(table_h > 50.0);
             });
@@ -202,7 +247,18 @@ Paragraph text
                 let viewport = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 600.0));
 
                 let code_h = super::super::code_block::render_preview_code_block(
-                    ui, &painter, &painter, 10.0, 10.0, 500.0, 14.0, "rust", "fn main() {\n    println!(\"hello\");\n}\n", &theme, 0, viewport,
+                    ui,
+                    &painter,
+                    &painter,
+                    10.0,
+                    10.0,
+                    500.0,
+                    14.0,
+                    "rust",
+                    "fn main() {\n    println!(\"hello\");\n}\n",
+                    &theme,
+                    0,
+                    viewport,
                 );
                 assert!(code_h > 50.0);
             });
@@ -225,8 +281,18 @@ Paragraph text
                 let title_font = eframe::egui::FontId::proportional(font_size * 1.05);
                 let sub_font = eframe::egui::FontId::proportional(font_size * 0.85);
 
-                let title_galley = painter.layout("Nothing to preview yet".to_string(), title_font, theme.muted, avail_w);
-                let sub_galley = painter.layout("Type markdown in the editor to see live rendering".to_string(), sub_font, theme.muted, avail_w);
+                let title_galley = painter.layout(
+                    "Nothing to preview yet".to_string(),
+                    title_font,
+                    theme.muted,
+                    avail_w,
+                );
+                let sub_galley = painter.layout(
+                    "Type markdown in the editor to see live rendering".to_string(),
+                    sub_font,
+                    theme.muted,
+                    avail_w,
+                );
 
                 let gap = (font_size * 0.55).round().max(8.0);
                 let total_h = title_galley.size().y + gap + sub_galley.size().y;
@@ -240,4 +306,3 @@ Paragraph text
         });
     }
 }
-

@@ -51,7 +51,8 @@ pub fn render_stats(
 
                 // 1. Header Section
                 let header_h = 56.0 * scale;
-                let (header_rect, _) = ui.allocate_exact_size(vec2(avail_w, header_h), Sense::hover());
+                let (header_rect, _) =
+                    ui.allocate_exact_size(vec2(avail_w, header_h), Sense::hover());
                 let p = ui.painter();
 
                 p.text(

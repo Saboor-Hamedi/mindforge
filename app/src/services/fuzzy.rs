@@ -27,8 +27,6 @@ pub enum PaletteAction {
     ApplyCaretKind(crate::caret::CaretKind),
     OpenFontPicker,
     ApplyFont(String),
-    OpenModePicker,
-    ApplyEditorMode(crate::app::EditorInputMode),
     OpenSetting(crate::setting::SettingTab),
     ToggleSidebar,
     ToggleRightSidebar,
@@ -64,10 +62,8 @@ pub fn search_workspace(
     if needle.is_empty() || needle.starts_with('>') {
         return Vec::new();
     }
-    let excluded_keys: std::collections::HashSet<String> = excluded
-        .iter()
-        .map(|p| workspace_path_key(p))
-        .collect();
+    let excluded_keys: std::collections::HashSet<String> =
+        excluded.iter().map(|p| workspace_path_key(p)).collect();
     let mut results = Vec::new();
     for entry in entries {
         if excluded_keys.contains(&workspace_path_key(&entry.path)) {
@@ -198,13 +194,6 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
         badge: "F1",
         icon: "⚙",
         action: PaletteAction::OpenSetting(crate::setting::SettingTab::Shortcuts),
-    },
-    BuiltinCommand {
-        title: "Editor Mode (Vim / Hybrid)",
-        snippet: "Switch between modal Vim motions and intuitive Hybrid writing",
-        badge: ">mode",
-        icon: "⚙",
-        action: PaletteAction::OpenModePicker,
     },
     BuiltinCommand {
         title: "Window Opacity & Transparency",
@@ -586,19 +575,17 @@ pub fn search_palette(
     active_sound: SoundProfile,
     active_caret: crate::caret::CaretKind,
     active_font: &str,
-    active_mode: crate::app::EditorInputMode,
     active_luna_style: crate::lunaline::LunaStyle,
 ) -> Vec<SearchItem> {
     let raw = query_str.trim();
 
-    // ── 1. Sub-Picker Modes (`>theme`, `>sound`, `>caret`, `>font`, `>mode`, `>luna`)
+    // ── 1. Sub-Picker Modes (`>theme`, `>sound`, `>caret`, `>font`, `>luna`)
     if let Some(sub_items) = crate::ui::palette::match_subpicker(
         raw,
         active_theme,
         active_sound,
         active_caret,
         active_font,
-        active_mode,
         active_luna_style,
     ) {
         return sub_items;
@@ -701,7 +688,6 @@ mod tests {
     #[test]
     fn test_command_palette_matching() {
         let def_font = "JetBrains Mono";
-        let def_mode = crate::app::EditorInputMode::Vim;
         let def_luna = crate::lunaline::LunaStyle::Pill;
 
         let items = search_palette(
@@ -711,7 +697,6 @@ mod tests {
             crate::services::sound::SoundProfile::Off,
             crate::caret::CaretKind::Beam,
             def_font,
-            def_mode,
             def_luna,
         );
         assert!(!items.is_empty());
@@ -730,7 +715,6 @@ mod tests {
             crate::services::sound::SoundProfile::Off,
             crate::caret::CaretKind::Beam,
             def_font,
-            def_mode,
             def_luna,
         );
         assert_eq!(theme_filter.len(), ThemeKind::ALL.len());
@@ -751,7 +735,6 @@ mod tests {
             crate::services::sound::SoundProfile::Thocky,
             crate::caret::CaretKind::Beam,
             def_font,
-            def_mode,
             def_luna,
         );
         assert_eq!(
@@ -776,7 +759,6 @@ mod tests {
             crate::services::sound::SoundProfile::Off,
             crate::caret::CaretKind::Fire,
             def_font,
-            def_mode,
             def_luna,
         );
         assert_eq!(caret_filter.len(), crate::caret::CaretKind::ALL.len());
@@ -792,29 +774,12 @@ mod tests {
             crate::services::sound::SoundProfile::Off,
             crate::caret::CaretKind::Beam,
             "JetBrains Mono",
-            def_mode,
             def_luna,
         );
         assert!(!font_filter.is_empty());
         assert!(font_filter
             .iter()
             .any(|i| i.title == "JetBrains Mono" && i.badge.contains("Active")));
-
-        // Mode picker: >mode shows modes
-        let mode_filter = search_palette(
-            ">mode",
-            &[],
-            ThemeKind::TokyoNight,
-            crate::services::sound::SoundProfile::Off,
-            crate::caret::CaretKind::Beam,
-            def_font,
-            crate::app::EditorInputMode::Vim,
-            def_luna,
-        );
-        assert_eq!(mode_filter.len(), 2);
-        assert!(mode_filter
-            .iter()
-            .any(|i| i.title.contains("Vim") && i.badge.contains("Active")));
 
         // Note search items must have empty badges
         let sample_notes = vec![core::Note {
@@ -831,7 +796,6 @@ mod tests {
             crate::services::sound::SoundProfile::Off,
             crate::caret::CaretKind::Beam,
             def_font,
-            def_mode,
             def_luna,
         );
         assert!(!note_results.is_empty());

@@ -1,6 +1,5 @@
 //! Keyboard shortcut routing, text input, and command/editor event dispatch.
 
-pub mod editor;
 pub mod global;
 
 pub use global::window_shortcuts;
@@ -15,14 +14,18 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
     // Ctrl+Space is an editor command. Route it before panel shortcut handlers,
     // which may otherwise return early while a sidebar or prompt owns focus.
     let ctrl_space = ctx.input(|i| {
-        i.events.iter().find(|event| matches!(event,
-            egui::Event::Key { key: egui::Key::Space, pressed: true, modifiers, .. }
-                if modifiers.ctrl || modifiers.command
-        )).cloned()
+        i.events
+            .iter()
+            .find(|event| {
+                matches!(event,
+                    egui::Event::Key { key: egui::Key::Space, pressed: true, modifiers, .. }
+                        if modifiers.ctrl || modifiers.command
+                )
+            })
+            .cloned()
     });
     if let Some(event) = ctrl_space {
         let editor_can_receive = matches!(app.misc.mode, Mode::Normal | Mode::Doc)
-            && app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
             && !app.command_bar.in_command
             && !app.modal.search_open
             && !app.modal.settings_open
@@ -46,13 +49,15 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
     // before Vim input or focused widgets can consume them.
     let (ctrl_p, ctrl_shift_p, ctrl_comma) = ctx.input(|i| {
         let pressed = |wanted: egui::Key, shifted: bool| {
-            i.events.iter().any(|event| matches!(event,
-                egui::Event::Key { key, pressed: true, repeat: false, modifiers, .. }
-                    if *key == wanted
-                        && (modifiers.ctrl || modifiers.command)
-                        && modifiers.shift == shifted
-                        && !modifiers.alt
-            ))
+            i.events.iter().any(|event| {
+                matches!(event,
+                    egui::Event::Key { key, pressed: true, repeat: false, modifiers, .. }
+                        if *key == wanted
+                            && (modifiers.ctrl || modifiers.command)
+                            && modifiers.shift == shifted
+                            && !modifiers.alt
+                )
+            })
         };
         (
             pressed(egui::Key::P, false),
@@ -106,16 +111,18 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
     // An active Neovim completion owns plain Enter. Route and consume it
     // before global navigation shortcuts (for example, sidebar Enter) can
     // interpret the same key as opening a note.
-    let completion_enter_event = ctx.input(|input| input.events.iter().find(|event| matches!(event,
+    let completion_enter_event =
+        ctx.input(|input| {
+            input.events.iter().find(|event| matches!(event,
         egui::Event::Key {
             key: egui::Key::Enter,
             pressed: true,
             modifiers,
             ..
         } if !modifiers.ctrl && !modifiers.command && !modifiers.shift && !modifiers.alt
-    )).cloned());
+    )).cloned()
+        });
     let completion_owns_enter = completion_enter_event.is_some()
-        && app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
         && matches!(app.misc.mode, Mode::Normal | Mode::Doc)
         && !app.command_bar.in_command
         && !app.terminal.focused
@@ -125,17 +132,29 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         && !app.modal.delete_confirm_open
         && !app.misc.accent_dropdown_open
         && !app.services.wikilink_autocomplete.is_active
-        && app.services.vim_runtime.backend.as_ref().is_some_and(|backend| backend.popup_visible());
+        && app
+            .services
+            .vim_runtime
+            .backend
+            .as_ref()
+            .is_some_and(|backend| backend.popup_visible());
     let mut enter_consumed_by_completion = false;
     if completion_owns_enter {
         if let Some(event) = completion_enter_event {
-            let has_text_event = ctx.input(|input| input.events.iter().any(|event|
-                matches!(event, egui::Event::Text(text) if !text.is_empty())
-            ));
-            let has_colon_text = ctx.input(|input| input.events.iter().any(|event|
-                matches!(event, egui::Event::Text(text) if text.contains(':'))
-            ));
-            let _ = crate::vim::input::handle_event(app, &event, now, has_text_event, has_colon_text);
+            let has_text_event = ctx.input(|input| {
+                input
+                    .events
+                    .iter()
+                    .any(|event| matches!(event, egui::Event::Text(text) if !text.is_empty()))
+            });
+            let has_colon_text = ctx.input(|input| {
+                input
+                    .events
+                    .iter()
+                    .any(|event| matches!(event, egui::Event::Text(text) if text.contains(':')))
+            });
+            let _ =
+                crate::vim::input::handle_event(app, &event, now, has_text_event, has_colon_text);
             ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
             enter_consumed_by_completion = true;
         }
@@ -147,8 +166,12 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
     }
 
     let mut typed = false;
-    let vim_normal_mode = app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-        && app.services.vim_runtime.backend.as_ref().is_none_or(|backend| !backend.is_insert_mode());
+    let vim_normal_mode = app
+        .services
+        .vim_runtime
+        .backend
+        .as_ref()
+        .is_none_or(|backend| !backend.is_insert_mode());
 
     // 2. Dispatch events for either command bar, focused terminal, or active editor
     ctx.input(|i| {
@@ -156,38 +179,67 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
         // the corresponding text event. Neovim needs the resulting ':' text to
         // enter its command line, while avoiding a duplicate when egui already
         // supplied the character normally.
-        let has_colon_text = i.events.iter().any(|event| {
-            matches!(event, egui::Event::Text(text) if text.contains(':'))
-        });
-        let has_text_event = i.events.iter().any(|event| matches!(event, egui::Event::Text(text) if !text.is_empty()));
+        let has_colon_text = i
+            .events
+            .iter()
+            .any(|event| matches!(event, egui::Event::Text(text) if text.contains(':')));
+        let has_text_event = i
+            .events
+            .iter()
+            .any(|event| matches!(event, egui::Event::Text(text) if !text.is_empty()));
         for ev in &i.events {
-            if enter_consumed_by_completion && matches!(ev, egui::Event::Key { key: egui::Key::Enter, .. }) {
+            if enter_consumed_by_completion
+                && matches!(
+                    ev,
+                    egui::Event::Key {
+                        key: egui::Key::Enter,
+                        ..
+                    }
+                )
+            {
                 continue;
             }
-            let command_surface_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc | Mode::ScanReport | Mode::ScanHistory | Mode::Stats)
-                && !app.terminal.focused
+            let command_surface_active = matches!(
+                app.misc.mode,
+                Mode::Normal | Mode::Doc | Mode::ScanReport | Mode::ScanHistory | Mode::Stats
+            ) && !app.terminal.focused
                 && !app.modal.search_open
                 && !app.modal.settings_open
                 && !app.modal.rename_open
                 && !app.modal.delete_confirm_open
                 && !app.misc.accent_dropdown_open
                 && !app.services.wikilink_autocomplete.is_active;
+            // A document is being edited: ':' must be typed as text unless
+            // Neovim is in Normal mode (where ':' starts an Ex command).
+            let editing_document = app.misc.mode == Mode::Normal
+                && !app.misc.show_welcome
+                && !app.open_notes.is_empty();
+            let colon_opens_command = !editing_document || vim_normal_mode;
             let command_prefix = match ev {
-                egui::Event::Text(text) if text == ":"
-                    && (app.services.editor_controller.mode != crate::app::EditorInputMode::Vim
-                        || app.misc.mode != Mode::Normal
-                        || app.misc.show_welcome
-                        || app.open_notes.is_empty()
-                        || vim_normal_mode) => Some(':'),
+                egui::Event::Text(text) if text == ":" && colon_opens_command => Some(':'),
                 egui::Event::Text(text) if text == "/" && vim_normal_mode => Some('/'),
-                egui::Event::Text(text) if text == "?"
-                    && vim_normal_mode => Some('?'),
-                egui::Event::Key { key: egui::Key::Semicolon, pressed: true, modifiers, .. }
-                    if modifiers.shift && !modifiers.ctrl && !modifiers.alt && !has_colon_text => Some(':'),
-                egui::Event::Key { key: egui::Key::Slash, pressed: true, modifiers, .. }
-                    if !has_text_event && !modifiers.ctrl && !modifiers.alt
-                        && vim_normal_mode =>
-                    Some(if modifiers.shift { '?' } else { '/' }),
+                egui::Event::Text(text) if text == "?" && vim_normal_mode => Some('?'),
+                egui::Event::Key {
+                    key: egui::Key::Semicolon,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } if modifiers.shift
+                    && !modifiers.ctrl
+                    && !modifiers.alt
+                    && !has_colon_text
+                    && colon_opens_command =>
+                {
+                    Some(':')
+                }
+                egui::Event::Key {
+                    key: egui::Key::Slash,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } if !has_text_event && !modifiers.ctrl && !modifiers.alt && vim_normal_mode => {
+                    Some(if modifiers.shift { '?' } else { '/' })
+                }
                 _ => None,
             };
             if !app.command_bar.in_command && command_surface_active && command_prefix.is_some() {
@@ -199,7 +251,9 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                 if app.command_bar.prefix == ':' {
                     app.misc.showcmd.set_command("", now);
                 } else {
-                    app.misc.showcmd.set_search(&app.command_bar.prefix.to_string(), "", now);
+                    app.misc
+                        .showcmd
+                        .set_search(&app.command_bar.prefix.to_string(), "", now);
                 }
                 typed = true;
                 continue;
@@ -214,14 +268,25 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                         crate::command::input::handle_command_text(app, s, now);
                         typed = true;
                     }
-                    egui::Event::Key { key, pressed: true, modifiers, .. } => {
+                    egui::Event::Key {
+                        key,
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } => {
                         crate::command::input::handle_command_key(app, *key, *modifiers, now);
                         typed = true;
                     }
                     _ => {}
                 }
             } else if app.terminal.open && app.terminal.focused {
-                if let egui::Event::Key { key: egui::Key::Escape, pressed: true, modifiers, .. } = ev {
+                if let egui::Event::Key {
+                    key: egui::Key::Escape,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } = ev
+                {
                     if !modifiers.ctrl && !modifiers.shift && !modifiers.alt {
                         app.terminal.focused = false;
                         app.set_status("Editor focused (Ctrl+J to return to terminal)", now);
@@ -231,32 +296,10 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
                 if let Some(ref mut pane) = app.terminal.pane {
                     pane.feed_event(ev, i.modifiers);
                 }
-            } else if let Some(vim_typed) = crate::vim::input::handle_event(app, ev, now, has_text_event, has_colon_text) {
+            } else if let Some(vim_typed) =
+                crate::vim::input::handle_event(app, ev, now, has_text_event, has_colon_text)
+            {
                 typed |= vim_typed;
-            } else {
-                match ev {
-                    egui::Event::Paste(s) => {
-                        if editor::handle_editor_paste(app, s, now) {
-                            typed = true;
-                        }
-                    }
-                    egui::Event::Text(s) => {
-                        if editor::handle_editor_text(app, s, now) {
-                            typed = true;
-                        }
-                    }
-                    egui::Event::Key {
-                        key,
-                        pressed: true,
-                        modifiers,
-                        ..
-                    } => {
-                        if editor::handle_editor_key(app, *key, *modifiers, now) {
-                            typed = true;
-                        }
-                    }
-                    _ => {}
-                }
             }
         }
     });

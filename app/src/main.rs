@@ -6,7 +6,6 @@ mod app;
 mod caret;
 pub mod command;
 mod editor;
-pub mod hybrid;
 mod input;
 mod language;
 pub mod layout;

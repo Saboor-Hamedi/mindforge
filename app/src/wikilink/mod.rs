@@ -101,7 +101,10 @@ pub fn resolve_wikilink<'a>(target: &str, notes: &'a [Note]) -> Option<&'a Note>
     }
 
     // 1. Direct exact or case-insensitive match on note topic/title
-    if let Some(note) = notes.iter().find(|n| n.topic.eq_ignore_ascii_case(clean_target)) {
+    if let Some(note) = notes
+        .iter()
+        .find(|n| n.topic.eq_ignore_ascii_case(clean_target))
+    {
         return Some(note);
     }
 
@@ -130,7 +133,8 @@ pub fn resolve_wikilink<'a>(target: &str, notes: &'a [Note]) -> Option<&'a Note>
         if let Some(note) = notes.iter().find(|n| {
             let leaf = n.topic.rsplit(&['/', '\\'][..]).next().unwrap_or(&n.topic);
             let leaf_no_ext = leaf.strip_suffix(".md").unwrap_or(leaf);
-            leaf.eq_ignore_ascii_case(clean_target) || leaf_no_ext.eq_ignore_ascii_case(clean_target)
+            leaf.eq_ignore_ascii_case(clean_target)
+                || leaf_no_ext.eq_ignore_ascii_case(clean_target)
         }) {
             return Some(note);
         }
@@ -140,14 +144,21 @@ pub fn resolve_wikilink<'a>(target: &str, notes: &'a [Note]) -> Option<&'a Note>
 }
 
 /// Finds all incoming backlinks pointing to `target_topic` across all notes in the vault.
-pub fn find_backlinks(target_topic: &str, notes: &[Note], current_id: Option<i64>) -> Vec<BacklinkItem> {
+pub fn find_backlinks(
+    target_topic: &str,
+    notes: &[Note],
+    current_id: Option<i64>,
+) -> Vec<BacklinkItem> {
     let mut backlinks = Vec::new();
     let clean_target = target_topic.trim();
     if clean_target.is_empty() {
         return backlinks;
     }
 
-    let target_leaf = clean_target.rsplit(&['/', '\\'][..]).next().unwrap_or(clean_target);
+    let target_leaf = clean_target
+        .rsplit(&['/', '\\'][..])
+        .next()
+        .unwrap_or(clean_target);
 
     for note in notes {
         // Exclude self-references if note has an id
@@ -208,8 +219,20 @@ mod tests {
     fn test_resolve_nested_wikilinks() {
         let now = Local::now().naive_local();
         let notes = vec![
-            Note { id: 1, topic: "docs/architecture.md".into(), body: "Content".into(), struggled_with: None, created_at: now },
-            Note { id: 2, topic: "Inbox".into(), body: "Notes".into(), struggled_with: None, created_at: now },
+            Note {
+                id: 1,
+                topic: "docs/architecture.md".into(),
+                body: "Content".into(),
+                struggled_with: None,
+                created_at: now,
+            },
+            Note {
+                id: 2,
+                topic: "Inbox".into(),
+                body: "Notes".into(),
+                struggled_with: None,
+                created_at: now,
+            },
         ];
 
         // Match leaf name
@@ -227,8 +250,20 @@ mod tests {
     fn test_find_backlinks() {
         let now = Local::now().naive_local();
         let notes = vec![
-            Note { id: 1, topic: "Source Note".into(), body: "As discussed in [[Target Note]] today.".into(), struggled_with: None, created_at: now },
-            Note { id: 2, topic: "Target Note".into(), body: "I am the target.".into(), struggled_with: None, created_at: now },
+            Note {
+                id: 1,
+                topic: "Source Note".into(),
+                body: "As discussed in [[Target Note]] today.".into(),
+                struggled_with: None,
+                created_at: now,
+            },
+            Note {
+                id: 2,
+                topic: "Target Note".into(),
+                body: "I am the target.".into(),
+                struggled_with: None,
+                created_at: now,
+            },
         ];
 
         let bl = find_backlinks("Target Note", &notes, Some(2));

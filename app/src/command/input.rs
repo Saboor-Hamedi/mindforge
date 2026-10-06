@@ -8,7 +8,11 @@ fn update_command_hud(app: &mut App, now: f64) {
     if app.command_bar.prefix == ':' {
         app.misc.showcmd.set_command(&app.editor.cmd_ed.text(), now);
     } else {
-        app.misc.showcmd.set_search(&app.command_bar.prefix.to_string(), &app.editor.cmd_ed.text(), now);
+        app.misc.showcmd.set_search(
+            &app.command_bar.prefix.to_string(),
+            &app.editor.cmd_ed.text(),
+            now,
+        );
         if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
             if let Err(error) = backend.preview_search(&app.editor.cmd_ed.text()) {
                 app.set_status(&format!("Neovim search preview failed: {error}"), now);
@@ -64,7 +68,9 @@ pub fn handle_command_key(app: &mut App, key: Key, modifiers: Modifiers, now: f6
         app.command_bar.in_command = false;
         app.editor.cmd_ed.clear();
         app.command_bar.prefix = ':';
-        app.misc.showcmd.record_action(&format!("{}{}", prefix, query), now);
+        app.misc
+            .showcmd
+            .record_action(&format!("{}{}", prefix, query), now);
         if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
             let _ = backend.clear_preview_search();
         }

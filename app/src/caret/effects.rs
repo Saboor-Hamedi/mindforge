@@ -1,6 +1,6 @@
-use std::collections::VecDeque;
-use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect, Stroke};
 use super::particles::{Bolt, Particle};
+use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect, Stroke};
+use std::collections::VecDeque;
 
 pub fn make_bolt(pos: Pos2, cw: f32, lh: f32) -> Bolt {
     let mut pts = Vec::with_capacity(7);
@@ -28,7 +28,11 @@ pub fn emit_matrix(particles: &mut Vec<Particle>, pos: Pos2, w: f32, n: usize) {
 }
 
 pub fn paint_electric(p: &Painter, pos: Pos2, w: f32, lh: f32, bolts: &[Bolt]) {
-    p.rect_filled(Rect::from_min_size(pos, vec2(w, lh)), 0.0, Color32::from_rgb(170, 210, 255));
+    p.rect_filled(
+        Rect::from_min_size(pos, vec2(w, lh)),
+        0.0,
+        Color32::from_rgb(170, 210, 255),
+    );
     for b in bolts {
         let a = ((1.0 - b.age / 0.12) * 255.0) as u8;
         p.add(eframe::egui::Shape::line(
@@ -38,7 +42,14 @@ pub fn paint_electric(p: &Painter, pos: Pos2, w: f32, lh: f32, bolts: &[Bolt]) {
     }
 }
 
-pub fn paint_comet(p: &Painter, pos: Pos2, w: f32, lh: f32, trail: &VecDeque<Pos2>, accent: Color32) {
+pub fn paint_comet(
+    p: &Painter,
+    pos: Pos2,
+    w: f32,
+    lh: f32,
+    trail: &VecDeque<Pos2>,
+    accent: Color32,
+) {
     let n = trail.len().max(1) as f32;
     for (i, tp) in trail.iter().enumerate() {
         let t = i as f32 / n;
@@ -53,7 +64,11 @@ pub fn paint_comet(p: &Painter, pos: Pos2, w: f32, lh: f32, trail: &VecDeque<Pos
 }
 
 pub fn paint_matrix(p: &Painter, pos: Pos2, w: f32, lh: f32, particles: &[Particle]) {
-    p.rect_filled(Rect::from_min_size(pos, vec2(w, lh)), 0.0, Color32::from_rgb(40, 255, 90));
+    p.rect_filled(
+        Rect::from_min_size(pos, vec2(w, lh)),
+        0.0,
+        Color32::from_rgb(40, 255, 90),
+    );
     for p_item in particles {
         let t = p_item.age / p_item.life;
         let a = ((1.0 - t) * 220.0) as u8;
@@ -87,8 +102,16 @@ pub fn paint_glitch(p: &Painter, pos: Pos2, w: f32, lh: f32, now: f64, last_type
         let shift = ((now * 60.0).sin() * 2.0) as f32;
         let r_rect = Rect::from_min_size(pos2(pos.x - shift, pos.y), vec2(w, lh));
         let b_rect = Rect::from_min_size(pos2(pos.x + shift, pos.y), vec2(w, lh));
-        p.rect_filled(r_rect, 0.0, Color32::from_rgba_unmultiplied(255, 30, 60, 160));
-        p.rect_filled(b_rect, 0.0, Color32::from_rgba_unmultiplied(30, 120, 255, 160));
+        p.rect_filled(
+            r_rect,
+            0.0,
+            Color32::from_rgba_unmultiplied(255, 30, 60, 160),
+        );
+        p.rect_filled(
+            b_rect,
+            0.0,
+            Color32::from_rgba_unmultiplied(30, 120, 255, 160),
+        );
     }
     p.rect_filled(Rect::from_min_size(pos, vec2(w, lh)), 0.0, Color32::WHITE);
 }

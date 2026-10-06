@@ -2,7 +2,6 @@
 
 use super::setting_panel::{render_setting_panel, SettingPanelAction};
 use super::setting_tab::render_setting_tabs;
-use crate::app::EditorInputMode;
 use crate::caret::Caret;
 use crate::services::sound::SoundEngine;
 use crate::services::updater::UpdateManager;
@@ -17,7 +16,6 @@ pub fn render_setting_container(
     painter: &egui::Painter,
     bounds: Rect,
     modal: &mut ModalState,
-    editor_input_mode: &mut EditorInputMode,
     caret: &mut Caret,
     sound: &mut SoundEngine,
     theme: &mut Theme,
@@ -65,20 +63,13 @@ pub fn render_setting_container(
         modal_rect.max,
     );
 
-    render_setting_tabs(
-        ui,
-        painter,
-        tabs_rect,
-        &mut modal.active_setting_tab,
-        theme,
-    );
+    render_setting_tabs(ui, painter, tabs_rect, &mut modal.active_setting_tab, theme);
 
     let panel_action = render_setting_panel(
         ui,
         painter,
         panel_rect,
         modal.active_setting_tab,
-        editor_input_mode,
         caret,
         sound,
         theme,

@@ -188,17 +188,48 @@ impl ShowCmdState {
         // ── Per-mode palette ─────────────────────────────────────────────────
         let is_light = theme.is_light();
         let (badge, badge_color) = match self.kind {
-            ShowCmdKind::Command   => ("CMD",  if is_light { Color32::from_rgb(0, 120, 215) } else { Color32::from_rgb(100, 210, 255) }),
-            ShowCmdKind::Search    => ("FIND", if is_light { Color32::from_rgb(180, 110, 0) } else { Color32::from_rgb(255, 210, 70) }),
-            ShowCmdKind::Visual    => ("VIS",  if is_light { Color32::from_rgb(130, 50, 200) } else { Color32::from_rgb(200, 140, 255) }),
-            ShowCmdKind::Keystroke => ("VIM",  theme.accent),
+            ShowCmdKind::Command => (
+                "CMD",
+                if is_light {
+                    Color32::from_rgb(0, 120, 215)
+                } else {
+                    Color32::from_rgb(100, 210, 255)
+                },
+            ),
+            ShowCmdKind::Search => (
+                "FIND",
+                if is_light {
+                    Color32::from_rgb(180, 110, 0)
+                } else {
+                    Color32::from_rgb(255, 210, 70)
+                },
+            ),
+            ShowCmdKind::Visual => (
+                "VIS",
+                if is_light {
+                    Color32::from_rgb(130, 50, 200)
+                } else {
+                    Color32::from_rgb(200, 140, 255)
+                },
+            ),
+            ShowCmdKind::Keystroke => ("VIM", theme.accent),
         };
 
         let badge_a = Color32::from_rgba_unmultiplied(
-            badge_color.r(), badge_color.g(), badge_color.b(), alpha,
+            badge_color.r(),
+            badge_color.g(),
+            badge_color.b(),
+            alpha,
         );
         let badge_bg = Color32::from_rgba_unmultiplied(
-            badge_color.r(), badge_color.g(), badge_color.b(), if is_light { (alpha as f32 * 0.18) as u8 } else { (alpha as f32 * 0.16) as u8 },
+            badge_color.r(),
+            badge_color.g(),
+            badge_color.b(),
+            if is_light {
+                (alpha as f32 * 0.18) as u8
+            } else {
+                (alpha as f32 * 0.16) as u8
+            },
         );
         let text_color = if is_light {
             Color32::from_rgba_unmultiplied(theme.text.r(), theme.text.g(), theme.text.b(), alpha)
@@ -225,7 +256,10 @@ impl ShowCmdState {
         let card_w = content_w.max(80.0);
 
         let card_rect = Rect::from_min_max(
-            Pos2::new(anchor_bottom_right.x - card_w, anchor_bottom_right.y - card_h),
+            Pos2::new(
+                anchor_bottom_right.x - card_w,
+                anchor_bottom_right.y - card_h,
+            ),
             anchor_bottom_right,
         );
 
@@ -260,8 +294,17 @@ impl ShowCmdState {
         // 3. Render Badge Micro-Pill (borderless tinted badge, 4px round)
         let badge_x = card_rect.min.x + pad_x;
         let badge_y = card_rect.center().y - badge_h * 0.5;
-        let badge_rect = Rect::from_min_size(eframe::egui::pos2(badge_x, badge_y), eframe::egui::vec2(badge_w, badge_h));
-        painter.rect(badge_rect, 4.0, badge_bg, Stroke::NONE, egui::StrokeKind::Inside);
+        let badge_rect = Rect::from_min_size(
+            eframe::egui::pos2(badge_x, badge_y),
+            eframe::egui::vec2(badge_w, badge_h),
+        );
+        painter.rect(
+            badge_rect,
+            4.0,
+            badge_bg,
+            Stroke::NONE,
+            egui::StrokeKind::Inside,
+        );
         let badge_text_pos = eframe::egui::pos2(
             badge_rect.center().x - badge_galley.size().x * 0.5,
             badge_rect.center().y - badge_galley.size().y * 0.5,
@@ -284,7 +327,11 @@ impl ShowCmdState {
                 badge_color.b(),
                 (alpha as f32 * dot_pulse) as u8,
             );
-            painter.circle_filled(eframe::egui::pos2(dot_x, card_rect.center().y), 2.5, dot_color);
+            painter.circle_filled(
+                eframe::egui::pos2(dot_x, card_rect.center().y),
+                2.5,
+                dot_color,
+            );
         }
 
         Some(card_rect)

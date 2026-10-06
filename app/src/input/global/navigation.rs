@@ -34,14 +34,12 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
         if sb_edit {
             app.sidebar.focused = false;
             app.misc.caret.gliding = false;
-            if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
-                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-                    let _ = backend.handle_text("i");
-                } else {
-                    app.services
-                        .vim_runtime
-                        .queue_input(crate::vim::PendingVimInput::Text("i".into()));
-                }
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                let _ = backend.handle_text("i");
+            } else {
+                app.services
+                    .vim_runtime
+                    .queue_input(crate::vim::PendingVimInput::Text("i".into()));
             }
             return Some(false);
         }
@@ -100,14 +98,12 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
 
         if doc_edit {
             app.tabs.doc_sidebar_focused = false;
-            if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
-                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-                    let _ = backend.handle_text("i");
-                } else {
-                    app.services
-                        .vim_runtime
-                        .queue_input(crate::vim::PendingVimInput::Text("i".into()));
-                }
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                let _ = backend.handle_text("i");
+            } else {
+                app.services
+                    .vim_runtime
+                    .queue_input(crate::vim::PendingVimInput::Text("i".into()));
             }
             return Some(false);
         }
@@ -176,9 +172,7 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
     // 4. Global Escape Dismissal
     let esc = ctx.input(|i| i.key_pressed(egui::Key::Escape));
     if esc {
-        if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim
-            && !app.command_bar.in_command
-        {
+        if !app.command_bar.in_command {
             return None;
         }
         app.misc.showcmd.clear();

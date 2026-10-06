@@ -59,7 +59,10 @@ pub fn render_preview_blockquote(
             (bg.g() as i16 + step).clamp(0, 255) as u8,
             (bg.b() as i16 + step).clamp(0, 255) as u8,
         );
-        let card_rect = Rect::from_min_max(pos2(card_left, current_y), pos2(content_right, current_y + box_h));
+        let card_rect = Rect::from_min_max(
+            pos2(card_left, current_y),
+            pos2(content_right, current_y + box_h),
+        );
         content_painter.rect_filled(card_rect, CornerRadius::same(5), bg_color);
 
         // 2. Sleek vertical accent pill(s) stepping inward to the right

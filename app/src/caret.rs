@@ -32,9 +32,8 @@ pub use water as watercaret;
 
 pub use particles::{Bolt, Particle, Ripple};
 
-use std::collections::VecDeque;
 use eframe::egui::{Color32, Painter, Pos2};
-use crate::app::EditorInputMode;
+use std::collections::VecDeque;
 
 /// Selectable caret appearance styles.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -130,15 +129,8 @@ impl CaretKind {
 
 /// Unified caret resolution: In Vim mode, respect the user's custom chosen caret kind
 /// consistently across Normal, Insert, Visual, and VisualLine modes.
-pub fn resolve_caret_kind(
-    input_mode: EditorInputMode,
-    _vim_mode: Option<&str>,
-    custom_kind: CaretKind,
-) -> CaretKind {
-    match input_mode {
-        EditorInputMode::Vim => custom_kind,
-        EditorInputMode::Hybrid => custom_kind,
-    }
+pub fn resolve_caret_kind(_vim_mode: Option<&str>, custom_kind: CaretKind) -> CaretKind {
+    custom_kind
 }
 
 /// Dynamic caret coordinator managing position, smooth glide, and particle systems.
@@ -251,11 +243,7 @@ impl Caret {
                     self.pos = target;
                 } else {
                     // For navigation jumps (j, k, $, etc.) use smooth glide.
-                    let speed = if (diff.y).abs() < 2.0 {
-                        52.0
-                    } else {
-                        34.0
-                    };
+                    let speed = if (diff.y).abs() < 2.0 { 52.0 } else { 34.0 };
                     let k = 1.0 - (-dt * speed).exp();
                     self.pos += diff * k;
                     if (target - self.pos).length() < 0.15 {
@@ -267,7 +255,6 @@ impl Caret {
             self.pos = target;
         }
         self.gliding = self.pos != target;
-
 
         if typed {
             self.last_type = now;
@@ -409,14 +396,78 @@ impl Caret {
                 CaretKind::Block => beam::paint_block(p, self.pos, cw, lh, accent),
                 CaretKind::Beam => beam::paint_beam(p, self.pos, w, lh, accent),
                 CaretKind::Underline => beam::paint_underline(p, self.pos, cw, w, lh, accent),
-                CaretKind::Candle => beam::paint_beam(p, self.pos, w, lh, if is_light { Color32::from_rgb(195, 120, 20) } else { Color32::from_rgb(250, 230, 160) }),
-                CaretKind::Fire => beam::paint_beam(p, self.pos, w, lh, Color32::from_rgb(235, 95, 20)),
-                CaretKind::Water => beam::paint_beam(p, self.pos, w, lh, if is_light { Color32::from_rgb(20, 130, 225) } else { Color32::from_rgb(65, 175, 255) }),
-                CaretKind::Snow => beam::paint_beam(p, self.pos, w, lh, if is_light { Color32::from_rgb(35, 115, 185) } else { Color32::from_rgb(225, 245, 255) }),
-                CaretKind::Electric => beam::paint_beam(p, self.pos, w, lh, if is_light { Color32::from_rgb(100, 70, 220) } else { Color32::from_rgb(170, 210, 255) }),
-                CaretKind::Matrix => beam::paint_beam(p, self.pos, w, lh, if is_light { Color32::from_rgb(25, 145, 55) } else { Color32::from_rgb(40, 255, 90) }),
-                CaretKind::Ice => beam::paint_beam(p, self.pos, w, lh, if is_light { Color32::from_rgb(15, 140, 195) } else { Color32::from_rgb(135, 230, 255) }),
-                CaretKind::Heartbeat => beam::paint_beam(p, self.pos, w, lh, Color32::from_rgb(235, 50, 90)),
+                CaretKind::Candle => beam::paint_beam(
+                    p,
+                    self.pos,
+                    w,
+                    lh,
+                    if is_light {
+                        Color32::from_rgb(195, 120, 20)
+                    } else {
+                        Color32::from_rgb(250, 230, 160)
+                    },
+                ),
+                CaretKind::Fire => {
+                    beam::paint_beam(p, self.pos, w, lh, Color32::from_rgb(235, 95, 20))
+                }
+                CaretKind::Water => beam::paint_beam(
+                    p,
+                    self.pos,
+                    w,
+                    lh,
+                    if is_light {
+                        Color32::from_rgb(20, 130, 225)
+                    } else {
+                        Color32::from_rgb(65, 175, 255)
+                    },
+                ),
+                CaretKind::Snow => beam::paint_beam(
+                    p,
+                    self.pos,
+                    w,
+                    lh,
+                    if is_light {
+                        Color32::from_rgb(35, 115, 185)
+                    } else {
+                        Color32::from_rgb(225, 245, 255)
+                    },
+                ),
+                CaretKind::Electric => beam::paint_beam(
+                    p,
+                    self.pos,
+                    w,
+                    lh,
+                    if is_light {
+                        Color32::from_rgb(100, 70, 220)
+                    } else {
+                        Color32::from_rgb(170, 210, 255)
+                    },
+                ),
+                CaretKind::Matrix => beam::paint_beam(
+                    p,
+                    self.pos,
+                    w,
+                    lh,
+                    if is_light {
+                        Color32::from_rgb(25, 145, 55)
+                    } else {
+                        Color32::from_rgb(40, 255, 90)
+                    },
+                ),
+                CaretKind::Ice => beam::paint_beam(
+                    p,
+                    self.pos,
+                    w,
+                    lh,
+                    if is_light {
+                        Color32::from_rgb(15, 140, 195)
+                    } else {
+                        Color32::from_rgb(135, 230, 255)
+                    },
+                ),
+                CaretKind::Heartbeat => {
+                    beam::paint_beam(p, self.pos, w, lh, Color32::from_rgb(235, 50, 90))
+                }
                 _ => beam::paint_beam(p, self.pos, w, lh, accent),
             }
             return;
@@ -428,24 +479,35 @@ impl Caret {
         }
 
         let with_alpha = |c: Color32| -> Color32 {
-            Color32::from_rgba_unmultiplied(
-                c.r(),
-                c.g(),
-                c.b(),
-                ((c.a() as f32) * alpha) as u8,
-            )
+            Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), ((c.a() as f32) * alpha) as u8)
         };
 
         // Animated rendering mode
         match self.kind {
             CaretKind::Block => beam::paint_block(p, self.pos, cw, lh, with_alpha(accent)),
             CaretKind::Beam => beam::paint_beam(p, self.pos, w, lh, with_alpha(accent)),
-            CaretKind::Underline => beam::paint_underline(p, self.pos, cw, w, lh, with_alpha(accent)),
-            CaretKind::Candle => candle::paint_candle(p, self.pos, w, lh, now, &self.particles, is_light),
+            CaretKind::Underline => {
+                beam::paint_underline(p, self.pos, cw, w, lh, with_alpha(accent))
+            }
+            CaretKind::Candle => {
+                candle::paint_candle(p, self.pos, w, lh, now, &self.particles, is_light)
+            }
             CaretKind::Fire => fire::paint_fire(p, self.pos, w, lh, now, &self.particles),
-            CaretKind::Water => water::paint_water(p, self.pos, w, lh, &self.ripples, &self.particles),
+            CaretKind::Water => {
+                water::paint_water(p, self.pos, w, lh, &self.ripples, &self.particles)
+            }
             CaretKind::Snow => snow::paint_snow(p, self.pos, w, lh, &self.particles, is_light),
-            CaretKind::Neon => neon::paint_neon(p, self.pos, w, lh, if is_light { Color32::from_rgb(25, 150, 60) } else { accent }),
+            CaretKind::Neon => neon::paint_neon(
+                p,
+                self.pos,
+                w,
+                lh,
+                if is_light {
+                    Color32::from_rgb(25, 150, 60)
+                } else {
+                    accent
+                },
+            ),
             CaretKind::Rainbow => rainbow::paint_rainbow(p, self.pos, w, lh, self.hue),
             CaretKind::Electric => effects::paint_electric(p, self.pos, w, lh, &self.bolts),
             CaretKind::Comet => effects::paint_comet(p, self.pos, w, lh, &self.trail, accent),

@@ -40,9 +40,15 @@ pub fn render_delete_confirm_modal(
     // Red warning pill badge
     let badge_rect = Rect::from_min_size(m_origin, vec2(54.0, 20.0));
     let (badge_bg, badge_text_col) = if theme.is_light() {
-        (Color32::from_rgb(254, 226, 226), Color32::from_rgb(185, 28, 28))
+        (
+            Color32::from_rgb(254, 226, 226),
+            Color32::from_rgb(185, 28, 28),
+        )
     } else {
-        (Color32::from_rgb(48, 20, 24), Color32::from_rgb(255, 100, 110))
+        (
+            Color32::from_rgb(48, 20, 24),
+            Color32::from_rgb(255, 100, 110),
+        )
     };
     painter.rect_filled(badge_rect, 6.0, badge_bg);
     painter.text(
@@ -108,8 +114,14 @@ pub fn render_delete_confirm_modal(
 
     let delete_w = 130.0;
     let cancel_w = 105.0;
-    let delete_rect = Rect::from_min_size(pos2(modal_rect.max.x - 24.0 - delete_w, btn_y), vec2(delete_w, btn_h));
-    let cancel_rect = Rect::from_min_size(pos2(modal_rect.max.x - 24.0 - delete_w - 12.0 - cancel_w, btn_y), vec2(cancel_w, btn_h));
+    let delete_rect = Rect::from_min_size(
+        pos2(modal_rect.max.x - 24.0 - delete_w, btn_y),
+        vec2(delete_w, btn_h),
+    );
+    let cancel_rect = Rect::from_min_size(
+        pos2(modal_rect.max.x - 24.0 - delete_w - 12.0 - cancel_w, btn_y),
+        vec2(cancel_w, btn_h),
+    );
 
     let cancel_hover = ui.rect_contains_pointer(cancel_rect);
     let delete_hover = ui.rect_contains_pointer(delete_rect);
@@ -117,10 +129,12 @@ pub fn render_delete_confirm_modal(
     let (enter, esc) = if just_opened {
         (false, false)
     } else {
-        ui.input(|i| (
-            i.key_pressed(egui::Key::Enter),
-            i.key_pressed(egui::Key::Escape),
-        ))
+        ui.input(|i| {
+            (
+                i.key_pressed(egui::Key::Enter),
+                i.key_pressed(egui::Key::Escape),
+            )
+        })
     };
 
     let mut action = DeleteModalAction {
@@ -131,15 +145,27 @@ pub fn render_delete_confirm_modal(
     // Cancel button
     let (cancel_bg, cancel_stroke, cancel_fg) = if theme.is_light() {
         if cancel_hover {
-            (Color32::from_rgb(228, 231, 238), theme.border(), theme.highlight)
+            (
+                Color32::from_rgb(228, 231, 238),
+                theme.border(),
+                theme.highlight,
+            )
         } else {
             (Color32::from_rgb(241, 243, 247), theme.border(), theme.text)
         }
     } else {
         if cancel_hover {
-            (Color32::from_rgb(32, 34, 44), Color32::from_gray(80), Color32::WHITE)
+            (
+                Color32::from_rgb(32, 34, 44),
+                Color32::from_gray(80),
+                Color32::WHITE,
+            )
         } else {
-            (Color32::from_rgb(24, 25, 32), Color32::from_gray(50), Color32::from_gray(180))
+            (
+                Color32::from_rgb(24, 25, 32),
+                Color32::from_gray(50),
+                Color32::from_gray(180),
+            )
         }
     };
 
@@ -161,15 +187,31 @@ pub fn render_delete_confirm_modal(
     // Delete button (Destructive red)
     let (del_bg, del_stroke, del_fg) = if theme.is_light() {
         if delete_hover {
-            (Color32::from_rgb(220, 38, 38), Color32::from_rgb(185, 28, 28), Color32::WHITE)
+            (
+                Color32::from_rgb(220, 38, 38),
+                Color32::from_rgb(185, 28, 28),
+                Color32::WHITE,
+            )
         } else {
-            (Color32::from_rgb(239, 68, 68), Color32::from_rgb(220, 38, 38), Color32::WHITE)
+            (
+                Color32::from_rgb(239, 68, 68),
+                Color32::from_rgb(220, 38, 38),
+                Color32::WHITE,
+            )
         }
     } else {
         if delete_hover {
-            (Color32::from_rgb(75, 22, 28), Color32::from_rgb(220, 60, 70), Color32::from_rgb(255, 140, 150))
+            (
+                Color32::from_rgb(75, 22, 28),
+                Color32::from_rgb(220, 60, 70),
+                Color32::from_rgb(255, 140, 150),
+            )
         } else {
-            (Color32::from_rgb(52, 16, 20), Color32::from_rgb(160, 45, 55), Color32::from_rgb(255, 140, 150))
+            (
+                Color32::from_rgb(52, 16, 20),
+                Color32::from_rgb(160, 45, 55),
+                Color32::from_rgb(255, 140, 150),
+            )
         }
     };
 

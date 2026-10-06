@@ -1,15 +1,11 @@
 //! Main text editor view: header, text canvas, smooth scrolling, and caret rendering.
 
-pub mod body;
-pub mod titlebar;
+pub mod inline;
 pub mod ligatures;
 pub mod preview;
-
-pub mod inline;
 pub mod tabs;
+pub mod titlebar;
 
-pub use body::render_editor_body;
-pub use inline::render_inline_editor;
 pub use preview::{render_markdown_document, render_markdown_preview};
 pub use tabs::{render_tab_bar, TabAction, TabItem, TAB_ROW_H};
 pub use titlebar::{render_full_titlebar, TitlebarAction};

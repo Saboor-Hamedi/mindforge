@@ -35,10 +35,8 @@ pub fn render_lunaline_tab(
     // ── Live Interactive Preview Box ─────────────────────────────────────────
     let preview_y = p_origin.y + 44.0;
     let preview_h = 36.0;
-    let preview_rect = Rect::from_min_size(
-        pos2(p_origin.x, preview_y),
-        vec2(available_w, preview_h),
-    );
+    let preview_rect =
+        Rect::from_min_size(pos2(p_origin.x, preview_y), vec2(available_w, preview_h));
 
     // Render interactive live preview
     render_lunaline_preview(ui, painter, preview_rect, config, theme, opacity);
@@ -60,7 +58,10 @@ pub fn render_lunaline_tab(
 
     for (idx, &style) in LunaStyle::ALL.iter().enumerate() {
         let chip_rect = Rect::from_min_size(
-            pos2(p_origin.x + idx as f32 * (style_col_w + col_gap), style_start_y),
+            pos2(
+                p_origin.x + idx as f32 * (style_col_w + col_gap),
+                style_start_y,
+            ),
             vec2(style_col_w, style_h),
         );
         let is_selected = config.style == style;
@@ -87,7 +88,11 @@ pub fn render_lunaline_tab(
         painter.rect(
             chip_rect,
             6.0,
-            if is_selected { theme.surface().lerp_to_gamma(theme.accent, 0.08) } else { theme.surface() },
+            if is_selected {
+                theme.surface().lerp_to_gamma(theme.accent, 0.08)
+            } else {
+                theme.surface()
+            },
             stroke,
             egui::StrokeKind::Inside,
         );
@@ -98,7 +103,11 @@ pub fn render_lunaline_tab(
             Align2::LEFT_TOP,
             style.name(),
             FontId::monospace(12.0),
-            if is_selected { theme.accent } else { theme.text },
+            if is_selected {
+                theme.accent
+            } else {
+                theme.text
+            },
         );
 
         // Subtitle
@@ -133,7 +142,10 @@ pub fn render_lunaline_tab(
 
     for (idx, &mode) in LunaColorMode::ALL.iter().enumerate() {
         let chip_rect = Rect::from_min_size(
-            pos2(p_origin.x + idx as f32 * (color_col_w + col_gap), color_start_y),
+            pos2(
+                p_origin.x + idx as f32 * (color_col_w + col_gap),
+                color_start_y,
+            ),
             vec2(color_col_w, color_h),
         );
         let is_selected = config.color_mode == mode;
@@ -160,7 +172,11 @@ pub fn render_lunaline_tab(
         painter.rect(
             chip_rect,
             6.0,
-            if is_selected { theme.surface().lerp_to_gamma(theme.accent, 0.08) } else { theme.surface() },
+            if is_selected {
+                theme.surface().lerp_to_gamma(theme.accent, 0.08)
+            } else {
+                theme.surface()
+            },
             stroke,
             egui::StrokeKind::Inside,
         );
@@ -171,14 +187,22 @@ pub fn render_lunaline_tab(
             LunaColorMode::ThemeAccent => theme.accent,
             LunaColorMode::Monochrome => Color32::from_rgb(180, 185, 195),
         };
-        painter.circle_filled(pos2(chip_rect.min.x + 16.0, chip_rect.center().y), 4.5, dot_color);
+        painter.circle_filled(
+            pos2(chip_rect.min.x + 16.0, chip_rect.center().y),
+            4.5,
+            dot_color,
+        );
 
         painter.text(
             pos2(chip_rect.min.x + 28.0, chip_rect.center().y),
             Align2::LEFT_CENTER,
             mode.name(),
             FontId::monospace(11.5),
-            if is_selected { theme.accent } else { theme.text },
+            if is_selected {
+                theme.accent
+            } else {
+                theme.text
+            },
         );
     }
 
@@ -198,16 +222,56 @@ pub fn render_lunaline_tab(
     let pill_w = 40.0;
 
     let mut toggle_items = [
-        ("Mode Badge (NORMAL/INSERT)", &mut config.show_mode, "lunaline_mode"),
-        ("Note Info & Dirty Dot", &mut config.show_file_info, "lunaline_file_info"),
-        ("Word Count", &mut config.show_word_count, "lunaline_word_count"),
-        ("Reading Time Estimate", &mut config.show_reading_time, "lunaline_reading_time"),
-        ("Cursor Position (Ln, Col)", &mut config.show_cursor_pos, "lunaline_cursor_pos"),
-        ("Document Progress (%)", &mut config.show_progress, "lunaline_progress"),
-        ("Character Count", &mut config.show_char_count, "lunaline_char_count"),
-        ("File Encoding (UTF-8)", &mut config.show_encoding, "lunaline_encoding"),
-        ("AI Agent Pill Button", &mut config.show_ai_button, "lunaline_ai_button"),
-        ("Line Ending Format [LF]", &mut config.show_line_ending, "lunaline_line_ending"),
+        (
+            "Mode Badge (NORMAL/INSERT)",
+            &mut config.show_mode,
+            "lunaline_mode",
+        ),
+        (
+            "Note Info & Dirty Dot",
+            &mut config.show_file_info,
+            "lunaline_file_info",
+        ),
+        (
+            "Word Count",
+            &mut config.show_word_count,
+            "lunaline_word_count",
+        ),
+        (
+            "Reading Time Estimate",
+            &mut config.show_reading_time,
+            "lunaline_reading_time",
+        ),
+        (
+            "Cursor Position (Ln, Col)",
+            &mut config.show_cursor_pos,
+            "lunaline_cursor_pos",
+        ),
+        (
+            "Document Progress (%)",
+            &mut config.show_progress,
+            "lunaline_progress",
+        ),
+        (
+            "Character Count",
+            &mut config.show_char_count,
+            "lunaline_char_count",
+        ),
+        (
+            "File Encoding (UTF-8)",
+            &mut config.show_encoding,
+            "lunaline_encoding",
+        ),
+        (
+            "AI Agent Pill Button",
+            &mut config.show_ai_button,
+            "lunaline_ai_button",
+        ),
+        (
+            "Line Ending Format [LF]",
+            &mut config.show_line_ending,
+            "lunaline_line_ending",
+        ),
     ];
 
     let mut changed = false;
@@ -221,13 +285,7 @@ pub fn render_lunaline_tab(
         let toggle_pos = pos2(x + col_w - pill_w, y + (row_h - 22.0) * 0.5);
 
         if crate::ui_components::toggle::render_toggle_with_label(
-            ui,
-            painter,
-            toggle_pos,
-            label,
-            val_ref,
-            theme,
-            id_salt,
+            ui, painter, toggle_pos, label, val_ref, theme, id_salt,
         ) {
             changed = true;
         }

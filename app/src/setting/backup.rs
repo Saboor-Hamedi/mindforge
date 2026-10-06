@@ -62,10 +62,8 @@ pub fn render_backup_tab(
         backup_dir.clone()
     };
 
-    let pill_rect = Rect::from_min_size(
-        path_card.min + vec2(14.0, 42.0),
-        vec2(card_w - 150.0, 32.0),
-    );
+    let pill_rect =
+        Rect::from_min_size(path_card.min + vec2(14.0, 42.0), vec2(card_w - 150.0, 32.0));
     painter.rect(
         pill_rect,
         5.0,
@@ -96,7 +94,14 @@ pub fn render_backup_tab(
         browse_rect,
         5.0,
         browse_bg,
-        Stroke::new(1.0_f32, if browse_hover { theme.accent } else { theme.border() }),
+        Stroke::new(
+            1.0_f32,
+            if browse_hover {
+                theme.accent
+            } else {
+                theme.border()
+            },
+        ),
         egui::StrokeKind::Inside,
     );
     if browse_hover {
@@ -107,7 +112,11 @@ pub fn render_backup_tab(
         Align2::CENTER_CENTER,
         "📁 Browse...",
         FontId::proportional(12.0),
-        if browse_hover { theme.accent } else { theme.text },
+        if browse_hover {
+            theme.accent
+        } else {
+            theme.text
+        },
     );
 
     if browse_hover && ui.input(|i| i.pointer.primary_clicked()) {
@@ -168,7 +177,14 @@ pub fn render_backup_tab(
         run_btn_rect,
         5.0,
         run_bg,
-        Stroke::new(1.0_f32, if run_hover { theme.accent } else { theme.border() }),
+        Stroke::new(
+            1.0_f32,
+            if run_hover {
+                theme.accent
+            } else {
+                theme.border()
+            },
+        ),
         egui::StrokeKind::Inside,
     );
     painter.text(
@@ -196,9 +212,18 @@ pub fn render_backup_tab(
     );
 
     let features = [
-        ("• Filesystem Snapshots", "Guarantees complete safety of your settings and notes."),
-        ("• Automated Archives", "Timestamped directories saved to your backup folder."),
-        ("• Zero Lock Contention", "Backups execute instantaneously in background threads."),
+        (
+            "• Filesystem Snapshots",
+            "Guarantees complete safety of your settings and notes.",
+        ),
+        (
+            "• Automated Archives",
+            "Timestamped directories saved to your backup folder.",
+        ),
+        (
+            "• Zero Lock Contention",
+            "Backups execute instantaneously in background threads.",
+        ),
     ];
     for (idx, (label, desc)) in features.iter().enumerate() {
         let y = info_card.min.y + 12.0 + idx as f32 * 38.0;

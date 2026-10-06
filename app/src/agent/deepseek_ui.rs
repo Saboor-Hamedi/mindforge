@@ -57,11 +57,16 @@ pub fn render_ai_pane(
     let btn_h = 20.0;
 
     // 1. "Delete" button (delete conversation)
-    let del_rect = Rect::from_min_size(pos2(action_bar_rect.max.x - 52.0, btn_y), vec2(44.0, btn_h));
+    let del_rect =
+        Rect::from_min_size(pos2(action_bar_rect.max.x - 52.0, btn_y), vec2(44.0, btn_h));
     let del_hover = ui.rect_contains_pointer(del_rect);
     if del_hover {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        painter.rect_filled(del_rect, 4.0, Color32::from_rgba_unmultiplied(220, 60, 60, 26));
+        painter.rect_filled(
+            del_rect,
+            4.0,
+            Color32::from_rgba_unmultiplied(220, 60, 60, 26),
+        );
         if ui.input(|i| i.pointer.primary_clicked()) {
             state.chat_history.clear();
             state.input_text.clear();
@@ -73,15 +78,24 @@ pub fn render_ai_pane(
         Align2::CENTER_CENTER,
         "Delete",
         FontId::proportional(11.0),
-        if del_hover { Color32::from_rgb(230, 80, 80) } else { theme.muted },
+        if del_hover {
+            Color32::from_rgb(230, 80, 80)
+        } else {
+            theme.muted
+        },
     );
 
     // 2. "Clear" button
-    let clear_rect = Rect::from_min_size(pos2(del_rect.min.x - 6.0 - 42.0, btn_y), vec2(42.0, btn_h));
+    let clear_rect =
+        Rect::from_min_size(pos2(del_rect.min.x - 6.0 - 42.0, btn_y), vec2(42.0, btn_h));
     let clear_hover = ui.rect_contains_pointer(clear_rect);
     if clear_hover {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        painter.rect_filled(clear_rect, 4.0, theme.surface().lerp_to_gamma(theme.border(), 0.3));
+        painter.rect_filled(
+            clear_rect,
+            4.0,
+            theme.surface().lerp_to_gamma(theme.border(), 0.3),
+        );
         if ui.input(|i| i.pointer.primary_clicked()) {
             state.clear_chat();
         }
@@ -95,9 +109,13 @@ pub fn render_ai_pane(
     );
 
     // Action bar divider line (subtle, non-harsh)
-    let divider_color = Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 40);
+    let divider_color =
+        Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 40);
     painter.line_segment(
-        [pos2(rect.min.x, action_bar_rect.max.y), pos2(rect.max.x, action_bar_rect.max.y)],
+        [
+            pos2(rect.min.x, action_bar_rect.max.y),
+            pos2(rect.max.x, action_bar_rect.max.y),
+        ],
         Stroke::new(1.0_f32, divider_color),
     );
 
@@ -421,7 +439,10 @@ pub fn render_ai_pane(
     let send_btn_w = 36.0;
     let send_btn_h = 36.0;
     let send_btn_rect = Rect::from_min_size(
-        pos2(rect.max.x - send_btn_w - 12.0, rect.max.y - hint_h - 8.0 - send_btn_h),
+        pos2(
+            rect.max.x - send_btn_w - 12.0,
+            rect.max.y - hint_h - 8.0 - send_btn_h,
+        ),
         vec2(send_btn_w, send_btn_h),
     );
 
@@ -468,37 +489,34 @@ pub fn render_ai_pane(
     let inner_rect = input_box_rect.shrink2(vec2(10.0, 8.0));
     let mut edit_resp = None;
 
-    ui.allocate_new_ui(
-        egui::UiBuilder::new().max_rect(inner_rect),
-        |ui| {
-            // Strictly enforce clipping to inner_rect so text and scrollbars never bleed out
-            ui.set_clip_rect(inner_rect.intersect(ui.clip_rect()));
+    ui.allocate_new_ui(egui::UiBuilder::new().max_rect(inner_rect), |ui| {
+        // Strictly enforce clipping to inner_rect so text and scrollbars never bleed out
+        ui.set_clip_rect(inner_rect.intersect(ui.clip_rect()));
 
-            egui::ScrollArea::vertical()
-                .id_salt("ai_textarea_internal_scroll")
-                .max_height(inner_rect.height())
-                .auto_shrink([false, false])
-                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-                .show(ui, |ui| {
-                    let edit_w = (inner_rect.width() - 6.0).max(60.0);
-                    let resp = ui.add(
-                        egui::TextEdit::multiline(&mut state.input_text)
-                            .id(edit_id)
-                            .font(FontId::proportional(font_size * 0.96))
-                            .text_color(theme.text)
-                            .hint_text(
-                                egui::RichText::new("Ask anything about your notes...")
-                                    .font(FontId::proportional(font_size * 0.84))
-                                    .color(theme.muted),
-                            )
-                            .desired_rows(3)
-                            .desired_width(edit_w)
-                            .frame(false),
-                    );
-                    edit_resp = Some(resp);
-                });
-        },
-    );
+        egui::ScrollArea::vertical()
+            .id_salt("ai_textarea_internal_scroll")
+            .max_height(inner_rect.height())
+            .auto_shrink([false, false])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .show(ui, |ui| {
+                let edit_w = (inner_rect.width() - 6.0).max(60.0);
+                let resp = ui.add(
+                    egui::TextEdit::multiline(&mut state.input_text)
+                        .id(edit_id)
+                        .font(FontId::proportional(font_size * 0.96))
+                        .text_color(theme.text)
+                        .hint_text(
+                            egui::RichText::new("Ask anything about your notes...")
+                                .font(FontId::proportional(font_size * 0.84))
+                                .color(theme.muted),
+                        )
+                        .desired_rows(3)
+                        .desired_width(edit_w)
+                        .frame(false),
+                );
+                edit_resp = Some(resp);
+            });
+    });
 
     // Small persistent keyboard shortcut hint UNDER the textarea
     painter.text(
@@ -519,7 +537,8 @@ pub fn render_ai_pane(
     }
 
     // Send on Enter (without Shift)
-    let enter_pressed = (is_focused || has_text_focus) && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift);
+    let enter_pressed = (is_focused || has_text_focus)
+        && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift);
     let is_send_hover = ui.rect_contains_pointer(send_btn_rect);
     let send_clicked = is_send_hover && ui.input(|i| i.pointer.primary_clicked());
 
@@ -563,8 +582,19 @@ pub fn render_ai_pane(
         } else {
             input_bg
         };
-        let stroke = Stroke::new(1.0_f32, if is_send_hover { theme.accent } else { theme.border() });
-        let arrow = if is_send_hover { theme.accent } else { theme.muted };
+        let stroke = Stroke::new(
+            1.0_f32,
+            if is_send_hover {
+                theme.accent
+            } else {
+                theme.border()
+            },
+        );
+        let arrow = if is_send_hover {
+            theme.accent
+        } else {
+            theme.muted
+        };
         (bg, stroke, arrow)
     };
 
@@ -585,12 +615,25 @@ pub fn render_ai_pane(
         // Crisp upward vector arrow
         let arrow_stroke = Stroke::new(2.0_f32, arrow_color);
         painter.line_segment([pos2(c.x, c.y + 5.0), pos2(c.x, c.y - 5.0)], arrow_stroke);
-        painter.line_segment([pos2(c.x - 4.5, c.y - 0.5), pos2(c.x, c.y - 5.0)], arrow_stroke);
-        painter.line_segment([pos2(c.x + 4.5, c.y - 0.5), pos2(c.x, c.y - 5.0)], arrow_stroke);
+        painter.line_segment(
+            [pos2(c.x - 4.5, c.y - 0.5), pos2(c.x, c.y - 5.0)],
+            arrow_stroke,
+        );
+        painter.line_segment(
+            [pos2(c.x + 4.5, c.y - 0.5), pos2(c.x, c.y - 5.0)],
+            arrow_stroke,
+        );
     }
 }
 
-fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed: usize, font_size: f32, max_text_w: f32) {
+fn render_chat_markdown(
+    ui: &mut egui::Ui,
+    text: &str,
+    theme: &Theme,
+    block_seed: usize,
+    font_size: f32,
+    max_text_w: f32,
+) {
     let blocks = crate::view_editor::preview::parse_markdown(text);
 
     for (b_idx, block) in blocks.into_iter().enumerate() {
@@ -598,29 +641,57 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
             MdBlock::Heading1(text) => {
                 ui.add_space(8.0);
                 let font = FontId::proportional(font_size * 1.52);
-                let r_text = egui::RichText::new(text).font(font).color(theme.text).strong();
-                ui.add(egui::Label::new(r_text).selectable(true).wrap_mode(egui::TextWrapMode::Wrap));
+                let r_text = egui::RichText::new(text)
+                    .font(font)
+                    .color(theme.text)
+                    .strong();
+                ui.add(
+                    egui::Label::new(r_text)
+                        .selectable(true)
+                        .wrap_mode(egui::TextWrapMode::Wrap),
+                );
                 ui.add_space(4.0);
             }
             MdBlock::Heading2(text) => {
                 ui.add_space(6.0);
                 let font = FontId::proportional(font_size * 1.28);
-                let r_text = egui::RichText::new(text).font(font).color(theme.text).strong();
-                ui.add(egui::Label::new(r_text).selectable(true).wrap_mode(egui::TextWrapMode::Wrap));
+                let r_text = egui::RichText::new(text)
+                    .font(font)
+                    .color(theme.text)
+                    .strong();
+                ui.add(
+                    egui::Label::new(r_text)
+                        .selectable(true)
+                        .wrap_mode(egui::TextWrapMode::Wrap),
+                );
                 ui.add_space(3.0);
             }
             MdBlock::Heading3(text) => {
                 ui.add_space(4.0);
                 let font = FontId::proportional(font_size * 1.12);
-                let r_text = egui::RichText::new(text).font(font).color(theme.text).strong();
-                ui.add(egui::Label::new(r_text).selectable(true).wrap_mode(egui::TextWrapMode::Wrap));
+                let r_text = egui::RichText::new(text)
+                    .font(font)
+                    .color(theme.text)
+                    .strong();
+                ui.add(
+                    egui::Label::new(r_text)
+                        .selectable(true)
+                        .wrap_mode(egui::TextWrapMode::Wrap),
+                );
                 ui.add_space(3.0);
             }
             MdBlock::Heading4(text) => {
                 ui.add_space(3.0);
                 let font = FontId::proportional(font_size * 1.00);
-                let r_text = egui::RichText::new(text).font(font).color(theme.text).strong();
-                ui.add(egui::Label::new(r_text).selectable(true).wrap_mode(egui::TextWrapMode::Wrap));
+                let r_text = egui::RichText::new(text)
+                    .font(font)
+                    .color(theme.text)
+                    .strong();
+                ui.add(
+                    egui::Label::new(r_text)
+                        .selectable(true)
+                        .wrap_mode(egui::TextWrapMode::Wrap),
+                );
                 ui.add_space(2.0);
             }
             MdBlock::Paragraph(text) => {
@@ -630,13 +701,13 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                         continue;
                     }
                     let job = crate::view_editor::preview::build_inline_job(
-                        sub_line,
-                        font_size,
-                        theme.text,
-                        theme,
-                        max_text_w,
+                        sub_line, font_size, theme.text, theme, max_text_w,
                     );
-                    ui.add(egui::Label::new(job).selectable(true).wrap_mode(egui::TextWrapMode::Wrap));
+                    ui.add(
+                        egui::Label::new(job)
+                            .selectable(true)
+                            .wrap_mode(egui::TextWrapMode::Wrap),
+                    );
                 }
                 ui.add_space(5.0);
             }
@@ -652,26 +723,47 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                 let galley = ui.painter().layout_job(job.clone());
                 let text_h = galley.size().y;
                 let box_h = text_h + 12.0;
-                let (q_rect, _) = ui.allocate_exact_size(vec2(max_text_w, box_h), egui::Sense::hover());
+                let (q_rect, _) =
+                    ui.allocate_exact_size(vec2(max_text_w, box_h), egui::Sense::hover());
 
                 // Left quote vertical accent border
                 let bar_rect = Rect::from_min_size(q_rect.min, vec2(3.5, box_h));
                 ui.painter().rect_filled(bar_rect, 1.5, theme.accent);
 
                 // Subtle quote background box (no harsh outer border)
-                let bg_rect = Rect::from_min_size(pos2(q_rect.min.x + 4.0, q_rect.min.y), vec2(max_text_w - 4.0, box_h));
+                let bg_rect = Rect::from_min_size(
+                    pos2(q_rect.min.x + 4.0, q_rect.min.y),
+                    vec2(max_text_w - 4.0, box_h),
+                );
                 ui.painter().rect_filled(
                     bg_rect,
                     4.0,
-                    Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 14),
+                    Color32::from_rgba_unmultiplied(
+                        theme.accent.r(),
+                        theme.accent.g(),
+                        theme.accent.b(),
+                        14,
+                    ),
                 );
-                let label_rect = Rect::from_min_size(pos2(q_rect.min.x + 14.0, q_rect.min.y + 6.0), vec2(inner_w, text_h));
+                let label_rect = Rect::from_min_size(
+                    pos2(q_rect.min.x + 14.0, q_rect.min.y + 6.0),
+                    vec2(inner_w, text_h),
+                );
                 ui.allocate_new_ui(egui::UiBuilder::new().max_rect(label_rect), |ui| {
-                    ui.add(egui::Label::new(job).selectable(true).wrap_mode(egui::TextWrapMode::Wrap));
+                    ui.add(
+                        egui::Label::new(job)
+                            .selectable(true)
+                            .wrap_mode(egui::TextWrapMode::Wrap),
+                    );
                 });
                 ui.add_space(6.0);
             }
-            MdBlock::ListItem { bullet, text, checked, indent_level } => {
+            MdBlock::ListItem {
+                bullet,
+                text,
+                checked,
+                indent_level,
+            } => {
                 let indent_offset = (indent_level as f32) * 16.0;
                 let available_w = (max_text_w - indent_offset).max(40.0);
 
@@ -688,33 +780,57 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                         ui.add_space(indent_offset);
                     }
                     if let Some(is_checked) = checked {
-                        let (cb_rect, _) = ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
+                        let (cb_rect, _) =
+                            ui.allocate_exact_size(vec2(14.0, 14.0), egui::Sense::hover());
                         if is_checked {
                             ui.painter().rect_filled(cb_rect, 3.0, theme.accent);
                             let p1 = pos2(cb_rect.min.x + 3.0, cb_rect.min.y + 7.0);
                             let p2 = pos2(cb_rect.min.x + 5.5, cb_rect.min.y + 9.5);
                             let p3 = pos2(cb_rect.min.x + 10.5, cb_rect.min.y + 4.0);
-                            ui.painter().line_segment([p1, p2], Stroke::new(1.6_f32, theme.bg));
-                            ui.painter().line_segment([p2, p3], Stroke::new(1.6_f32, theme.bg));
+                            ui.painter()
+                                .line_segment([p1, p2], Stroke::new(1.6_f32, theme.bg));
+                            ui.painter()
+                                .line_segment([p2, p3], Stroke::new(1.6_f32, theme.bg));
                         } else {
                             ui.painter().rect_filled(
                                 cb_rect,
                                 3.0,
-                                Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 18),
+                                Color32::from_rgba_unmultiplied(
+                                    theme.muted.r(),
+                                    theme.muted.g(),
+                                    theme.muted.b(),
+                                    18,
+                                ),
                             );
                             ui.painter().rect_stroke(
                                 cb_rect,
                                 3.0,
-                                Stroke::new(1.4_f32, Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 140)),
+                                Stroke::new(
+                                    1.4_f32,
+                                    Color32::from_rgba_unmultiplied(
+                                        theme.muted.r(),
+                                        theme.muted.g(),
+                                        theme.muted.b(),
+                                        140,
+                                    ),
+                                ),
                                 egui::StrokeKind::Inside,
                             );
                         }
                         ui.add_space(4.0);
                     } else {
                         let bullet_font = FontId::monospace(font_size * 0.92);
-                        ui.label(egui::RichText::new(&bullet).font(bullet_font).color(theme.text));
+                        ui.label(
+                            egui::RichText::new(&bullet)
+                                .font(bullet_font)
+                                .color(theme.text),
+                        );
                     }
-                    ui.add(egui::Label::new(job).selectable(true).wrap_mode(egui::TextWrapMode::Wrap));
+                    ui.add(
+                        egui::Label::new(job)
+                            .selectable(true)
+                            .wrap_mode(egui::TextWrapMode::Wrap),
+                    );
                 });
                 ui.add_space(2.0);
             }
@@ -728,16 +844,25 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
 
                 let line_galleys: Vec<std::sync::Arc<egui::Galley>> = lines
                     .iter()
-                    .map(|line_str| ui.painter().layout_job(crate::view_editor::preview::highlight_code_line(line_str, &lang, font_size, theme)))
+                    .map(|line_str| {
+                        ui.painter()
+                            .layout_job(crate::view_editor::preview::highlight_code_line(
+                                line_str, &lang, font_size, theme,
+                            ))
+                    })
                     .collect();
-                let max_line_w = line_galleys.iter().map(|g| g.size().x).fold(0.0f32, f32::max);
+                let max_line_w = line_galleys
+                    .iter()
+                    .map(|g| g.size().x)
+                    .fold(0.0f32, f32::max);
                 let max_scroll_x = (max_line_w - avail_w).max(0.0);
                 let needs_h_scroll = max_scroll_x > 0.0;
                 let pad_bottom = if needs_h_scroll { 16.0 } else { 10.0 };
                 let block_h = pad_top + (line_count as f32 * line_h) + pad_bottom;
 
                 // Exactly sized container that NEVER overflows right
-                let (code_rect, _) = ui.allocate_exact_size(vec2(max_text_w, block_h), egui::Sense::hover());
+                let (code_rect, _) =
+                    ui.allocate_exact_size(vec2(max_text_w, block_h), egui::Sense::hover());
 
                 // Single cohesive code wrapper card matching theme surface and border
                 ui.painter().rect(
@@ -749,7 +874,9 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                 );
 
                 // Horizontal scroll state & input
-                let scroll_id = egui::Id::new("ai_code_block_scroll_x").with(block_seed).with(b_idx);
+                let scroll_id = egui::Id::new("ai_code_block_scroll_x")
+                    .with(block_seed)
+                    .with(b_idx);
                 let mut scroll_x: f32 = ui.data(|d| d.get_temp(scroll_id).unwrap_or(0.0));
                 if ui.rect_contains_pointer(code_rect) && needs_h_scroll {
                     let h_delta = ui.input(|i| {
@@ -774,7 +901,9 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                 scroll_x = scroll_x.clamp(0.0, max_scroll_x);
 
                 // Top-right copy button logic
-                let copy_id = egui::Id::new("ai_code_block_copy").with(block_seed).with(b_idx);
+                let copy_id = egui::Id::new("ai_code_block_copy")
+                    .with(block_seed)
+                    .with(b_idx);
                 let current_time = ui.input(|i| i.time);
                 let last_copied: Option<f64> = ui.data(|d| d.get_temp(copy_id));
                 let is_copied = last_copied.map_or(false, |t| current_time - t < 1.8);
@@ -798,12 +927,19 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                     let elapsed = current_time - last_copied.unwrap();
                     let remaining = 1.8 - elapsed;
                     if remaining > 0.0 {
-                        ui.ctx().request_repaint_after(std::time::Duration::from_millis((remaining * 1000.0) as u64 + 20));
+                        ui.ctx()
+                            .request_repaint_after(std::time::Duration::from_millis(
+                                (remaining * 1000.0) as u64 + 20,
+                            ));
                     }
                 }
 
                 // Subtle language label on the left (integrated into card)
-                let tag = if lang.is_empty() { "CODE" } else { &lang.to_uppercase() };
+                let tag = if lang.is_empty() {
+                    "CODE"
+                } else {
+                    &lang.to_uppercase()
+                };
                 ui.painter().text(
                     pos2(code_rect.min.x + pad_x, code_rect.min.y + 14.0),
                     Align2::LEFT_CENTER,
@@ -821,23 +957,33 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                     )
                 } else if is_btn_hovered {
                     (
-                        Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 45),
+                        Color32::from_rgba_unmultiplied(
+                            theme.muted.r(),
+                            theme.muted.g(),
+                            theme.muted.b(),
+                            45,
+                        ),
                         "Copy",
                         theme.text,
                     )
                 } else {
-                    (
-                        Color32::TRANSPARENT,
-                        "Copy",
-                        theme.muted,
-                    )
+                    (Color32::TRANSPARENT, "Copy", theme.muted)
                 };
 
                 ui.painter().rect(
                     btn_rect,
                     3.0,
                     btn_bg,
-                    Stroke::new(1.0_f32, if is_copied { Color32::from_rgb(60, 200, 110) } else if is_btn_hovered { theme.accent } else { theme.border() }),
+                    Stroke::new(
+                        1.0_f32,
+                        if is_copied {
+                            Color32::from_rgb(60, 200, 110)
+                        } else if is_btn_hovered {
+                            theme.accent
+                        } else {
+                            theme.border()
+                        },
+                    ),
                     egui::StrokeKind::Inside,
                 );
                 ui.painter().text(
@@ -853,7 +999,9 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                     pos2(code_rect.min.x + pad_x, code_rect.min.y + pad_top),
                     pos2(code_rect.max.x - pad_x, code_rect.max.y - pad_bottom),
                 );
-                let line_painter = ui.painter().with_clip_rect(code_clip_rect.intersect(ui.clip_rect()));
+                let line_painter = ui
+                    .painter()
+                    .with_clip_rect(code_clip_rect.intersect(ui.clip_rect()));
 
                 let mut line_y = code_rect.min.y + pad_top;
                 for galley in line_galleys {
@@ -875,7 +1023,8 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                     let ratio = scroll_x / max_scroll_x;
                     let thumb_w = (avail_w * (avail_w / max_line_w)).clamp(20.0, avail_w);
                     let thumb_x = code_rect.min.x + pad_x + ratio * (avail_w - thumb_w);
-                    let thumb_rect = Rect::from_min_size(pos2(thumb_x, track_y), vec2(thumb_w, 3.5));
+                    let thumb_rect =
+                        Rect::from_min_size(pos2(thumb_x, track_y), vec2(thumb_w, 3.5));
 
                     let hit_rect = Rect::from_min_max(
                         pos2(code_rect.min.x + pad_x, track_y - 3.0),
@@ -884,7 +1033,9 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                     let is_hit = ui.rect_contains_pointer(hit_rect);
                     if is_hit && ui.input(|i| i.pointer.primary_down()) {
                         if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
-                            let r = ((pos.x - (code_rect.min.x + pad_x) - thumb_w * 0.5) / (avail_w - thumb_w).max(1.0)).clamp(0.0, 1.0);
+                            let r = ((pos.x - (code_rect.min.x + pad_x) - thumb_w * 0.5)
+                                / (avail_w - thumb_w).max(1.0))
+                            .clamp(0.0, 1.0);
                             scroll_x = r * max_scroll_x;
                             ui.data_mut(|d| d.insert_temp(scroll_id, scroll_x));
                             ui.ctx().request_repaint();
@@ -894,12 +1045,27 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                     ui.painter().rect_filled(
                         track_rect,
                         1.75,
-                        Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 30),
+                        Color32::from_rgba_unmultiplied(
+                            theme.muted.r(),
+                            theme.muted.g(),
+                            theme.muted.b(),
+                            30,
+                        ),
                     );
                     let thumb_color = if is_hit {
-                        Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 180)
+                        Color32::from_rgba_unmultiplied(
+                            theme.accent.r(),
+                            theme.accent.g(),
+                            theme.accent.b(),
+                            180,
+                        )
                     } else {
-                        Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 110)
+                        Color32::from_rgba_unmultiplied(
+                            theme.muted.r(),
+                            theme.muted.g(),
+                            theme.muted.b(),
+                            110,
+                        )
                     };
                     ui.painter().rect_filled(thumb_rect, 1.75, thumb_color);
                 }
@@ -941,7 +1107,8 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                     + cell_pad_y * 2.0;
 
                 // 2. Layout row galleys & compute dynamic row heights based on multi-line text
-                let mut row_galleys_list: Vec<Vec<std::sync::Arc<egui::Galley>>> = Vec::with_capacity(rows.len());
+                let mut row_galleys_list: Vec<Vec<std::sync::Arc<egui::Galley>>> =
+                    Vec::with_capacity(rows.len());
                 let mut row_heights: Vec<f32> = Vec::with_capacity(rows.len());
 
                 for row in &rows {
@@ -969,10 +1136,13 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                 let total_rows_h: f32 = row_heights.iter().sum();
                 let table_h = header_h + total_rows_h;
 
-                let (table_rect, _) = ui.allocate_exact_size(vec2(max_text_w, table_h), egui::Sense::hover());
+                let (table_rect, _) =
+                    ui.allocate_exact_size(vec2(max_text_w, table_h), egui::Sense::hover());
 
                 // Horizontal scroll handling (invisible scrollbar, support shift+wheel and mouse drag)
-                let scroll_id = egui::Id::new("ai_table_scroll_x").with(block_seed).with(b_idx);
+                let scroll_id = egui::Id::new("ai_table_scroll_x")
+                    .with(block_seed)
+                    .with(b_idx);
                 let mut scroll_x: f32 = ui.data(|d| d.get_temp(scroll_id).unwrap_or(0.0));
                 if ui.rect_contains_pointer(table_rect) && needs_h_scroll {
                     let h_delta = ui.input(|i| {
@@ -1015,7 +1185,9 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                     egui::StrokeKind::Inside,
                 );
 
-                let t_painter = ui.painter().with_clip_rect(content_clip.intersect(ui.clip_rect()));
+                let t_painter = ui
+                    .painter()
+                    .with_clip_rect(content_clip.intersect(ui.clip_rect()));
 
                 // Header row background (no bottom border line)
                 let header_bg_rect = Rect::from_min_size(
@@ -1024,8 +1196,18 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                 );
                 t_painter.rect_filled(
                     header_bg_rect,
-                    egui::CornerRadius { nw: 4, ne: 4, sw: 0, se: 0 },
-                    Color32::from_rgba_unmultiplied(theme.text.r(), theme.text.g(), theme.text.b(), 14),
+                    egui::CornerRadius {
+                        nw: 4,
+                        ne: 4,
+                        sw: 0,
+                        se: 0,
+                    },
+                    Color32::from_rgba_unmultiplied(
+                        theme.text.r(),
+                        theme.text.g(),
+                        theme.text.b(),
+                        14,
+                    ),
                 );
 
                 // Header cells (text color)
@@ -1036,7 +1218,11 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
 
                 // Data rows
                 let mut cur_row_y = table_rect.min.y + header_h;
-                for (r_idx, (row_galleys, &r_h)) in row_galleys_list.into_iter().zip(row_heights.iter()).enumerate() {
+                for (r_idx, (row_galleys, &r_h)) in row_galleys_list
+                    .into_iter()
+                    .zip(row_heights.iter())
+                    .enumerate()
+                {
                     let r_rect = Rect::from_min_size(
                         pos2(table_rect.min.x - scroll_x, cur_row_y),
                         vec2(table_content_w, r_h),
@@ -1045,13 +1231,26 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
                         t_painter.rect_filled(
                             r_rect,
                             0.0,
-                            Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 10),
+                            Color32::from_rgba_unmultiplied(
+                                theme.muted.r(),
+                                theme.muted.g(),
+                                theme.muted.b(),
+                                10,
+                            ),
                         );
                     }
                     if r_idx + 1 < rows.len() {
                         t_painter.line_segment(
                             [r_rect.left_bottom(), r_rect.right_bottom()],
-                            Stroke::new(0.8_f32, Color32::from_rgba_unmultiplied(theme.border().r(), theme.border().g(), theme.border().b(), 80)),
+                            Stroke::new(
+                                0.8_f32,
+                                Color32::from_rgba_unmultiplied(
+                                    theme.border().r(),
+                                    theme.border().g(),
+                                    theme.border().b(),
+                                    80,
+                                ),
+                            ),
                         );
                     }
                     for (c_idx, galley) in row_galleys.into_iter().enumerate() {
@@ -1070,7 +1269,13 @@ fn render_chat_markdown(ui: &mut egui::Ui, text: &str, theme: &Theme, block_seed
     }
 }
 
-fn render_thumbs_up_icon(painter: &egui::Painter, rect: Rect, active: bool, hovered: bool, theme: &Theme) {
+fn render_thumbs_up_icon(
+    painter: &egui::Painter,
+    rect: Rect,
+    active: bool,
+    hovered: bool,
+    theme: &Theme,
+) {
     let bg = if active {
         Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 45)
     } else if hovered {
@@ -1110,7 +1315,13 @@ fn render_thumbs_up_icon(painter: &egui::Painter, rect: Rect, active: bool, hove
     painter.line_segment([p_thumb_tip, p_thumb_base], stroke);
 }
 
-fn render_thumbs_down_icon(painter: &egui::Painter, rect: Rect, active: bool, hovered: bool, theme: &Theme) {
+fn render_thumbs_down_icon(
+    painter: &egui::Painter,
+    rect: Rect,
+    active: bool,
+    hovered: bool,
+    theme: &Theme,
+) {
     let bg = if active {
         Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 45)
     } else if hovered {
@@ -1162,5 +1373,9 @@ fn draw_ai_sparkle_icon(painter: &egui::Painter, center: egui::Pos2, r: f32, col
         pos2(center.x - r, center.y),
         pos2(center.x - ir, center.y - ir),
     ];
-    painter.add(egui::epaint::PathShape::convex_polygon(points, color, Stroke::NONE));
+    painter.add(egui::epaint::PathShape::convex_polygon(
+        points,
+        color,
+        Stroke::NONE,
+    ));
 }

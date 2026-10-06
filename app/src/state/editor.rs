@@ -62,7 +62,10 @@ impl Default for EditorState {
             ed: Editor::new(),
             doc_ed: Editor::new(),
             cmd_ed: Editor::new(),
-            visual_lines: vec![VisualLine { char_start: 0, char_end: 0 }],
+            visual_lines: vec![VisualLine {
+                char_start: 0,
+                char_end: 0,
+            }],
             scroll_y: 0.0,
             doc_scroll_y: 0.0,
             preview_scroll_y: 0.0,

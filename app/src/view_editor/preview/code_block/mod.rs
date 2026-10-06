@@ -40,7 +40,10 @@ pub fn render_preview_code_block(
         .iter()
         .map(|line_str| painter.layout_job(highlight_code_line(line_str, lang, font_size, theme)))
         .collect();
-    let max_line_w = line_galleys.iter().map(|g| g.size().x).fold(0.0f32, f32::max);
+    let max_line_w = line_galleys
+        .iter()
+        .map(|g| g.size().x)
+        .fold(0.0f32, f32::max);
     let max_scroll_x = (max_line_w - avail_w).max(0.0);
     let needs_h_scroll = max_scroll_x > 0.0;
     let pad_bottom = if needs_h_scroll { 16.0 } else { 12.0 };
@@ -96,7 +99,8 @@ pub fn render_preview_code_block(
         let btn_rect = code_block_copy_button_rect(card_right, current_y);
         let is_btn_hovered = ui.rect_contains_pointer(btn_rect);
         if is_btn_hovered {
-            ui.ctx().set_cursor_icon(eframe::egui::CursorIcon::PointingHand);
+            ui.ctx()
+                .set_cursor_icon(eframe::egui::CursorIcon::PointingHand);
         }
         if is_btn_hovered && ui.input(|i| i.pointer.primary_clicked()) {
             ui.ctx().copy_text(code.to_string());
@@ -107,9 +111,10 @@ pub fn render_preview_code_block(
             let elapsed = current_time - last_copied.unwrap();
             let remaining = 1.0 - elapsed;
             if remaining > 0.0 {
-                ui.ctx().request_repaint_after(std::time::Duration::from_millis(
-                    (remaining * 1000.0) as u64 + 20,
-                ));
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(
+                        (remaining * 1000.0) as u64 + 20,
+                    ));
             }
         }
 
@@ -168,12 +173,22 @@ pub fn render_preview_code_block(
             content_painter.rect_filled(
                 track_rect,
                 1.75,
-                Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 30),
+                Color32::from_rgba_unmultiplied(
+                    theme.muted.r(),
+                    theme.muted.g(),
+                    theme.muted.b(),
+                    30,
+                ),
             );
             content_painter.rect_filled(
                 thumb_rect,
                 1.75,
-                Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 110),
+                Color32::from_rgba_unmultiplied(
+                    theme.muted.r(),
+                    theme.muted.g(),
+                    theme.muted.b(),
+                    110,
+                ),
             );
         }
     }

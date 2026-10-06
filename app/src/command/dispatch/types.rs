@@ -36,24 +36,16 @@ pub const COMMAND_CATALOG: &[CommandInfo] = &[
         desc: "Close Markdown live preview",
     },
     CommandInfo {
-        name: "live",
-        desc: "Switch to inline WYSIWYG editor",
-    },
-    CommandInfo {
-        name: "raw",
-        desc: "Switch to raw markdown editor",
-    },
-    CommandInfo {
         name: "noh",
         desc: "Clear search highlight matches",
     },
     CommandInfo {
         name: "vim",
-        desc: "Toggle Vim modal engine",
+        desc: "Display Neovim editor engine status",
     },
     CommandInfo {
         name: "mode",
-        desc: "Switch mode (:mode vim / hybrid)",
+        desc: "Display active editor mode info",
     },
     CommandInfo {
         name: "lua",

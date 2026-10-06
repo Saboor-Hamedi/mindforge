@@ -6,7 +6,7 @@
 //! # Architecture & Responsibilities
 //! - Computes exact row galleys with syntax highlighting and text layouts.
 //! - Renders contiguous selection highlights (Visual mode) without vertical gaps.
-//! - Renders gutter line numbers aligned with Hybrid mode's typography.
+//! - Renders gutter line numbers aligned with MindForge's typography.
 //! - Renders caret positioning, animations, gliding, and cursor styles.
 //! - Displays auto-completion popup menus and LSP documentation hover panes.
 //!
@@ -850,13 +850,16 @@ impl VimBackend {
             if delta != 0.0 {
                 let steps = ((delta.abs() / nvim_row_height).ceil() as usize).clamp(1, 8);
                 let action = if delta > 0.0 { "up" } else { "down" };
-                let (mouse_row, mouse_col) = ui.input(|i| i.pointer.hover_pos()).map_or((0, 0), |pos| {
-                    let r = ((pos.y - origin.y) / nvim_row_height).floor().max(0.0) as usize;
-                    let c = ((pos.x - origin.x) / cell_width).floor().max(0.0) as usize;
-                    (r, c)
-                });
+                let (mouse_row, mouse_col) =
+                    ui.input(|i| i.pointer.hover_pos()).map_or((0, 0), |pos| {
+                        let r = ((pos.y - origin.y) / nvim_row_height).floor().max(0.0) as usize;
+                        let c = ((pos.x - origin.x) / cell_width).floor().max(0.0) as usize;
+                        (r, c)
+                    });
                 for _ in 0..steps {
-                    let _ = self.client.input_mouse("wheel", action, "", 0, mouse_row, mouse_col);
+                    let _ = self
+                        .client
+                        .input_mouse("wheel", action, "", 0, mouse_row, mouse_col);
                 }
             }
         }

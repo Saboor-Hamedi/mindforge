@@ -85,7 +85,10 @@ impl UpdateManager {
     }
 
     pub fn status(&self) -> UpdateStatus {
-        self.status.lock().map(|s| s.clone()).unwrap_or(UpdateStatus::Idle)
+        self.status
+            .lock()
+            .map(|s| s.clone())
+            .unwrap_or(UpdateStatus::Idle)
     }
 
     #[allow(dead_code)]
@@ -124,7 +127,9 @@ impl UpdateManager {
                 Ok(resp) => resp,
                 Err(ureq::Error::Status(404, _)) => {
                     if let Ok(mut s) = status.lock() {
-                        *s = UpdateStatus::Error("GitHub repository or release not found (404)".into());
+                        *s = UpdateStatus::Error(
+                            "GitHub repository or release not found (404)".into(),
+                        );
                     }
                     return;
                 }
@@ -172,9 +177,7 @@ impl UpdateManager {
                 }
             } else {
                 if let Ok(mut s) = status.lock() {
-                    *s = UpdateStatus::UpToDate {
-                        version: cur_ver,
-                    };
+                    *s = UpdateStatus::UpToDate { version: cur_ver };
                 }
             }
         });
@@ -322,7 +325,9 @@ impl UpdateManager {
     /// descriptive error message on failure.
     pub fn restart_and_apply(&self) -> Result<(), String> {
         let downloaded_path = match self.status() {
-            UpdateStatus::ReadyToRestart { downloaded_path, .. } => downloaded_path,
+            UpdateStatus::ReadyToRestart {
+                downloaded_path, ..
+            } => downloaded_path,
             _ => return Err("No downloaded update is ready to restart.".to_string()),
         };
 
@@ -375,7 +380,10 @@ impl UpdateManager {
                     .map_err(|e| format!("Failed to write update script: {e}"))?;
 
                 std::process::Command::new("cmd")
-                    .args(["/C", updater_bat.to_str().unwrap_or("mindforge_updater.bat")])
+                    .args([
+                        "/C",
+                        updater_bat.to_str().unwrap_or("mindforge_updater.bat"),
+                    ])
                     .spawn()
                     .map_err(|e| format!("Failed to trigger update script: {e}"))?;
 
@@ -440,7 +448,11 @@ fn find_platform_asset<'a>(assets: &'a [GithubAsset]) -> Option<&'a GithubAsset>
                 (n.ends_with(".exe") || n.ends_with(".zip"))
                     && (n.contains("win") || n.contains("x86_64") || n.contains("x64"))
             })
-            .or_else(|| assets.iter().find(|a| a.name.to_lowercase().ends_with(".exe")))
+            .or_else(|| {
+                assets
+                    .iter()
+                    .find(|a| a.name.to_lowercase().ends_with(".exe"))
+            })
     }
 
     #[cfg(target_os = "macos")]
@@ -452,7 +464,11 @@ fn find_platform_asset<'a>(assets: &'a [GithubAsset]) -> Option<&'a GithubAsset>
                 (n.ends_with(".dmg") || n.ends_with(".tar.gz") || n.ends_with(".zip"))
                     && (n.contains("mac") || n.contains("darwin") || n.contains("apple"))
             })
-            .or_else(|| assets.iter().find(|a| a.name.to_lowercase().ends_with(".dmg")))
+            .or_else(|| {
+                assets
+                    .iter()
+                    .find(|a| a.name.to_lowercase().ends_with(".dmg"))
+            })
     }
 
     #[cfg(target_os = "linux")]
@@ -464,7 +480,11 @@ fn find_platform_asset<'a>(assets: &'a [GithubAsset]) -> Option<&'a GithubAsset>
                 (n.ends_with(".deb") || n.ends_with(".tar.gz") || n.ends_with(".appimage"))
                     && (n.contains("linux") || n.contains("x86_64"))
             })
-            .or_else(|| assets.iter().find(|a| a.name.to_lowercase().ends_with(".tar.gz")))
+            .or_else(|| {
+                assets
+                    .iter()
+                    .find(|a| a.name.to_lowercase().ends_with(".tar.gz"))
+            })
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]

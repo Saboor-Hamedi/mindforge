@@ -1,6 +1,6 @@
 //! File and document lifecycle commands (:w, :r, :d, :clear, :backup, :export, :import, :edit, :new).
 
-use crate::app::{App, EditorInputMode};
+use crate::app::App;
 use crate::mode::Mode;
 
 pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> bool {
@@ -33,11 +33,11 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             }
             true
         }
-        "d" if app.services.editor_controller.mode == EditorInputMode::Vim => {
-            // In Vim mode, `:d` is line deletion — let it fall through to Neovim MessagePack-RPC
+        "d" => {
+            // In Neovim, `:d` is line deletion — let it fall through to Neovim MessagePack-RPC
             false
         }
-        "d" | "delete" | "rm" => {
+        "delete" | "rm" => {
             if app.misc.mode == Mode::Doc {
                 app.set_status("Documentation files cannot be deleted.", now);
                 return true;

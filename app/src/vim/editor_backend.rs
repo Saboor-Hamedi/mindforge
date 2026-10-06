@@ -19,7 +19,6 @@ use super::backend::VimBackend;
 use crate::editor::{
     backend::{EditorBackend, EditorResult},
     events::{EditorKeyEvent, EditorMouseEvent},
-    types::EditorMode,
 };
 use eframe::egui::{self, Rect, Ui};
 
@@ -164,10 +163,6 @@ impl EditorBackend for VimBackend {
         for event in self.client.drain_events() {
             self.consume_notification(&event);
         }
-    }
-
-    fn mode(&self) -> EditorMode {
-        EditorMode::Vim
     }
 
     fn is_dirty(&self) -> bool {

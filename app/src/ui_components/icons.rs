@@ -11,7 +11,10 @@ pub fn render_book_icon(painter: &Painter, rect: Rect, color: Color32) {
     let stroke = Stroke::new(1.3_f32, color);
 
     // Spine
-    painter.line_segment([pos2(c.x, c.y - h * 0.38), pos2(c.x, c.y + h * 0.42)], stroke);
+    painter.line_segment(
+        [pos2(c.x, c.y - h * 0.38), pos2(c.x, c.y + h * 0.42)],
+        stroke,
+    );
 
     // Left page outline
     let left_pts = vec![
@@ -38,11 +41,17 @@ pub fn render_book_icon(painter: &Painter, rect: Rect, color: Color32) {
     // Inner subtle page line
     let dim_color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 110);
     painter.line_segment(
-        [pos2(c.x - w * 0.28, c.y - h * 0.05), pos2(c.x - w * 0.12, c.y - h * 0.02)],
+        [
+            pos2(c.x - w * 0.28, c.y - h * 0.05),
+            pos2(c.x - w * 0.12, c.y - h * 0.02),
+        ],
         Stroke::new(1.0_f32, dim_color),
     );
     painter.line_segment(
-        [pos2(c.x + w * 0.12, c.y - h * 0.02), pos2(c.x + w * 0.28, c.y - h * 0.05)],
+        [
+            pos2(c.x + w * 0.12, c.y - h * 0.02),
+            pos2(c.x + w * 0.28, c.y - h * 0.05),
+        ],
         Stroke::new(1.0_f32, dim_color),
     );
 }
@@ -71,13 +80,29 @@ pub fn render_palette_icon(painter: &Painter, rect: Rect, color: Color32) {
     // Vibrant colorful pigment dots
     let dot_r = (r * 0.20).clamp(1.5, 3.2);
     // Red dot
-    painter.circle_filled(pos2(c.x - r * 0.45, c.y - r * 0.32), dot_r, Color32::from_rgb(255, 95, 87));
+    painter.circle_filled(
+        pos2(c.x - r * 0.45, c.y - r * 0.32),
+        dot_r,
+        Color32::from_rgb(255, 95, 87),
+    );
     // Amber dot
-    painter.circle_filled(pos2(c.x - r * 0.15, c.y - r * 0.55), dot_r, Color32::from_rgb(255, 189, 46));
+    painter.circle_filled(
+        pos2(c.x - r * 0.15, c.y - r * 0.55),
+        dot_r,
+        Color32::from_rgb(255, 189, 46),
+    );
     // Green dot
-    painter.circle_filled(pos2(c.x + r * 0.28, c.y - r * 0.42), dot_r, Color32::from_rgb(39, 201, 63));
+    painter.circle_filled(
+        pos2(c.x + r * 0.28, c.y - r * 0.42),
+        dot_r,
+        Color32::from_rgb(39, 201, 63),
+    );
     // Cyan dot
-    painter.circle_filled(pos2(c.x - r * 0.45, c.y + r * 0.25), dot_r, Color32::from_rgb(45, 175, 255));
+    painter.circle_filled(
+        pos2(c.x - r * 0.45, c.y + r * 0.25),
+        dot_r,
+        Color32::from_rgb(45, 175, 255),
+    );
 }
 
 /// Renders modern speaker / sound icon.
@@ -89,7 +114,10 @@ pub fn render_speaker_icon(painter: &Painter, rect: Rect, color: Color32) {
 
     // Speaker base box
     painter.rect_filled(
-        Rect::from_min_max(pos2(c.x - w * 0.40, c.y - h * 0.20), pos2(c.x - w * 0.18, c.y + h * 0.20)),
+        Rect::from_min_max(
+            pos2(c.x - w * 0.40, c.y - h * 0.20),
+            pos2(c.x - w * 0.18, c.y + h * 0.20),
+        ),
         1.0,
         color,
     );
@@ -101,7 +129,11 @@ pub fn render_speaker_icon(painter: &Painter, rect: Rect, color: Color32) {
         pos2(c.x + w * 0.08, c.y + h * 0.38),
         pos2(c.x - w * 0.18, c.y + h * 0.20),
     ];
-    painter.add(eframe::egui::Shape::convex_polygon(cone, color, Stroke::NONE));
+    painter.add(eframe::egui::Shape::convex_polygon(
+        cone,
+        color,
+        Stroke::NONE,
+    ));
 
     // Sound waves
     let wave1_pts = [
@@ -117,7 +149,10 @@ pub fn render_speaker_icon(painter: &Painter, rect: Rect, color: Color32) {
         pos2(c.x + w * 0.44, c.y),
         pos2(c.x + w * 0.34, c.y + h * 0.36),
     ];
-    let dim_stroke = Stroke::new(1.1_f32, Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 160));
+    let dim_stroke = Stroke::new(
+        1.1_f32,
+        Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 160),
+    );
     painter.line_segment([wave2_pts[0], wave2_pts[1]], dim_stroke);
     painter.line_segment([wave2_pts[1], wave2_pts[2]], dim_stroke);
 }
@@ -130,7 +165,10 @@ pub fn render_mute_icon(painter: &Painter, rect: Rect, color: Color32) {
     let h = rect.height();
     // Red diagonal slash
     painter.line_segment(
-        [pos2(c.x - w * 0.35, c.y + h * 0.35), pos2(c.x + w * 0.40, c.y - h * 0.35)],
+        [
+            pos2(c.x - w * 0.35, c.y + h * 0.35),
+            pos2(c.x + w * 0.40, c.y - h * 0.35),
+        ],
         Stroke::new(1.6_f32, Color32::from_rgb(255, 95, 87)),
     );
 }
@@ -151,7 +189,11 @@ pub fn render_sparkle_icon(painter: &Painter, rect: Rect, color: Color32) {
         pos2(c.x - r, c.y),
         pos2(c.x - inner_r, c.y - inner_r),
     ];
-    painter.add(eframe::egui::Shape::convex_polygon(pts, color, Stroke::NONE));
+    painter.add(eframe::egui::Shape::convex_polygon(
+        pts,
+        color,
+        Stroke::NONE,
+    ));
 
     // Center radiant highlight dot
     painter.circle_filled(c, inner_r * 0.65, Color32::WHITE);
@@ -165,7 +207,11 @@ pub fn render_search_icon(painter: &Painter, rect: Rect, color: Color32) {
 
     // Glass circle
     painter.circle_stroke(lens_c, r, Stroke::new(1.4_f32, color));
-    painter.circle_filled(lens_c, r - 0.7, Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 25));
+    painter.circle_filled(
+        lens_c,
+        r - 0.7,
+        Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 25),
+    );
 
     // Handle
     let h_start = pos2(lens_c.x + r * 0.70, lens_c.y + r * 0.70);
@@ -221,13 +267,31 @@ pub fn render_document_icon(painter: &Painter, rect: Rect, color: Color32) {
     painter.line_segment([pts[4], pts[0]], stroke);
 
     // Fold flap
-    painter.line_segment([pos2(max_x - fold, min_y), pos2(max_x - fold, min_y + fold)], stroke);
-    painter.line_segment([pos2(max_x - fold, min_y + fold), pos2(max_x, min_y + fold)], stroke);
+    painter.line_segment(
+        [pos2(max_x - fold, min_y), pos2(max_x - fold, min_y + fold)],
+        stroke,
+    );
+    painter.line_segment(
+        [pos2(max_x - fold, min_y + fold), pos2(max_x, min_y + fold)],
+        stroke,
+    );
 
     // 2 Text lines
     let line_col = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 120);
-    painter.line_segment([pos2(min_x + w * 0.22, c.y + h * 0.05), pos2(max_x - w * 0.22, c.y + h * 0.05)], Stroke::new(1.0_f32, line_col));
-    painter.line_segment([pos2(min_x + w * 0.22, c.y + h * 0.24), pos2(max_x - w * 0.35, c.y + h * 0.24)], Stroke::new(1.0_f32, line_col));
+    painter.line_segment(
+        [
+            pos2(min_x + w * 0.22, c.y + h * 0.05),
+            pos2(max_x - w * 0.22, c.y + h * 0.05),
+        ],
+        Stroke::new(1.0_f32, line_col),
+    );
+    painter.line_segment(
+        [
+            pos2(min_x + w * 0.22, c.y + h * 0.24),
+            pos2(max_x - w * 0.35, c.y + h * 0.24),
+        ],
+        Stroke::new(1.0_f32, line_col),
+    );
 }
 
 /// Renders modern eye / preview icon.
@@ -251,7 +315,11 @@ pub fn render_eye_icon(painter: &Painter, rect: Rect, color: Color32) {
     // Iris circle
     painter.circle_filled(c, h * 0.32, color);
     // Pupil reflection dot
-    painter.circle_filled(pos2(c.x - h * 0.09, c.y - h * 0.09), h * 0.12, Color32::WHITE);
+    painter.circle_filled(
+        pos2(c.x - h * 0.09, c.y - h * 0.09),
+        h * 0.12,
+        Color32::WHITE,
+    );
 }
 
 /// Renders modern lightning bolt / command icon.
@@ -268,7 +336,11 @@ pub fn render_bolt_icon(painter: &Painter, rect: Rect, color: Color32) {
         pos2(c.x + w * 0.40, c.y - h * 0.02),
         pos2(c.x + w * 0.04, c.y - h * 0.02),
     ];
-    painter.add(eframe::egui::Shape::convex_polygon(pts, color, Stroke::NONE));
+    painter.add(eframe::egui::Shape::convex_polygon(
+        pts,
+        color,
+        Stroke::NONE,
+    ));
 }
 
 /// Renders modern typography font "A" icon.

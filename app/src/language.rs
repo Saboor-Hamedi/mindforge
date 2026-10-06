@@ -132,7 +132,10 @@ mod tests {
     fn plain_titles_default_to_markdown() {
         assert_eq!(FileLanguage::from_title("Hello World"), None);
         assert_eq!(FileLanguage::from_title("meeting.notes"), None);
-        assert_eq!(FileLanguage::from_title("hello.py"), Some(FileLanguage::Python));
+        assert_eq!(
+            FileLanguage::from_title("hello.py"),
+            Some(FileLanguage::Python)
+        );
     }
     #[test]
     fn detects_supported_extensions_case_insensitively() {

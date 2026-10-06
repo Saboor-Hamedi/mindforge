@@ -19,9 +19,9 @@ pub use model::{Category, Finding, ScanResult, Severity, TlsInfo};
 
 #[derive(Clone, Debug)]
 pub struct ScanOptions {
-    pub full: bool,          // enable disclosure + injection checks
-    pub probe_forms: bool,   // enable injection specifically (requires full)
-    pub delay_ms: u64,       // throttle applied before EVERY outbound request
+    pub full: bool,        // enable disclosure + injection checks
+    pub probe_forms: bool, // enable injection specifically (requires full)
+    pub delay_ms: u64,     // throttle applied before EVERY outbound request
     pub timeout_secs: u64,
     pub note: Option<String>,
 }

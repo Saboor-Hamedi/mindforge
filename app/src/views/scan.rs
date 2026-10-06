@@ -81,7 +81,15 @@ pub fn render_scan_view(
         // Divider
         p.line_segment(
             [pos2(start_x, current_y), pos2(start_x + max_w, current_y)],
-            Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 40)),
+            Stroke::new(
+                1.0_f32,
+                Color32::from_rgba_unmultiplied(
+                    theme.muted.r(),
+                    theme.muted.g(),
+                    theme.muted.b(),
+                    40,
+                ),
+            ),
         );
         current_y += 16.0;
 
@@ -92,7 +100,11 @@ pub fn render_scan_view(
             max_w,
         );
         let eh = err_galley.size().y;
-        p.galley(pos2(start_x, current_y), err_galley, Color32::from_rgb(235, 87, 87));
+        p.galley(
+            pos2(start_x, current_y),
+            err_galley,
+            Color32::from_rgb(235, 87, 87),
+        );
         current_y += eh + 24.0;
 
         p.text(
@@ -175,7 +187,13 @@ pub fn render_scan_view(
     } else {
         Color32::from_rgb(255, 175, 45)
     };
-    p.text(pos2(start_x, current_y), Align2::LEFT_TOP, tls_str, FontId::monospace(font_size * 0.90), tls_color);
+    p.text(
+        pos2(start_x, current_y),
+        Align2::LEFT_TOP,
+        tls_str,
+        FontId::monospace(font_size * 0.90),
+        tls_color,
+    );
     current_y += (font_size * 1.4).round();
 
     // Note line if present
@@ -195,7 +213,10 @@ pub fn render_scan_view(
     // Top divider
     p.line_segment(
         [pos2(start_x, current_y), pos2(start_x + max_w, current_y)],
-        Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 40)),
+        Stroke::new(
+            1.0_f32,
+            Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 40),
+        ),
     );
     current_y += 18.0;
 
@@ -230,7 +251,8 @@ pub fn render_scan_view(
         current_y += (font_size * 1.8).round();
 
         for cat in &categories {
-            let cat_findings: Vec<&Finding> = res.findings.iter().filter(|f| f.category == *cat).collect();
+            let cat_findings: Vec<&Finding> =
+                res.findings.iter().filter(|f| f.category == *cat).collect();
             if cat_findings.is_empty() {
                 continue;
             }
@@ -273,7 +295,10 @@ pub fn render_scan_view(
     current_y += 16.0;
     p.line_segment(
         [pos2(start_x, current_y), pos2(start_x + max_w, current_y)],
-        Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 25)),
+        Stroke::new(
+            1.0_f32,
+            Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 25),
+        ),
     );
     current_y += 14.0;
 
@@ -302,13 +327,19 @@ pub fn export_scan_to_markdown(res: &ScanResult) -> String {
     out.push_str(&format!("# Webscan Report: {}\n\n", res.url));
     out.push_str(&format!("- **Target URL:** {}\n", res.url));
     out.push_str(&format!("- **HTTP Status:** {}\n", res.status_code));
-    out.push_str(&format!("- **Response Time:** {} ms\n", res.response_time_ms));
+    out.push_str(&format!(
+        "- **Response Time:** {} ms\n",
+        res.response_time_ms
+    ));
     out.push_str(&format!("- **Page Size:** {} bytes\n", res.page_size_bytes));
     if let Some(srv) = &res.server_header {
         out.push_str(&format!("- **Server:** {}\n", srv));
     }
     if let Some(tls) = &res.tls {
-        out.push_str(&format!("- **TLS:** {}\n", tls.protocol.as_deref().unwrap_or("HTTPS")));
+        out.push_str(&format!(
+            "- **TLS:** {}\n",
+            tls.protocol.as_deref().unwrap_or("HTTPS")
+        ));
     } else {
         out.push_str("- **TLS:** Unencrypted HTTP\n");
     }

@@ -1,8 +1,8 @@
 //! Software update settings tab.
 
 use super::SettingPanelAction;
-use crate::ui::theme::Theme;
 use crate::services::updater::{UpdateManager, UpdateStatus};
+use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Stroke};
 
 pub fn render_updates_tab(
@@ -58,7 +58,8 @@ pub fn render_updates_tab(
     );
 
     // Status card
-    let status_card = Rect::from_min_size(pos2(p_origin.x, p_origin.y + 132.0), vec2(card_w, 120.0));
+    let status_card =
+        Rect::from_min_size(pos2(p_origin.x, p_origin.y + 132.0), vec2(card_w, 120.0));
     painter.rect(
         status_card,
         6.0,
@@ -95,7 +96,11 @@ pub fn render_updates_tab(
                 theme.accent,
             );
         }
-        UpdateStatus::UpdateAvailable { new_version, release_notes, .. } => {
+        UpdateStatus::UpdateAvailable {
+            new_version,
+            release_notes,
+            ..
+        } => {
             painter.text(
                 status_card.min + vec2(16.0, 12.0),
                 Align2::LEFT_TOP,
@@ -104,8 +109,16 @@ pub fn render_updates_tab(
                 theme.highlight,
             );
             // Truncate release notes to 2 lines
-            let notes: String = release_notes.lines().take(2).collect::<Vec<_>>().join(" • ");
-            let notes_short = if notes.len() > 80 { format!("{}…", &notes[..80]) } else { notes };
+            let notes: String = release_notes
+                .lines()
+                .take(2)
+                .collect::<Vec<_>>()
+                .join(" • ");
+            let notes_short = if notes.len() > 80 {
+                format!("{}…", &notes[..80])
+            } else {
+                notes
+            };
             painter.text(
                 status_card.min + vec2(16.0, 36.0),
                 Align2::LEFT_TOP,
@@ -114,7 +127,12 @@ pub fn render_updates_tab(
                 theme.muted,
             );
         }
-        UpdateStatus::Downloading { new_version, progress, downloaded_bytes, total_bytes } => {
+        UpdateStatus::Downloading {
+            new_version,
+            progress,
+            downloaded_bytes,
+            total_bytes,
+        } => {
             painter.text(
                 status_card.min + vec2(16.0, 12.0),
                 Align2::LEFT_TOP,
@@ -138,7 +156,12 @@ pub fn render_updates_tab(
             painter.text(
                 status_card.min + vec2(16.0, 60.0),
                 Align2::LEFT_TOP,
-                &format!("{:.1} MB / {:.1} MB  ({:.0}%)", mb_done, mb_total, progress * 100.0),
+                &format!(
+                    "{:.1} MB / {:.1} MB  ({:.0}%)",
+                    mb_done,
+                    mb_total,
+                    progress * 100.0
+                ),
                 FontId::monospace(10.5),
                 theme.muted,
             );
@@ -153,7 +176,11 @@ pub fn render_updates_tab(
             );
         }
         UpdateStatus::Error(msg) => {
-            let short = if msg.len() > 90 { format!("{}…", &msg[..90]) } else { msg.clone() };
+            let short = if msg.len() > 90 {
+                format!("{}…", &msg[..90])
+            } else {
+                msg.clone()
+            };
             painter.text(
                 status_card.min + vec2(16.0, 16.0),
                 Align2::LEFT_TOP,
@@ -166,34 +193,18 @@ pub fn render_updates_tab(
 
     // ── Action button — morphs per state ─────────────────────────────
     let (btn_label, can_click) = match &status {
-        UpdateStatus::Idle | UpdateStatus::UpToDate { .. } | UpdateStatus::Error(_) => (
-            "⟳  Check for Updates",
-            true,
-        ),
-        UpdateStatus::Checking => (
-            "⟳  Checking…",
-            false,
-        ),
-        UpdateStatus::UpdateAvailable { .. } => (
-            "⬇  Download Update",
-            true,
-        ),
-        UpdateStatus::Downloading { .. } => (
-            "⬇  Downloading…",
-            false,
-        ),
-        UpdateStatus::ReadyToRestart { .. } => (
-            "↺  Restart to Apply Update",
-            true,
-        ),
+        UpdateStatus::Idle | UpdateStatus::UpToDate { .. } | UpdateStatus::Error(_) => {
+            ("⟳  Check for Updates", true)
+        }
+        UpdateStatus::Checking => ("⟳  Checking…", false),
+        UpdateStatus::UpdateAvailable { .. } => ("⬇  Download Update", true),
+        UpdateStatus::Downloading { .. } => ("⬇  Downloading…", false),
+        UpdateStatus::ReadyToRestart { .. } => ("↺  Restart to Apply Update", true),
     };
 
     let btn_w = 210.0_f32.min(card_w);
     let btn_h = 32.0;
-    let btn_rect = Rect::from_min_size(
-        pos2(p_origin.x, p_origin.y + 266.0),
-        vec2(btn_w, btn_h),
-    );
+    let btn_rect = Rect::from_min_size(pos2(p_origin.x, p_origin.y + 266.0), vec2(btn_w, btn_h));
     let btn_resp = ui.allocate_rect(btn_rect, egui::Sense::click());
     let btn_hov = can_click && (btn_resp.hovered() || ui.rect_contains_pointer(btn_rect));
     if btn_hov {
@@ -208,7 +219,14 @@ pub fn render_updates_tab(
         btn_rect,
         5.0,
         bg,
-        Stroke::new(1.0, if btn_hov { theme.border().lerp_to_gamma(theme.accent, 0.4) } else { theme.border() }),
+        Stroke::new(
+            1.0,
+            if btn_hov {
+                theme.border().lerp_to_gamma(theme.accent, 0.4)
+            } else {
+                theme.border()
+            },
+        ),
         egui::StrokeKind::Inside,
     );
     painter.text(
@@ -216,7 +234,15 @@ pub fn render_updates_tab(
         Align2::CENTER_CENTER,
         btn_label,
         FontId::monospace(12.0),
-        if can_click { if btn_hov { theme.accent } else { theme.text } } else { theme.muted },
+        if can_click {
+            if btn_hov {
+                theme.accent
+            } else {
+                theme.text
+            }
+        } else {
+            theme.muted
+        },
     );
 
     if can_click && (btn_resp.clicked() || (btn_hov && ui.input(|i| i.pointer.primary_clicked()))) {
@@ -224,12 +250,8 @@ pub fn render_updates_tab(
             UpdateStatus::Idle | UpdateStatus::UpToDate { .. } | UpdateStatus::Error(_) => {
                 Some(SettingPanelAction::CheckUpdates)
             }
-            UpdateStatus::UpdateAvailable { .. } => {
-                Some(SettingPanelAction::DownloadUpdate)
-            }
-            UpdateStatus::ReadyToRestart { .. } => {
-                Some(SettingPanelAction::RestartToApply)
-            }
+            UpdateStatus::UpdateAvailable { .. } => Some(SettingPanelAction::DownloadUpdate),
+            UpdateStatus::ReadyToRestart { .. } => Some(SettingPanelAction::RestartToApply),
             _ => None,
         };
         if let Some(a) = act {

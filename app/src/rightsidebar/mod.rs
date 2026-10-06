@@ -1,14 +1,14 @@
 //! Right Sidebar containing Outline (H1-H6) and Backlinks inspectors with sleek tabs.
 
-pub mod outline;
 pub mod backlinks;
+pub mod outline;
 
 use crate::editor::Editor;
 use crate::ui::theme::Theme;
 use crate::wikilink::BacklinkItem;
+use backlinks::{render_backlinks_panel, BacklinkAction};
 use eframe::egui::{pos2, Align2, FontId, Rect, Stroke, Ui};
 use outline::{extract_outline_headings, render_outline_panel, OutlineAction, OutlineHeading};
-use backlinks::{render_backlinks_panel, BacklinkAction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RightSidebarTab {
@@ -48,7 +48,8 @@ pub fn render_right_sidebar(
     // function runs on every UI frame; rescanning every note here stalls input.
     let target_key = (active_note_title.to_owned(), active_note_id);
     if state.cached_backlinks_target.as_ref() != Some(&target_key) {
-        state.cached_backlinks = crate::wikilink::find_backlinks(active_note_title, notes_list, active_note_id);
+        state.cached_backlinks =
+            crate::wikilink::find_backlinks(active_note_title, notes_list, active_note_id);
         state.cached_backlinks_target = Some(target_key);
     }
 
@@ -71,14 +72,20 @@ pub fn render_right_sidebar(
     let tab_bar_rect = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.min.y + tab_bar_h));
 
     painter.line_segment(
-        [pos2(tab_bar_rect.min.x, tab_bar_rect.max.y), pos2(tab_bar_rect.max.x, tab_bar_rect.max.y)],
+        [
+            pos2(tab_bar_rect.min.x, tab_bar_rect.max.y),
+            pos2(tab_bar_rect.max.x, tab_bar_rect.max.y),
+        ],
         Stroke::new(1.0_f32, theme.border()),
     );
 
     let tab_w = tab_bar_rect.width() * 0.5;
 
     // Outline Tab Button
-    let outline_rect = Rect::from_min_max(tab_bar_rect.min, pos2(tab_bar_rect.min.x + tab_w, tab_bar_rect.max.y));
+    let outline_rect = Rect::from_min_max(
+        tab_bar_rect.min,
+        pos2(tab_bar_rect.min.x + tab_w, tab_bar_rect.max.y),
+    );
     let outline_hovered = ui.rect_contains_pointer(outline_rect);
     let is_outline_active = state.active_tab == RightSidebarTab::Outline;
 
@@ -103,13 +110,19 @@ pub fn render_right_sidebar(
     if is_outline_active {
         // Active indicator line on bottom
         painter.line_segment(
-            [pos2(outline_rect.min.x + 12.0, outline_rect.max.y - 1.5), pos2(outline_rect.max.x - 12.0, outline_rect.max.y - 1.5)],
+            [
+                pos2(outline_rect.min.x + 12.0, outline_rect.max.y - 1.5),
+                pos2(outline_rect.max.x - 12.0, outline_rect.max.y - 1.5),
+            ],
             Stroke::new(2.0_f32, theme.accent),
         );
     }
 
     // Backlinks Tab Button
-    let backlinks_rect = Rect::from_min_max(pos2(tab_bar_rect.min.x + tab_w, tab_bar_rect.min.y), tab_bar_rect.max);
+    let backlinks_rect = Rect::from_min_max(
+        pos2(tab_bar_rect.min.x + tab_w, tab_bar_rect.min.y),
+        tab_bar_rect.max,
+    );
     let backlinks_hovered = ui.rect_contains_pointer(backlinks_rect);
     let is_backlinks_active = state.active_tab == RightSidebarTab::Backlinks;
 
@@ -140,7 +153,10 @@ pub fn render_right_sidebar(
 
     if is_backlinks_active {
         painter.line_segment(
-            [pos2(backlinks_rect.min.x + 12.0, backlinks_rect.max.y - 1.5), pos2(backlinks_rect.max.x - 12.0, backlinks_rect.max.y - 1.5)],
+            [
+                pos2(backlinks_rect.min.x + 12.0, backlinks_rect.max.y - 1.5),
+                pos2(backlinks_rect.max.x - 12.0, backlinks_rect.max.y - 1.5),
+            ],
             Stroke::new(2.0_f32, theme.accent),
         );
     }
@@ -176,7 +192,9 @@ pub fn render_right_sidebar(
                 theme,
             );
             action.map(|a| match a {
-                BacklinkAction::OpenNote { id, title } => RightSidebarAction::OpenNote { id, title },
+                BacklinkAction::OpenNote { id, title } => {
+                    RightSidebarAction::OpenNote { id, title }
+                }
             })
         }
     }

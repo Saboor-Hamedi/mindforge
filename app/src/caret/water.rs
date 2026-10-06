@@ -1,5 +1,5 @@
-use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect, Stroke};
 use super::particles::{Particle, Ripple};
+use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect, Stroke};
 
 pub fn emit_drops(particles: &mut Vec<Particle>, pos: Pos2, w: f32, lh: f32, n: usize) {
     for _ in 0..n {
@@ -25,7 +25,11 @@ pub fn paint_water(
     particles: &[Particle],
 ) {
     // Pure water: crystal-clear azure beam
-    p.rect_filled(Rect::from_min_size(pos, vec2(w, lh)), 1.0, Color32::from_rgb(65, 175, 255));
+    p.rect_filled(
+        Rect::from_min_size(pos, vec2(w, lh)),
+        1.0,
+        Color32::from_rgb(65, 175, 255),
+    );
 
     // Subtle compact baseline ripple (max 7px, never obscures text)
     for r in ripples {

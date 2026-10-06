@@ -16,13 +16,23 @@ pub fn check(headers: &HeaderMap, is_https: bool) -> Vec<Finding> {
         }
 
         let cookie_name = parts[0].split('=').next().unwrap_or("unknown");
-        let attributes: Vec<String> = parts.iter().skip(1).map(|part| part.to_ascii_lowercase()).collect();
+        let attributes: Vec<String> = parts
+            .iter()
+            .skip(1)
+            .map(|part| part.to_ascii_lowercase())
+            .collect();
         let has_flag = |name: &str| attributes.iter().any(|attribute| attribute.trim() == name);
-        let has_attribute = |name: &str| attributes.iter().any(|attribute| {
-            attribute.split_once('=').is_some_and(|(key, _)| key.trim() == name)
-        });
+        let has_attribute = |name: &str| {
+            attributes.iter().any(|attribute| {
+                attribute
+                    .split_once('=')
+                    .is_some_and(|(key, _)| key.trim() == name)
+            })
+        };
         let same_site_none = attributes.iter().any(|attribute| {
-            attribute.split_once('=').is_some_and(|(key, value)| key.trim() == "samesite" && value.trim() == "none")
+            attribute
+                .split_once('=')
+                .is_some_and(|(key, value)| key.trim() == "samesite" && value.trim() == "none")
         });
 
         // 1. HttpOnly flag check

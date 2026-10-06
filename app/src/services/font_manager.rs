@@ -142,11 +142,7 @@ pub fn find_font_file(font_name: &str) -> Option<PathBuf> {
             "SGr-Iosevka-Bold.ttc",
         ]
     } else if normalized.contains("hack") {
-        vec![
-            "hack.regular.ttf",
-            "Hack-Regular.ttf",
-            "Hack.ttf",
-        ]
+        vec!["hack.regular.ttf", "Hack-Regular.ttf", "Hack.ttf"]
     } else {
         return None;
     };
@@ -166,7 +162,11 @@ pub fn find_font_file(font_name: &str) -> Option<PathBuf> {
     search_dirs.push(PathBuf::from("app/assets"));
     search_dirs.push(PathBuf::from("assets"));
 
-    fn search_recursive(dir: &std::path::Path, candidates: &[&str], depth: usize) -> Option<PathBuf> {
+    fn search_recursive(
+        dir: &std::path::Path,
+        candidates: &[&str],
+        depth: usize,
+    ) -> Option<PathBuf> {
         if depth > 4 {
             return None;
         }
@@ -238,10 +238,9 @@ pub fn apply_font(ctx: &egui::Context, font_name: &str) {
     {
         if let Ok(emoji_bytes) = std::fs::read(r"C:\Windows\Fonts\seguiemj.ttf") {
             if is_valid_font_bytes(&emoji_bytes) {
-                fonts.font_data.insert(
-                    "win_emoji".into(),
-                    FontData::from_owned(emoji_bytes).into(),
-                );
+                fonts
+                    .font_data
+                    .insert("win_emoji".into(), FontData::from_owned(emoji_bytes).into());
             }
         }
     }
@@ -313,7 +312,9 @@ pub fn editor_font_id(size: f32) -> eframe::egui::FontId {
 /// Ensures that the editor font family is bound on the given egui context.
 /// Completely crash-proof: automatically initializes fallback fonts if unconfigured.
 pub fn ensure_editor_font(ctx: &eframe::egui::Context) {
-    let initialized = ctx.data(|d| d.get_temp::<bool>(eframe::egui::Id::new("editor_font_initialized"))).unwrap_or(false);
+    let initialized = ctx
+        .data(|d| d.get_temp::<bool>(eframe::egui::Id::new("editor_font_initialized")))
+        .unwrap_or(false);
     if !initialized {
         apply_font(ctx, "default");
     }
@@ -330,7 +331,9 @@ mod tests {
         assert!(names.iter().any(|n| n.contains("Iosevka")));
         assert!(names.iter().any(|n| n.contains("Victor Mono")));
         assert!(names.iter().any(|n| n.contains("Fira Code")));
-        assert!(names.iter().any(|n| n.contains("Cascadia") || n.contains("Caskaydia")));
+        assert!(names
+            .iter()
+            .any(|n| n.contains("Cascadia") || n.contains("Caskaydia")));
         assert_eq!(SUPPORTED_FONTS.len(), 5);
     }
 
@@ -343,8 +346,14 @@ mod tests {
 
     #[test]
     fn test_downloaded_fonts_are_discovered() {
-        assert!(is_font_available("Victor Mono"), "Victor Mono should be discovered in assets");
-        assert!(is_font_available("Fira Code"), "Fira Code should be discovered in assets");
+        assert!(
+            is_font_available("Victor Mono"),
+            "Victor Mono should be discovered in assets"
+        );
+        assert!(
+            is_font_available("Fira Code"),
+            "Fira Code should be discovered in assets"
+        );
     }
 
     #[test]
@@ -352,7 +361,9 @@ mod tests {
         assert!(!is_valid_font_bytes(b""));
         assert!(!is_valid_font_bytes(b"<html>404 Not Found</html>"));
         assert!(!is_valid_font_bytes(&[0u8; 10]));
-        assert!(is_valid_font_bytes(&[0x00, 0x01, 0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 0]));
+        assert!(is_valid_font_bytes(&[
+            0x00, 0x01, 0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 0
+        ]));
         assert!(is_valid_font_bytes(b"OTTO\0\0\0\0\0\0\0\0"));
     }
 }

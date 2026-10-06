@@ -283,27 +283,27 @@ impl Theme {
             },
             ThemeKind::Cream => Self {
                 kind,
-                bg: Color32::from_rgb(247, 243, 233),        // #f7f3e9 warm parchment cream
-                text: Color32::from_rgb(44, 38, 33),         // #2c2621 deep espresso ink (AAA contrast)
-                accent: Color32::from_rgb(168, 70, 22),      // #a84616 warm terracotta ember
-                muted: Color32::from_rgb(118, 108, 96),      // #766c60 warm stone gray
-                highlight: Color32::from_rgb(28, 102, 118),  // #1c6676 deep jade teal
+                bg: Color32::from_rgb(247, 243, 233), // #f7f3e9 warm parchment cream
+                text: Color32::from_rgb(44, 38, 33),  // #2c2621 deep espresso ink (AAA contrast)
+                accent: Color32::from_rgb(168, 70, 22), // #a84616 warm terracotta ember
+                muted: Color32::from_rgb(118, 108, 96), // #766c60 warm stone gray
+                highlight: Color32::from_rgb(28, 102, 118), // #1c6676 deep jade teal
             },
             ThemeKind::Latte => Self {
                 kind,
-                bg: Color32::from_rgb(239, 241, 245),        // #eff1f5 catppuccin latte base
-                text: Color32::from_rgb(76, 79, 105),        // #4c4f69 deep slate ink
-                accent: Color32::from_rgb(136, 57, 239),     // #8839ef vivid lavender
-                muted: Color32::from_rgb(112, 115, 134),     // #707386 soft graphite
-                highlight: Color32::from_rgb(30, 102, 245),  // #1e66f5 sapphire blue
+                bg: Color32::from_rgb(239, 241, 245), // #eff1f5 catppuccin latte base
+                text: Color32::from_rgb(76, 79, 105), // #4c4f69 deep slate ink
+                accent: Color32::from_rgb(136, 57, 239), // #8839ef vivid lavender
+                muted: Color32::from_rgb(112, 115, 134), // #707386 soft graphite
+                highlight: Color32::from_rgb(30, 102, 245), // #1e66f5 sapphire blue
             },
             ThemeKind::White => Self {
                 kind,
-                bg: Color32::from_rgb(250, 250, 252),        // #fafafc crisp paper white
-                text: Color32::from_rgb(28, 31, 35),         // #1c1f23 deep slate ink (AAA contrast)
-                accent: Color32::from_rgb(9, 105, 218),      // #0969da modern electric blue
-                muted: Color32::from_rgb(101, 109, 118),     // #656d76 neutral slate gray
-                highlight: Color32::from_rgb(110, 84, 148),  // #6e5494 royal indigo
+                bg: Color32::from_rgb(250, 250, 252), // #fafafc crisp paper white
+                text: Color32::from_rgb(28, 31, 35),  // #1c1f23 deep slate ink (AAA contrast)
+                accent: Color32::from_rgb(9, 105, 218), // #0969da modern electric blue
+                muted: Color32::from_rgb(101, 109, 118), // #656d76 neutral slate gray
+                highlight: Color32::from_rgb(110, 84, 148), // #6e5494 royal indigo
             },
 
             // --- New themes ---
@@ -409,15 +409,24 @@ mod readability {
             assert!(
                 text_c >= MIN_TEXT_CONTRAST,
                 "{}: text vs bg contrast {:.2} is below {} (text is hard to read)",
-                kind.name(), text_c, MIN_TEXT_CONTRAST
+                kind.name(),
+                text_c,
+                MIN_TEXT_CONTRAST
             );
 
-            for (label, color) in [("accent", t.accent), ("muted", t.muted), ("highlight", t.highlight)] {
+            for (label, color) in [
+                ("accent", t.accent),
+                ("muted", t.muted),
+                ("highlight", t.highlight),
+            ] {
                 let c = contrast_ratio(color, t.bg);
                 assert!(
                     c >= MIN_UI_CONTRAST,
                     "{}: {} vs bg contrast {:.2} is below {}",
-                    kind.name(), label, c, MIN_UI_CONTRAST
+                    kind.name(),
+                    label,
+                    c,
+                    MIN_UI_CONTRAST
                 );
             }
         }
@@ -433,7 +442,11 @@ mod readability {
     #[test]
     fn parse_round_trips_for_all_themes() {
         for &kind in ThemeKind::ALL {
-            assert_eq!(ThemeKind::parse(kind.name()), Some(kind), "name() -> parse() round trip failed for {kind:?}");
+            assert_eq!(
+                ThemeKind::parse(kind.name()),
+                Some(kind),
+                "name() -> parse() round trip failed for {kind:?}"
+            );
         }
     }
 }

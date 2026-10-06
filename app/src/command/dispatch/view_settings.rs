@@ -30,7 +30,8 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 "on" | "enable" | "" => {
                     if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                         let _ = backend.execute_command("syntax enable");
-                        let _ = backend.execute_command("setlocal filetype=markdown syntax=markdown");
+                        let _ =
+                            backend.execute_command("setlocal filetype=markdown syntax=markdown");
                         backend.sync_theme(&app.misc.theme);
                     }
                     app.set_status("Syntax highlighting enabled", now);
@@ -77,15 +78,28 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             app.misc.show_titlebar = !app.misc.show_titlebar;
             let _ = app.services.db_tx.send(DbMsg::SaveSetting {
                 key: "show_titlebar".into(),
-                val: if app.misc.show_titlebar { "true" } else { "false" }.into(),
+                val: if app.misc.show_titlebar {
+                    "true"
+                } else {
+                    "false"
+                }
+                .into(),
             });
-            let msg = if app.misc.show_titlebar { "Titlebar visible" } else { "Titlebar hidden" };
+            let msg = if app.misc.show_titlebar {
+                "Titlebar visible"
+            } else {
+                "Titlebar hidden"
+            };
             app.set_status(msg, now);
             true
         }
         "sidebar" | "sb" => {
             app.sidebar.open = !app.sidebar.open;
-            let msg = if app.sidebar.open { "Sidebar opened" } else { "Sidebar closed" };
+            let msg = if app.sidebar.open {
+                "Sidebar opened"
+            } else {
+                "Sidebar closed"
+            };
             app.set_status(msg, now);
             true
         }
@@ -95,7 +109,11 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 key: "show_tabs".into(),
                 val: if app.misc.show_tabs { "true" } else { "false" }.into(),
             });
-            let msg = if app.misc.show_tabs { "Document tabs visible" } else { "Document tabs hidden" };
+            let msg = if app.misc.show_tabs {
+                "Document tabs visible"
+            } else {
+                "Document tabs hidden"
+            };
             app.set_status(msg, now);
             true
         }
@@ -119,7 +137,8 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             true
         }
         "backlinks" | "bl" | "links" => {
-            if app.editor.preview_open && app.right_pane.tab == crate::app::RightPaneTab::Backlinks {
+            if app.editor.preview_open && app.right_pane.tab == crate::app::RightPaneTab::Backlinks
+            {
                 app.editor.preview_open = false;
                 let _ = app.services.db_tx.send(DbMsg::SaveSetting {
                     key: "preview".into(),
@@ -211,7 +230,9 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 "acrylic" => crate::services::blur::BlurEffect::Acrylic,
                 "mica" => crate::services::blur::BlurEffect::Mica,
                 _ => match args.to_lowercase().trim() {
-                    "off" | "disable" | "0" | "false" | "none" => crate::services::blur::BlurEffect::None,
+                    "off" | "disable" | "0" | "false" | "none" => {
+                        crate::services::blur::BlurEffect::None
+                    }
                     "acrylic" => crate::services::blur::BlurEffect::Acrylic,
                     "mica" => crate::services::blur::BlurEffect::Mica,
                     "on" | "enable" | "1" | "true" => crate::services::blur::BlurEffect::Acrylic,
@@ -244,7 +265,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 key: "inline_mode".into(),
                 val: "false".into(),
             });
-            app.set_status("Live inline Markdown is disabled; raw editing is active", now);
+            app.set_status(
+                "Live inline Markdown is disabled; raw editing is active",
+                now,
+            );
             true
         }
         "raw" | "source" => {
@@ -401,21 +425,19 @@ fn handle_set(app: &mut App, args: &str, now: f64) {
             app.set_status("Outline panel closed", now);
         }
         _ => {
-            // Forward unknown settings options to Neovim in Vim mode
-            if app.services.editor_controller.mode == crate::app::EditorInputMode::Vim {
-                if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-                    match backend.execute_command(&format!("set {}", args)) {
-                        Ok(out) => {
-                            if !out.is_empty() {
-                                app.set_status(out, now);
-                            }
-                        }
-                        Err(e) => {
-                            app.set_status(format!("Vim set error: {}", e), now);
+            // Forward unknown settings options to Neovim
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                match backend.execute_command(&format!("set {}", args)) {
+                    Ok(out) => {
+                        if !out.is_empty() {
+                            app.set_status(out, now);
                         }
                     }
-                    return;
+                    Err(e) => {
+                        app.set_status(format!("Vim set error: {}", e), now);
+                    }
                 }
+                return;
             }
             app.set_status(format!("Unknown option: :set {}. Valid: nu, nonu, preview, nopreview, titlebar, sidebar, tabs, ai, backlinks, outline, zen", args), now);
         }

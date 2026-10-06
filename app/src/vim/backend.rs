@@ -292,12 +292,20 @@ impl VimBackend {
         }
 
         // Full-buffer replacement (e.g. from document reset or :%s)
-        if start == 0 && (raw_end < 0 || raw_end as usize >= self.lines.len() || replacement.len() == self.lines.len()) {
+        if start == 0
+            && (raw_end < 0
+                || raw_end as usize >= self.lines.len()
+                || replacement.len() == self.lines.len())
+        {
             if replacement.is_empty() {
                 replacement.push(String::new());
             }
-            self.document_words = replacement.iter().map(|line| line.split_whitespace().count()).sum();
-            self.document_bytes = replacement.iter().map(String::len).sum::<usize>() + replacement.len().saturating_sub(1);
+            self.document_words = replacement
+                .iter()
+                .map(|line| line.split_whitespace().count())
+                .sum();
+            self.document_bytes = replacement.iter().map(String::len).sum::<usize>()
+                + replacement.len().saturating_sub(1);
             self.lines = replacement;
             self.document_lines = if self.lines.len() == 1 && self.lines[0].is_empty() {
                 0

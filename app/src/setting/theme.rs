@@ -53,7 +53,10 @@ pub fn render_theme_tab(
 
     // Persistent scroll offset for this tab
     let scroll_id = Id::new("theme_tab_scroll");
-    let mut scroll = ui.ctx().data_mut(|d| d.get_temp::<f32>(scroll_id)).unwrap_or(0.0);
+    let mut scroll = ui
+        .ctx()
+        .data_mut(|d| d.get_temp::<f32>(scroll_id))
+        .unwrap_or(0.0);
 
     let pointer_over_grid = ui.rect_contains_pointer(Rect::from_min_max(
         pos2(panel_rect.min.x, grid_top),
@@ -91,7 +94,9 @@ pub fn render_theme_tab(
 
         let is_sel = theme.kind == t_kind;
         let hovered = ui.rect_contains_pointer(t_rect);
-        let hover_t = ui.ctx().animate_bool(Id::new(("theme_card_hover", t_kind)), hovered);
+        let hover_t = ui
+            .ctx()
+            .animate_bool(Id::new(("theme_card_hover", t_kind)), hovered);
 
         if hovered {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -106,7 +111,10 @@ pub fn render_theme_tab(
         let card_stroke = if is_sel {
             Stroke::new(1.0, t_preset.accent)
         } else {
-            Stroke::new(1.0, lerp_color(theme.border(), t_preset.accent, hover_t * 0.7))
+            Stroke::new(
+                1.0,
+                lerp_color(theme.border(), t_preset.accent, hover_t * 0.7),
+            )
         };
 
         grid_painter.rect(t_rect, 7.0, card_bg, card_stroke, egui::StrokeKind::Inside);
@@ -134,7 +142,10 @@ pub fn render_theme_tab(
             Color32::from_rgb(255, 95, 86),
             Color32::from_rgb(255, 189, 46),
             Color32::from_rgb(39, 201, 63),
-        ].iter().enumerate() {
+        ]
+        .iter()
+        .enumerate()
+        {
             let dot_center = pos2(preview_rect.min.x + 8.0 + d_idx as f32 * 6.5, dot_y);
             grid_painter.circle_filled(dot_center, 2.0, *dot_color);
         }
@@ -142,14 +153,38 @@ pub fn render_theme_tab(
         // Live typography mockup lines inside preview canvas
         let line_start_x = preview_rect.min.x + 8.0;
         let line1_y = preview_rect.min.y + 16.0;
-        grid_painter.text(pos2(line_start_x, line1_y), Align2::LEFT_TOP, "fn", FontId::monospace(8.0), t_preset.accent);
-        grid_painter.text(pos2(line_start_x + 14.0, line1_y), Align2::LEFT_TOP, "note()", FontId::monospace(8.0), t_preset.text);
+        grid_painter.text(
+            pos2(line_start_x, line1_y),
+            Align2::LEFT_TOP,
+            "fn",
+            FontId::monospace(8.0),
+            t_preset.accent,
+        );
+        grid_painter.text(
+            pos2(line_start_x + 14.0, line1_y),
+            Align2::LEFT_TOP,
+            "note()",
+            FontId::monospace(8.0),
+            t_preset.text,
+        );
 
         let line2_y = line1_y + 11.5;
-        grid_painter.text(pos2(line_start_x + 6.0, line2_y), Align2::LEFT_TOP, "// live", FontId::monospace(7.5), t_preset.muted);
+        grid_painter.text(
+            pos2(line_start_x + 6.0, line2_y),
+            Align2::LEFT_TOP,
+            "// live",
+            FontId::monospace(7.5),
+            t_preset.muted,
+        );
 
         let line3_y = line2_y + 11.5;
-        grid_painter.text(pos2(line_start_x + 6.0, line3_y), Align2::LEFT_TOP, "\"text\"", FontId::monospace(7.5), t_preset.highlight);
+        grid_painter.text(
+            pos2(line_start_x + 6.0, line3_y),
+            Align2::LEFT_TOP,
+            "\"text\"",
+            FontId::monospace(7.5),
+            t_preset.highlight,
+        );
 
         // --- Right: Details, Badges & Color Swatches ---
         let detail_left = preview_rect.max.x + 14.0;
@@ -166,11 +201,19 @@ pub fn render_theme_tab(
 
         // Top Right: ACTIVE pill or LIGHT/DARK mode badge
         if is_sel {
-            let active_pill = Rect::from_min_size(pos2(detail_right - 58.0, t_rect.min.y + 10.0), vec2(58.0, 18.0));
+            let active_pill = Rect::from_min_size(
+                pos2(detail_right - 58.0, t_rect.min.y + 10.0),
+                vec2(58.0, 18.0),
+            );
             grid_painter.rect_filled(
                 active_pill,
                 4.0,
-                Color32::from_rgba_unmultiplied(t_preset.accent.r(), t_preset.accent.g(), t_preset.accent.b(), 38),
+                Color32::from_rgba_unmultiplied(
+                    t_preset.accent.r(),
+                    t_preset.accent.g(),
+                    t_preset.accent.b(),
+                    38,
+                ),
             );
             grid_painter.text(
                 active_pill.center(),
@@ -183,11 +226,25 @@ pub fn render_theme_tab(
             let is_light = t_kind.is_light();
             let mode_label = if is_light { "LIGHT" } else { "DARK" };
             let (mode_bg, mode_fg) = if is_light {
-                (Color32::from_rgba_unmultiplied(225, 150, 40, 32), Color32::from_rgb(215, 140, 25))
+                (
+                    Color32::from_rgba_unmultiplied(225, 150, 40, 32),
+                    Color32::from_rgb(215, 140, 25),
+                )
             } else {
-                (Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 26), theme.muted)
+                (
+                    Color32::from_rgba_unmultiplied(
+                        theme.muted.r(),
+                        theme.muted.g(),
+                        theme.muted.b(),
+                        26,
+                    ),
+                    theme.muted,
+                )
             };
-            let mode_pill = Rect::from_min_size(pos2(detail_right - 44.0, t_rect.min.y + 10.0), vec2(44.0, 17.0));
+            let mode_pill = Rect::from_min_size(
+                pos2(detail_right - 44.0, t_rect.min.y + 10.0),
+                vec2(44.0, 17.0),
+            );
             grid_painter.rect_filled(mode_pill, 3.5, mode_bg);
             grid_painter.text(
                 mode_pill.center(),
@@ -211,7 +268,12 @@ pub fn render_theme_tab(
 
         // Circular Palette Dots
         let dot_y = t_rect.min.y + 57.0;
-        let swatches = [t_preset.bg, t_preset.text, t_preset.accent, t_preset.highlight];
+        let swatches = [
+            t_preset.bg,
+            t_preset.text,
+            t_preset.accent,
+            t_preset.highlight,
+        ];
         for (s_idx, &color) in swatches.iter().enumerate() {
             let dot_center = pos2(detail_left + 6.0 + s_idx as f32 * 17.0, dot_y);
             grid_painter.circle_filled(dot_center, 5.5, color);
@@ -231,13 +293,24 @@ pub fn render_theme_tab(
     // visual only, no drag-to-scroll (mouse wheel covers the common case).
     if max_scroll > 0.0 {
         let track_x = panel_rect.max.x - 6.0;
-        let track = Rect::from_min_max(pos2(track_x, grid_top), pos2(track_x + 3.0, panel_rect.max.y));
-        painter.rect_filled(track, 1.5, Color32::from_rgba_unmultiplied(255, 255, 255, 15));
+        let track = Rect::from_min_max(
+            pos2(track_x, grid_top),
+            pos2(track_x + 3.0, panel_rect.max.y),
+        );
+        painter.rect_filled(
+            track,
+            1.5,
+            Color32::from_rgba_unmultiplied(255, 255, 255, 15),
+        );
 
         let thumb_h = (visible_h * visible_h / content_h).max(24.0);
         let thumb_y = grid_top + (scroll / max_scroll) * (visible_h - thumb_h);
         let thumb = Rect::from_min_size(pos2(track_x, thumb_y), vec2(3.0, thumb_h));
-        painter.rect_filled(thumb, 1.5, Color32::from_rgba_unmultiplied(255, 255, 255, 60));
+        painter.rect_filled(
+            thumb,
+            1.5,
+            Color32::from_rgba_unmultiplied(255, 255, 255, 60),
+        );
     }
 
     if let Some(t_kind) = selected {

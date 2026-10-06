@@ -141,7 +141,8 @@ function M.setup()
   if state.ready then
     return
   end
-  state.ready = true
+  state.ready = true
+  pcall(function() require('mindforge.lsp.guard').install() end)
   paths.ensure(paths.nvim_dir())
   vim.opt.runtimepath:prepend(paths.nvim_dir())
   state.user = config.load()

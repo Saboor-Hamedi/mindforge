@@ -3,17 +3,19 @@
 use eframe::egui::{self, CursorIcon, Key, ResizeDirection, ViewportCommand};
 
 pub fn window_shortcuts(ctx: &egui::Context) {
-    let (drag, f11, quit, new_window, is_fs) = ctx.input(|i| (
-        i.modifiers.alt && i.pointer.primary_pressed(),
-        i.key_pressed(Key::F11),
-        (i.modifiers.ctrl && i.modifiers.shift && i.key_pressed(Key::W))
-            || (i.modifiers.ctrl && i.key_pressed(Key::Q)),
-        (i.modifiers.ctrl || i.modifiers.command)
-            && i.modifiers.shift
-            && !i.modifiers.alt
-            && i.key_pressed(Key::N),
-        i.viewport().fullscreen.unwrap_or(false),
-    ));
+    let (drag, f11, quit, new_window, is_fs) = ctx.input(|i| {
+        (
+            i.modifiers.alt && i.pointer.primary_pressed(),
+            i.key_pressed(Key::F11),
+            (i.modifiers.ctrl && i.modifiers.shift && i.key_pressed(Key::W))
+                || (i.modifiers.ctrl && i.key_pressed(Key::Q)),
+            (i.modifiers.ctrl || i.modifiers.command)
+                && i.modifiers.shift
+                && !i.modifiers.alt
+                && i.key_pressed(Key::N),
+            i.viewport().fullscreen.unwrap_or(false),
+        )
+    });
 
     if new_window {
         if let Ok(exe) = std::env::current_exe() {

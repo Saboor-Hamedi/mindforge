@@ -14,7 +14,9 @@ impl App {
         term_splitter_rect_opt: Option<Rect>,
         now: f64,
     ) {
-        if let (Some(term_rect), Some(divider_rect)) = (bottom_terminal_rect, term_splitter_rect_opt) {
+        if let (Some(term_rect), Some(divider_rect)) =
+            (bottom_terminal_rect, term_splitter_rect_opt)
+        {
             let divider_h = 10.0;
             let available_h = (editor_panel_rect.height() - divider_h).max(140.0);
             let mid_y = divider_rect.center().y;
@@ -29,7 +31,10 @@ impl App {
 
             let is_knob_hovered = ui.rect_contains_pointer(knob_hit_rect);
             let primary_down = ui.input(|i| i.pointer.primary_down());
-            let primary_pressed = ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary));
+            let primary_pressed = ui.input(|i| {
+                i.pointer.primary_clicked()
+                    || i.pointer.button_pressed(egui::PointerButton::Primary)
+            });
 
             if is_knob_hovered && primary_pressed {
                 self.terminal.dragging_splitter = true;
@@ -38,7 +43,9 @@ impl App {
             if self.terminal.dragging_splitter {
                 if primary_down {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeRow);
-                    if let Some(pos) = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos())) {
+                    if let Some(pos) =
+                        ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+                    {
                         let term_pixel_h = editor_panel_rect.max.y - pos.y;
                         let raw_ratio = term_pixel_h / available_h;
                         self.terminal.split_ratio = raw_ratio.clamp(0.12, 0.85);
@@ -65,23 +72,39 @@ impl App {
                 if is_active {
                     self.misc.theme.accent
                 } else {
-                    Color32::from_rgba_unmultiplied(self.misc.theme.muted.r(), self.misc.theme.muted.g(), self.misc.theme.muted.b(), 100)
+                    Color32::from_rgba_unmultiplied(
+                        self.misc.theme.muted.r(),
+                        self.misc.theme.muted.g(),
+                        self.misc.theme.muted.b(),
+                        100,
+                    )
                 },
             );
 
             let grip_color = self.misc.theme.bg;
             for dx in [-5.0, 0.0, 5.0] {
                 painter.line_segment(
-                    [pos2(knob_mid.x + dx, knob_mid.y - 1.2), pos2(knob_mid.x + dx, knob_mid.y + 1.2)],
+                    [
+                        pos2(knob_mid.x + dx, knob_mid.y - 1.2),
+                        pos2(knob_mid.x + dx, knob_mid.y + 1.2),
+                    ],
                     Stroke::new(1.0_f32, grip_color),
                 );
             }
 
             if self.terminal.pane.is_none() {
-                self.terminal.pane = crate::ui::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.misc.theme).ok();
+                self.terminal.pane =
+                    crate::ui::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.misc.theme).ok();
             }
             if let Some(ref mut pane) = self.terminal.pane {
-                let action = pane.ui(ui, term_rect, &self.misc.theme, self.misc.font_size, self.terminal.focused, self.misc.opacity);
+                let action = pane.ui(
+                    ui,
+                    term_rect,
+                    &self.misc.theme,
+                    self.misc.font_size,
+                    self.terminal.focused,
+                    self.misc.opacity,
+                );
                 match action {
                     crate::ui::terminal_pane::TerminalAction::Close => {
                         self.terminal.open = false;

@@ -19,7 +19,13 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 });
                 app.set_status(format!("Window opacity set to {:.0}%", op * 100.0), now);
             } else {
-                app.set_status(format!("Current opacity: {:.0}% (:opacity 0.20 - 1.00)", app.misc.opacity * 100.0), now);
+                app.set_status(
+                    format!(
+                        "Current opacity: {:.0}% (:opacity 0.20 - 1.00)",
+                        app.misc.opacity * 100.0
+                    ),
+                    now,
+                );
             }
             true
         }

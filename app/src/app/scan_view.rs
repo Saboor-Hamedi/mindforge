@@ -6,12 +6,7 @@ use eframe::egui::{Painter, Rect, Ui};
 
 impl App {
     /// Renders either the active vulnerability scan report or past scans history log.
-    pub fn render_scan_panes(
-        &mut self,
-        ui: &mut Ui,
-        painter: &Painter,
-        editor_panel_rect: Rect,
-    ) {
+    pub fn render_scan_panes(&mut self, ui: &mut Ui, painter: &Painter, editor_panel_rect: Rect) {
         match self.misc.mode {
             Mode::ScanReport => {
                 crate::views::scan::render_scan_view(
@@ -19,7 +14,10 @@ impl App {
                     painter,
                     editor_panel_rect,
                     self.scan.active_scan_result.as_ref(),
-                    self.scan.active_scan_error.as_ref().map(|(u, e)| (u.as_str(), e.as_str())),
+                    self.scan
+                        .active_scan_error
+                        .as_ref()
+                        .map(|(u, e)| (u.as_str(), e.as_str())),
                     &mut self.scan.scan_report_scroll_y,
                     &self.misc.theme,
                     self.misc.font_size,
@@ -38,7 +36,8 @@ impl App {
                 );
                 if let Some(idx) = opened_idx {
                     if let Some(record) = self.scan.past_scans.get(idx) {
-                        let findings: Vec<webscan::Finding> = serde_json::from_str(&record.findings_json).unwrap_or_default();
+                        let findings: Vec<webscan::Finding> =
+                            serde_json::from_str(&record.findings_json).unwrap_or_default();
                         let result = webscan::ScanResult {
                             url: record.url.clone(),
                             status_code: 200,

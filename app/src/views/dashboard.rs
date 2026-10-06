@@ -90,7 +90,12 @@ pub fn render_welcome_dashboard(
     let action_items: [(&str, &str, &str, DashboardAction); 7] = [
         ("N", "New Note", "Ctrl+N", DashboardAction::NewNote),
         ("P", "Find Note", "Ctrl+P", DashboardAction::FindNote),
-        ("T", "Embedded Terminal", "Ctrl+J", DashboardAction::OpenTerminal),
+        (
+            "T",
+            "Embedded Terminal",
+            "Ctrl+J",
+            DashboardAction::OpenTerminal,
+        ),
         ("I", "AI Assistant", "Ctrl+Shift+I", DashboardAction::OpenAi),
         ("D", "Documentation", ":doc", DashboardAction::OpenDocs),
         ("S", "Preferences", "Ctrl+,", DashboardAction::OpenSettings),
@@ -126,7 +131,10 @@ pub fn render_welcome_dashboard(
         }
 
         let sub_y = logo_start_y + total_logo_h + 8.0;
-        let subtitle = format!("MINDFORGE  •  Fast, Minimalist Notes  •  {} notes", total_notes);
+        let subtitle = format!(
+            "MINDFORGE  •  Fast, Minimalist Notes  •  {} notes",
+            total_notes
+        );
         painter.text(
             pos2(center.x, sub_y),
             Align2::CENTER_CENTER,
@@ -187,7 +195,11 @@ pub fn render_welcome_dashboard(
             Align2::LEFT_CENTER,
             format!("[{}]", key),
             FontId::monospace(12.0),
-            if hovered && !modals_open { theme.highlight } else { theme.accent },
+            if hovered && !modals_open {
+                theme.highlight
+            } else {
+                theme.accent
+            },
         );
 
         // Action label
@@ -196,7 +208,11 @@ pub fn render_welcome_dashboard(
             Align2::LEFT_CENTER,
             *label,
             FontId::monospace(12.0),
-            if hovered && !modals_open { theme.text } else { theme.muted },
+            if hovered && !modals_open {
+                theme.text
+            } else {
+                theme.muted
+            },
         );
 
         // Shortcut hint (hidden if too narrow)
@@ -210,7 +226,9 @@ pub fn render_welcome_dashboard(
             );
         }
 
-        if !modals_open && (resp.clicked() || (hovered && ui.input(|i| i.pointer.primary_clicked()))) {
+        if !modals_open
+            && (resp.clicked() || (hovered && ui.input(|i| i.pointer.primary_clicked())))
+        {
             action = Some(act.clone());
         }
     }
@@ -219,7 +237,8 @@ pub fn render_welcome_dashboard(
     let recent_count = recent_workspaces.len().min(4);
     let mut recents_bottom_y = actions_start_y + visible_actions.len() as f32 * (btn_h + btn_gap);
     if recent_count > 0 && rect.height() >= 320.0 {
-        let recents_y_start = actions_start_y + visible_actions.len() as f32 * (btn_h + btn_gap) + 14.0;
+        let recents_y_start =
+            actions_start_y + visible_actions.len() as f32 * (btn_h + btn_gap) + 14.0;
 
         painter.text(
             pos2(center.x, recents_y_start),
@@ -250,7 +269,11 @@ pub fn render_welcome_dashboard(
                 Align2::LEFT_CENTER,
                 format!("{icon}  {name}"),
                 FontId::monospace(12.0),
-                if hovered && !modals_open { theme.highlight } else { theme.text },
+                if hovered && !modals_open {
+                    theme.highlight
+                } else {
+                    theme.text
+                },
             );
 
             // Right side: '✕' remove button on hover
@@ -266,7 +289,11 @@ pub fn render_welcome_dashboard(
                     Align2::CENTER_CENTER,
                     "✕",
                     FontId::monospace(11.5),
-                    if remove_hovered { theme.highlight } else { theme.muted },
+                    if remove_hovered {
+                        theme.highlight
+                    } else {
+                        theme.muted
+                    },
                 );
 
                 if ui.input(|inp| inp.pointer.primary_clicked()) && remove_hovered {

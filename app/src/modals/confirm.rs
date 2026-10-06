@@ -58,8 +58,14 @@ pub fn render_confirm_modal(
 
     let confirm_w = 120.0;
     let cancel_w = 100.0;
-    let confirm_rect = Rect::from_min_size(pos2(modal_rect.max.x - 24.0 - confirm_w, btn_y), vec2(confirm_w, btn_h));
-    let cancel_rect = Rect::from_min_size(pos2(modal_rect.max.x - 24.0 - confirm_w - 12.0 - cancel_w, btn_y), vec2(cancel_w, btn_h));
+    let confirm_rect = Rect::from_min_size(
+        pos2(modal_rect.max.x - 24.0 - confirm_w, btn_y),
+        vec2(confirm_w, btn_h),
+    );
+    let cancel_rect = Rect::from_min_size(
+        pos2(modal_rect.max.x - 24.0 - confirm_w - 12.0 - cancel_w, btn_y),
+        vec2(cancel_w, btn_h),
+    );
 
     let cancel_hover = ui.rect_contains_pointer(cancel_rect);
     let confirm_hover = ui.rect_contains_pointer(confirm_rect);
@@ -67,10 +73,12 @@ pub fn render_confirm_modal(
     let (enter, esc) = if just_opened {
         (false, false)
     } else {
-        ui.input(|i| (
-            i.key_pressed(egui::Key::Enter),
-            i.key_pressed(egui::Key::Escape),
-        ))
+        ui.input(|i| {
+            (
+                i.key_pressed(egui::Key::Enter),
+                i.key_pressed(egui::Key::Escape),
+            )
+        })
     };
 
     let mut action = ConfirmModalAction {
@@ -81,15 +89,31 @@ pub fn render_confirm_modal(
     // Cancel button
     let (cancel_bg, cancel_stroke, cancel_fg) = if theme.is_light() {
         if cancel_hover {
-            (Color32::from_rgb(228, 231, 238), theme.border(), theme.highlight)
+            (
+                Color32::from_rgb(228, 231, 238),
+                theme.border(),
+                theme.highlight,
+            )
         } else {
-            (Color32::from_rgb(241, 243, 247), theme.border(), theme.muted)
+            (
+                Color32::from_rgb(241, 243, 247),
+                theme.border(),
+                theme.muted,
+            )
         }
     } else {
         if cancel_hover {
-            (Color32::from_rgb(32, 34, 44), Color32::from_gray(80), Color32::WHITE)
+            (
+                Color32::from_rgb(32, 34, 44),
+                Color32::from_gray(80),
+                Color32::WHITE,
+            )
         } else {
-            (Color32::from_rgb(24, 25, 32), Color32::from_gray(50), theme.muted)
+            (
+                Color32::from_rgb(24, 25, 32),
+                Color32::from_gray(50),
+                theme.muted,
+            )
         }
     };
 
@@ -113,15 +137,31 @@ pub fn render_confirm_modal(
     let (confirm_bg, confirm_stroke, confirm_fg) = if is_delete {
         if theme.is_light() {
             if confirm_hover {
-                (Color32::from_rgb(220, 38, 38), Color32::from_rgb(185, 28, 28), Color32::WHITE)
+                (
+                    Color32::from_rgb(220, 38, 38),
+                    Color32::from_rgb(185, 28, 28),
+                    Color32::WHITE,
+                )
             } else {
-                (Color32::from_rgb(239, 68, 68), Color32::from_rgb(220, 38, 38), Color32::WHITE)
+                (
+                    Color32::from_rgb(239, 68, 68),
+                    Color32::from_rgb(220, 38, 38),
+                    Color32::WHITE,
+                )
             }
         } else {
             if confirm_hover {
-                (Color32::from_rgb(75, 22, 28), Color32::from_rgb(220, 60, 70), Color32::from_rgb(255, 140, 150))
+                (
+                    Color32::from_rgb(75, 22, 28),
+                    Color32::from_rgb(220, 60, 70),
+                    Color32::from_rgb(255, 140, 150),
+                )
             } else {
-                (Color32::from_rgb(52, 16, 20), Color32::from_rgb(160, 45, 55), Color32::from_rgb(255, 140, 150))
+                (
+                    Color32::from_rgb(52, 16, 20),
+                    Color32::from_rgb(160, 45, 55),
+                    Color32::from_rgb(255, 140, 150),
+                )
             }
         }
     } else if theme.is_light() {

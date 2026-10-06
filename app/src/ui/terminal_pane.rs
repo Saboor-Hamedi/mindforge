@@ -14,8 +14,8 @@
 use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Key, Modifiers, Rect, Stroke};
 use egui_term::{
-    BackendCommand, BackendSettings, ColorPalette, PtyEvent,
-    TerminalBackend, TerminalTheme, TerminalView,
+    BackendCommand, BackendSettings, ColorPalette, PtyEvent, TerminalBackend, TerminalTheme,
+    TerminalView,
 };
 use std::sync::mpsc;
 
@@ -234,7 +234,8 @@ pub fn get_shell_candidates() -> Vec<ShellCandidate> {
         });
 
         // 7. Command Prompt (Ultimate fallback, always present on Windows)
-        let comspec = std::env::var("COMSPEC").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".into());
+        let comspec =
+            std::env::var("COMSPEC").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".into());
         candidates.push(ShellCandidate {
             path: comspec,
             args: vec![],
@@ -246,7 +247,11 @@ pub fn get_shell_candidates() -> Vec<ShellCandidate> {
             let is_bash = shell.ends_with("bash");
             candidates.push(ShellCandidate {
                 path: shell,
-                args: if is_bash { vec!["--login".into()] } else { vec![] },
+                args: if is_bash {
+                    vec!["--login".into()]
+                } else {
+                    vec![]
+                },
                 name: "bash".into(),
             });
         }
@@ -442,9 +447,16 @@ impl TerminalPane {
         let splitter_w = 6.0f32;
 
         let (term_rect, splitter_rect_opt, sessions_rect_opt) = if show_sessions_sidebar {
-            let term_rect = Rect::from_min_max(rect.min, pos2(rect.max.x - sidebar_w - splitter_w, rect.max.y));
-            let splitter_rect = Rect::from_min_max(pos2(rect.max.x - sidebar_w - splitter_w, rect.min.y), pos2(rect.max.x - sidebar_w, rect.max.y));
-            let sessions_rect = Rect::from_min_max(pos2(rect.max.x - sidebar_w, rect.min.y), rect.max);
+            let term_rect = Rect::from_min_max(
+                rect.min,
+                pos2(rect.max.x - sidebar_w - splitter_w, rect.max.y),
+            );
+            let splitter_rect = Rect::from_min_max(
+                pos2(rect.max.x - sidebar_w - splitter_w, rect.min.y),
+                pos2(rect.max.x - sidebar_w, rect.max.y),
+            );
+            let sessions_rect =
+                Rect::from_min_max(pos2(rect.max.x - sidebar_w, rect.min.y), rect.max);
             (term_rect, Some(splitter_rect), Some(sessions_rect))
         } else {
             (rect, None, None)
@@ -453,8 +465,14 @@ impl TerminalPane {
         let header_h = 28.0;
 
         // --- 1. LEFT TERMINAL HEADER & BODY ---
-        let term_header_rect = Rect::from_min_max(term_rect.min, pos2(term_rect.max.x, term_rect.min.y + header_h));
-        let term_body_rect = Rect::from_min_max(pos2(term_rect.min.x, term_rect.min.y + header_h), term_rect.max);
+        let term_header_rect = Rect::from_min_max(
+            term_rect.min,
+            pos2(term_rect.max.x, term_rect.min.y + header_h),
+        );
+        let term_body_rect = Rect::from_min_max(
+            pos2(term_rect.min.x, term_rect.min.y + header_h),
+            term_rect.max,
+        );
 
         // Term header background & bottom divider line
         let term_h_bg = Color32::from_rgba_unmultiplied(
@@ -514,7 +532,11 @@ impl TerminalPane {
         let add_btn_rect = Rect::from_center_size(add_btn_center, vec2(18.0, 18.0));
         let is_add_hover = ui.rect_contains_pointer(add_btn_rect);
         if is_add_hover {
-            painter.rect_filled(add_btn_rect, 3.0, theme.surface().lerp_to_gamma(theme.accent, 0.15));
+            painter.rect_filled(
+                add_btn_rect,
+                3.0,
+                theme.surface().lerp_to_gamma(theme.accent, 0.15),
+            );
             if ui.input(|i| i.pointer.primary_clicked()) {
                 self.new_session(ui.ctx());
                 action = TerminalAction::RequestFocus;
@@ -525,7 +547,11 @@ impl TerminalPane {
             Align2::CENTER_CENTER,
             "+",
             FontId::proportional(14.0),
-            if is_add_hover { theme.accent } else { theme.muted },
+            if is_add_hover {
+                theme.accent
+            } else {
+                theme.muted
+            },
         );
 
         // Unified sleek close button on far right of terminal header
@@ -576,7 +602,10 @@ impl TerminalPane {
 
             let is_splitter_hovered = ui.rect_contains_pointer(knob_hit_rect);
             let primary_down = ui.input(|i| i.pointer.primary_down());
-            let primary_pressed = ui.input(|i| i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary));
+            let primary_pressed = ui.input(|i| {
+                i.pointer.primary_clicked()
+                    || i.pointer.button_pressed(egui::PointerButton::Primary)
+            });
 
             if is_splitter_hovered && primary_pressed {
                 self.is_dragging_sessions_splitter = true;
@@ -585,7 +614,9 @@ impl TerminalPane {
             if self.is_dragging_sessions_splitter {
                 if primary_down {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeColumn);
-                    if let Some(pos) = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos())) {
+                    if let Some(pos) =
+                        ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+                    {
                         let desired_w = rect.max.x - pos.x;
                         self.sessions_sidebar_w = desired_w.clamp(min_sidebar_w, max_sidebar_w);
                         ui.ctx().request_repaint();
@@ -611,200 +642,246 @@ impl TerminalPane {
                 if is_splitter_active {
                     theme.accent
                 } else {
-                    Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 110)
+                    Color32::from_rgba_unmultiplied(
+                        theme.muted.r(),
+                        theme.muted.g(),
+                        theme.muted.b(),
+                        110,
+                    )
                 },
             );
             for dy in [-5.0, 0.0, 5.0] {
                 painter.line_segment(
-                    [pos2(knob_mid.x - 1.0, knob_mid.y + dy), pos2(knob_mid.x + 1.0, knob_mid.y + dy)],
+                    [
+                        pos2(knob_mid.x - 1.0, knob_mid.y + dy),
+                        pos2(knob_mid.x + 1.0, knob_mid.y + dy),
+                    ],
                     Stroke::new(1.0_f32, theme.bg),
                 );
             }
 
-        // --- 3. RIGHT SIDEBAR: SESSIONS LIST ---
-        let sessions_bg = Color32::from_rgba_unmultiplied(
-            theme.surface().r(),
-            theme.surface().g(),
-            theme.surface().b(),
-            (opacity * 255.0) as u8,
-        );
-        painter.rect_filled(sessions_rect, 0.0, sessions_bg);
+            // --- 3. RIGHT SIDEBAR: SESSIONS LIST ---
+            let sessions_bg = Color32::from_rgba_unmultiplied(
+                theme.surface().r(),
+                theme.surface().g(),
+                theme.surface().b(),
+                (opacity * 255.0) as u8,
+            );
+            painter.rect_filled(sessions_rect, 0.0, sessions_bg);
 
-        // Sidebar Header
-        let sessions_header_rect = Rect::from_min_max(
-            sessions_rect.min,
-            pos2(sessions_rect.max.x, sessions_rect.min.y + header_h),
-        );
-        painter.rect_filled(sessions_header_rect, 0.0, sessions_bg);
-        painter.line_segment(
-            [pos2(sessions_header_rect.min.x, sessions_header_rect.max.y), pos2(sessions_header_rect.max.x, sessions_header_rect.max.y)],
-            Stroke::new(1.0_f32, theme.border()),
-        );
+            // Sidebar Header
+            let sessions_header_rect = Rect::from_min_max(
+                sessions_rect.min,
+                pos2(sessions_rect.max.x, sessions_rect.min.y + header_h),
+            );
+            painter.rect_filled(sessions_header_rect, 0.0, sessions_bg);
+            painter.line_segment(
+                [
+                    pos2(sessions_header_rect.min.x, sessions_header_rect.max.y),
+                    pos2(sessions_header_rect.max.x, sessions_header_rect.max.y),
+                ],
+                Stroke::new(1.0_f32, theme.border()),
+            );
 
-        // Sessions Header Label
-        let count_str = format!("SESSIONS ({})", self.sessions.len());
-        painter.text(
-            pos2(sessions_header_rect.min.x + 10.0, sessions_header_rect.center().y),
-            Align2::LEFT_CENTER,
-            count_str,
-            FontId::monospace(font_size * 0.68),
-            theme.muted,
-        );
+            // Sessions Header Label
+            let count_str = format!("SESSIONS ({})", self.sessions.len());
+            painter.text(
+                pos2(
+                    sessions_header_rect.min.x + 10.0,
+                    sessions_header_rect.center().y,
+                ),
+                Align2::LEFT_CENTER,
+                count_str,
+                FontId::monospace(font_size * 0.68),
+                theme.muted,
+            );
 
-        // [+] Sleek New Session Button (matching sidebar [+] button: transparent inactive, borderless soft hover)
-        let btn_center_x = sessions_rect.max.x - 18.0;
-        let new_btn_rect = Rect::from_center_size(
-            pos2(btn_center_x, sessions_header_rect.center().y),
-            vec2(20.0, 20.0),
-        );
-        let is_new_btn_hovered = ui.rect_contains_pointer(new_btn_rect);
-        if is_new_btn_hovered {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            painter.rect_filled(new_btn_rect, 4.0, theme.surface().lerp_to_gamma(theme.accent, 0.15));
-            if ui.input(|i| i.pointer.primary_clicked()) {
-                self.new_session(ui.ctx());
+            // [+] Sleek New Session Button (matching sidebar [+] button: transparent inactive, borderless soft hover)
+            let btn_center_x = sessions_rect.max.x - 18.0;
+            let new_btn_rect = Rect::from_center_size(
+                pos2(btn_center_x, sessions_header_rect.center().y),
+                vec2(20.0, 20.0),
+            );
+            let is_new_btn_hovered = ui.rect_contains_pointer(new_btn_rect);
+            if is_new_btn_hovered {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                painter.rect_filled(
+                    new_btn_rect,
+                    4.0,
+                    theme.surface().lerp_to_gamma(theme.accent, 0.15),
+                );
+                if ui.input(|i| i.pointer.primary_clicked()) {
+                    self.new_session(ui.ctx());
+                    action = TerminalAction::RequestFocus;
+                }
+            }
+            let plus_color = if is_new_btn_hovered {
+                theme.accent
+            } else {
+                theme.muted
+            };
+            painter.text(
+                new_btn_rect.center(),
+                Align2::CENTER_CENTER,
+                "+",
+                FontId::proportional(14.0),
+                plus_color,
+            );
+
+            // Scrollable Sessions List Items
+            let list_rect = Rect::from_min_max(
+                pos2(sessions_rect.min.x, sessions_header_rect.max.y),
+                sessions_rect.max,
+            );
+            let list_painter = painter.with_clip_rect(list_rect);
+
+            let row_height = 28.0f32;
+            let row_gap = 4.0f32;
+            let total_content_h = (self.sessions.len() as f32) * (row_height + row_gap) + 8.0;
+            let visible_list_h = list_rect.height().max(1.0);
+            let max_scroll = (total_content_h - visible_list_h).max(0.0);
+
+            if ui.rect_contains_pointer(list_rect) {
+                let scroll_delta = ui.input(|i| {
+                    if i.smooth_scroll_delta.y.abs() > 0.001 {
+                        i.smooth_scroll_delta.y
+                    } else {
+                        i.raw_scroll_delta.y * 0.5
+                    }
+                });
+                if scroll_delta.abs() > 0.001 {
+                    self.sessions_scroll_y =
+                        (self.sessions_scroll_y - scroll_delta).clamp(0.0, max_scroll);
+                }
+            }
+            self.sessions_scroll_y = self.sessions_scroll_y.clamp(0.0, max_scroll);
+
+            let list_y_start = list_rect.min.y + 5.0 - self.sessions_scroll_y;
+            let mut session_to_close: Option<usize> = None;
+            let mut session_to_select: Option<usize> = None;
+
+            for (idx, session) in self.sessions.iter().enumerate() {
+                let row_y = list_y_start + (idx as f32) * (row_height + row_gap);
+                if row_y + row_height < list_rect.min.y || row_y > list_rect.max.y {
+                    continue;
+                }
+
+                let row_rect = Rect::from_min_max(
+                    pos2(list_rect.min.x + 6.0, row_y),
+                    pos2(list_rect.max.x - 6.0, row_y + row_height),
+                );
+
+                let is_active = idx == self.active_session_idx;
+                let is_hovered = ui.rect_contains_pointer(row_rect);
+
+                // Pill surface: match sidebar notes exactly (no stroke, transparent when inactive)
+                if is_active || is_hovered {
+                    let bg_color = if is_active {
+                        Color32::from_rgba_unmultiplied(
+                            theme.accent.r(),
+                            theme.accent.g(),
+                            theme.accent.b(),
+                            24,
+                        )
+                    } else if theme.is_light() {
+                        Color32::from_rgba_unmultiplied(0, 0, 0, 13)
+                    } else {
+                        Color32::from_rgba_unmultiplied(255, 255, 255, 14)
+                    };
+                    list_painter.rect_filled(row_rect, 6.0, bg_color);
+
+                    // Left vertical accent bar on active session (matching sidebar notes)
+                    if is_active {
+                        let bar = Rect::from_min_size(
+                            pos2(row_rect.min.x + 1.0, row_rect.min.y + 5.0),
+                            vec2(3.0, row_rect.height() - 10.0),
+                        );
+                        list_painter.rect_filled(bar, 1.5, theme.accent);
+                    }
+                }
+
+                // Session title (matching sidebar notes typography, color, and clipping)
+                let title_x = row_rect.min.x + 12.0;
+                let text_color = if is_active {
+                    theme.accent
+                } else if is_hovered {
+                    theme.text
+                } else {
+                    theme.text.lerp_to_gamma(theme.muted, 0.35)
+                };
+
+                let title_display = format!("{}. {}", idx + 1, session.title);
+                let text_right_limit = btn_center_x - 12.0;
+                let row_clip = Rect::from_min_max(
+                    pos2(row_rect.min.x, row_rect.min.y),
+                    pos2(text_right_limit, row_rect.max.y),
+                )
+                .intersect(list_rect);
+                let row_painter = list_painter.with_clip_rect(row_clip);
+
+                row_painter.text(
+                    pos2(title_x, row_rect.center().y),
+                    Align2::LEFT_CENTER,
+                    title_display,
+                    FontId::proportional(12.5),
+                    text_color,
+                );
+
+                // Close session button on the right of the row - vertically aligned with header [+] button
+                let close_center = pos2(btn_center_x, row_rect.center().y);
+                let is_close_hover = ui
+                    .rect_contains_pointer(Rect::from_center_size(close_center, vec2(18.0, 18.0)));
+
+                if (is_hovered || is_active)
+                    && crate::ui_components::render_close_button(
+                        ui,
+                        &list_painter,
+                        close_center,
+                        18.0,
+                        theme,
+                        ("term_session_close", idx),
+                    )
+                {
+                    session_to_close = Some(idx);
+                }
+
+                // Handle clicking the row to select session
+                if is_hovered && !is_close_hover && ui.input(|i| i.pointer.primary_clicked()) {
+                    session_to_select = Some(idx);
+                }
+            }
+
+            // Mini vertical scrollbar indicator if overflowing
+            if max_scroll > 0.0 && visible_list_h > 30.0 {
+                let thumb_h = ((visible_list_h / total_content_h) * visible_list_h)
+                    .clamp(18.0, visible_list_h);
+                let scroll_ratio = (self.sessions_scroll_y / max_scroll).clamp(0.0, 1.0);
+                let thumb_y = list_rect.min.y + scroll_ratio * (visible_list_h - thumb_h);
+                let thumb_rect =
+                    Rect::from_min_size(pos2(list_rect.max.x - 4.0, thumb_y), vec2(2.5, thumb_h));
+                list_painter.rect_filled(
+                    thumb_rect,
+                    1.25,
+                    Color32::from_rgba_unmultiplied(
+                        theme.muted.r(),
+                        theme.muted.g(),
+                        theme.muted.b(),
+                        100,
+                    ),
+                );
+            }
+
+            if let Some(idx) = session_to_select {
+                self.active_session_idx = idx;
                 action = TerminalAction::RequestFocus;
             }
-        }
-        let plus_color = if is_new_btn_hovered { theme.accent } else { theme.muted };
-        painter.text(new_btn_rect.center(), Align2::CENTER_CENTER, "+", FontId::proportional(14.0), plus_color);
 
-        // Scrollable Sessions List Items
-        let list_rect = Rect::from_min_max(
-            pos2(sessions_rect.min.x, sessions_header_rect.max.y),
-            sessions_rect.max,
-        );
-        let list_painter = painter.with_clip_rect(list_rect);
-
-        let row_height = 28.0f32;
-        let row_gap = 4.0f32;
-        let total_content_h = (self.sessions.len() as f32) * (row_height + row_gap) + 8.0;
-        let visible_list_h = list_rect.height().max(1.0);
-        let max_scroll = (total_content_h - visible_list_h).max(0.0);
-
-        if ui.rect_contains_pointer(list_rect) {
-            let scroll_delta = ui.input(|i| {
-                if i.smooth_scroll_delta.y.abs() > 0.001 {
-                    i.smooth_scroll_delta.y
-                } else {
-                    i.raw_scroll_delta.y * 0.5
-                }
-            });
-            if scroll_delta.abs() > 0.001 {
-                self.sessions_scroll_y = (self.sessions_scroll_y - scroll_delta).clamp(0.0, max_scroll);
-            }
-        }
-        self.sessions_scroll_y = self.sessions_scroll_y.clamp(0.0, max_scroll);
-
-        let list_y_start = list_rect.min.y + 5.0 - self.sessions_scroll_y;
-        let mut session_to_close: Option<usize> = None;
-        let mut session_to_select: Option<usize> = None;
-
-        for (idx, session) in self.sessions.iter().enumerate() {
-            let row_y = list_y_start + (idx as f32) * (row_height + row_gap);
-            if row_y + row_height < list_rect.min.y || row_y > list_rect.max.y {
-                continue;
-            }
-
-            let row_rect = Rect::from_min_max(
-                pos2(list_rect.min.x + 6.0, row_y),
-                pos2(list_rect.max.x - 6.0, row_y + row_height),
-            );
-
-            let is_active = idx == self.active_session_idx;
-            let is_hovered = ui.rect_contains_pointer(row_rect);
-
-            // Pill surface: match sidebar notes exactly (no stroke, transparent when inactive)
-            if is_active || is_hovered {
-                let bg_color = if is_active {
-                    Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 24)
-                } else if theme.is_light() {
-                    Color32::from_rgba_unmultiplied(0, 0, 0, 13)
-                } else {
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 14)
-                };
-                list_painter.rect_filled(row_rect, 6.0, bg_color);
-
-                // Left vertical accent bar on active session (matching sidebar notes)
-                if is_active {
-                    let bar = Rect::from_min_size(
-                        pos2(row_rect.min.x + 1.0, row_rect.min.y + 5.0),
-                        vec2(3.0, row_rect.height() - 10.0),
-                    );
-                    list_painter.rect_filled(bar, 1.5, theme.accent);
+            if let Some(idx) = session_to_close {
+                if self.close_session(idx) {
+                    action = TerminalAction::Close;
                 }
             }
-
-            // Session title (matching sidebar notes typography, color, and clipping)
-            let title_x = row_rect.min.x + 12.0;
-            let text_color = if is_active {
-                theme.accent
-            } else if is_hovered {
-                theme.text
-            } else {
-                theme.text.lerp_to_gamma(theme.muted, 0.35)
-            };
-
-            let title_display = format!("{}. {}", idx + 1, session.title);
-            let text_right_limit = btn_center_x - 12.0;
-            let row_clip = Rect::from_min_max(
-                pos2(row_rect.min.x, row_rect.min.y),
-                pos2(text_right_limit, row_rect.max.y),
-            ).intersect(list_rect);
-            let row_painter = list_painter.with_clip_rect(row_clip);
-
-            row_painter.text(
-                pos2(title_x, row_rect.center().y),
-                Align2::LEFT_CENTER,
-                title_display,
-                FontId::proportional(12.5),
-                text_color,
-            );
-
-            // Close session button on the right of the row - vertically aligned with header [+] button
-            let close_center = pos2(btn_center_x, row_rect.center().y);
-            let is_close_hover = ui.rect_contains_pointer(Rect::from_center_size(close_center, vec2(18.0, 18.0)));
-
-            if (is_hovered || is_active) && crate::ui_components::render_close_button(
-                ui,
-                &list_painter,
-                close_center,
-                18.0,
-                theme,
-                ("term_session_close", idx),
-            ) {
-                session_to_close = Some(idx);
-            }
-
-            // Handle clicking the row to select session
-            if is_hovered && !is_close_hover && ui.input(|i| i.pointer.primary_clicked()) {
-                session_to_select = Some(idx);
-            }
         }
-
-        // Mini vertical scrollbar indicator if overflowing
-        if max_scroll > 0.0 && visible_list_h > 30.0 {
-            let thumb_h = ((visible_list_h / total_content_h) * visible_list_h).clamp(18.0, visible_list_h);
-            let scroll_ratio = (self.sessions_scroll_y / max_scroll).clamp(0.0, 1.0);
-            let thumb_y = list_rect.min.y + scroll_ratio * (visible_list_h - thumb_h);
-            let thumb_rect = Rect::from_min_size(
-                pos2(list_rect.max.x - 4.0, thumb_y),
-                vec2(2.5, thumb_h),
-            );
-            list_painter.rect_filled(thumb_rect, 1.25, Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 100));
-        }
-
-        if let Some(idx) = session_to_select {
-            self.active_session_idx = idx;
-            action = TerminalAction::RequestFocus;
-        }
-
-        if let Some(idx) = session_to_close {
-            if self.close_session(idx) {
-                action = TerminalAction::Close;
-            }
-        }
-    }
 
         action
     }

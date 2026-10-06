@@ -3,7 +3,10 @@ use super::{Editor, VisualLine};
 impl Editor {
     pub fn compute_visual_lines(&self, max_cols: usize) -> Vec<VisualLine> {
         if self.buf.is_empty() {
-            return vec![VisualLine { char_start: 0, char_end: 0 }];
+            return vec![VisualLine {
+                char_start: 0,
+                char_end: 0,
+            }];
         }
 
         let max_cols = max_cols.max(15);
@@ -64,7 +67,10 @@ impl Editor {
         }
 
         if lines.is_empty() {
-            lines.push(VisualLine { char_start: 0, char_end: 0 });
+            lines.push(VisualLine {
+                char_start: 0,
+                char_end: 0,
+            });
         }
 
         lines
@@ -83,7 +89,10 @@ impl Editor {
                     return (i, self.cur - line.char_start);
                 }
             }
-            if i + 1 < lines.len() && self.cur >= line.char_end && self.cur < lines[i + 1].char_start {
+            if i + 1 < lines.len()
+                && self.cur >= line.char_end
+                && self.cur < lines[i + 1].char_start
+            {
                 return (i, self.cur - line.char_start);
             }
         }
@@ -114,7 +123,8 @@ impl Editor {
         }
         let target_line = &lines[target_row];
         let line_len = target_line.char_end.saturating_sub(target_line.char_start);
-        let is_soft_wrapped = target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
+        let is_soft_wrapped =
+            target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
         let max_col = if is_soft_wrapped {
             line_len.saturating_sub(1)
         } else {
@@ -147,7 +157,8 @@ impl Editor {
         }
         let target_line = &lines[target_row];
         let line_len = target_line.char_end.saturating_sub(target_line.char_start);
-        let is_soft_wrapped = target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
+        let is_soft_wrapped =
+            target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
         let max_col = if is_soft_wrapped {
             line_len.saturating_sub(1)
         } else {
@@ -171,7 +182,8 @@ impl Editor {
 
         let target_line = &lines[row + 1];
         let line_len = target_line.char_end.saturating_sub(target_line.char_start);
-        let is_soft_wrapped = target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
+        let is_soft_wrapped =
+            target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
         let max_col = if is_soft_wrapped {
             line_len.saturating_sub(1)
         } else {
@@ -197,7 +209,8 @@ impl Editor {
 
         let target_line = &lines[row + 1];
         let line_len = target_line.char_end.saturating_sub(target_line.char_start);
-        let is_soft_wrapped = target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
+        let is_soft_wrapped =
+            target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
         let max_col = if is_soft_wrapped {
             line_len.saturating_sub(1)
         } else {
@@ -264,7 +277,8 @@ impl Editor {
         let target_row = row.saturating_sub(count);
         if let Some(target_line) = lines.get(target_row) {
             let line_len = target_line.char_end.saturating_sub(target_line.char_start);
-            let is_soft_wrapped = target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
+            let is_soft_wrapped =
+                target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
             let max_col = if is_soft_wrapped {
                 line_len.saturating_sub(1)
             } else {
@@ -284,7 +298,8 @@ impl Editor {
         let target_row = row.saturating_sub(count);
         if let Some(target_line) = lines.get(target_row) {
             let line_len = target_line.char_end.saturating_sub(target_line.char_start);
-            let is_soft_wrapped = target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
+            let is_soft_wrapped =
+                target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
             let max_col = if is_soft_wrapped {
                 line_len.saturating_sub(1)
             } else {
@@ -302,7 +317,8 @@ impl Editor {
         let target_row = (row + count).min(lines.len().saturating_sub(1));
         if let Some(target_line) = lines.get(target_row) {
             let line_len = target_line.char_end.saturating_sub(target_line.char_start);
-            let is_soft_wrapped = target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
+            let is_soft_wrapped =
+                target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
             let max_col = if is_soft_wrapped {
                 line_len.saturating_sub(1)
             } else {
@@ -322,7 +338,8 @@ impl Editor {
         let target_row = (row + count).min(lines.len().saturating_sub(1));
         if let Some(target_line) = lines.get(target_row) {
             let line_len = target_line.char_end.saturating_sub(target_line.char_start);
-            let is_soft_wrapped = target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
+            let is_soft_wrapped =
+                target_line.char_end < self.buf.len() && self.buf[target_line.char_end] != '\n';
             let max_col = if is_soft_wrapped {
                 line_len.saturating_sub(1)
             } else {
@@ -340,6 +357,7 @@ impl Editor {
 /// - Insert / Search / None: bar sits BETWEEN characters. At end-of-line it's
 ///   one cell past the last character.
 /// - Empty line: 0 in every mode.
+#[cfg(test)]
 pub fn caret_cell(cur: usize, line: &VisualLine, _vim_mode: Option<&str>) -> usize {
     let line_len = line.char_end.saturating_sub(line.char_start);
     if line_len == 0 {

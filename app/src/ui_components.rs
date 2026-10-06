@@ -6,8 +6,8 @@ pub use toggle::{render_toggle, render_toggle_with_label};
 pub mod icons;
 pub use icons::render_vector_icon;
 
-use eframe::egui::{self, vec2, Align2, Color32, FontId, Pos2, Rect};
 use crate::ui::theme::Theme;
+use eframe::egui::{self, vec2, Align2, Color32, FontId, Pos2, Rect};
 
 /// Renders a close button centered at `center` with width/height `size`.
 pub fn render_close_button(
@@ -58,4 +58,3 @@ pub fn render_close_button_rect(
 
     hovered && ui.input(|i| i.pointer.primary_clicked())
 }
-

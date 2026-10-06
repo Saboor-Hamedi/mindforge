@@ -144,8 +144,7 @@ fn render_tree_entry(
 ) {
     let indent = entry_depth as f32 * 14.0;
     let selected = workspace.selected_items.contains(entry_path);
-    let active = active_file
-        .is_some_and(|path| crate::workspace::same_path(path, entry_path));
+    let active = active_file.is_some_and(|path| crate::workspace::same_path(path, entry_path));
     let expanded = workspace.expanded.contains(entry_path);
     let (caret, glyph) = super::icons::get_explorer_icon(entry_path, entry_is_directory, expanded);
     let file_name = entry_path.file_name().unwrap_or_default().to_string_lossy();
@@ -165,7 +164,8 @@ fn render_tree_entry(
     // 1. Background highlighting
     if active || selected || hovered {
         if active {
-            ui.painter().rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(0.18));
+            ui.painter()
+                .rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(0.18));
             // Thin left-edge accent indicator
             let bar = Rect::from_min_size(
                 pos2(row_rect.min.x + 1.0, row_rect.min.y + 3.0),
@@ -173,7 +173,8 @@ fn render_tree_entry(
             );
             ui.painter().rect_filled(bar, 1.25, theme.accent);
         } else if selected {
-            ui.painter().rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(0.10));
+            ui.painter()
+                .rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(0.10));
         } else if hovered {
             let hover_bg = if theme.is_light() {
                 Color32::from_rgba_unmultiplied(0, 0, 0, 10)
@@ -219,16 +220,13 @@ fn render_tree_entry(
 
     // Single click: select and open file immediately
     if response.clicked() {
-        let (ctrl, shift) = ui.input(|i| {
-            (i.modifiers.ctrl || i.modifiers.command, i.modifiers.shift)
-        });
+        let (ctrl, shift) =
+            ui.input(|i| (i.modifiers.ctrl || i.modifiers.command, i.modifiers.shift));
         if shift {
             let anchor = workspace
                 .selection_anchor
                 .as_ref()
-                .and_then(|anchor| {
-                    workspace.entries.iter().position(|e| &e.path == anchor)
-                })
+                .and_then(|anchor| workspace.entries.iter().position(|e| &e.path == anchor))
                 .unwrap_or_else(|| {
                     workspace
                         .entries
@@ -244,9 +242,7 @@ fn render_tree_entry(
             if !ctrl {
                 workspace.selected_items.clear();
             }
-            for item in
-                workspace.entries[anchor.min(target)..=anchor.max(target)].iter()
-            {
+            for item in workspace.entries[anchor.min(target)..=anchor.max(target)].iter() {
                 workspace.selected_items.insert(item.path.clone());
             }
         } else if ctrl {
@@ -259,14 +255,18 @@ fn render_tree_entry(
             workspace.selected_items.insert(entry_path.to_path_buf());
             workspace.selection_anchor = Some(entry_path.to_path_buf());
             if entry_is_directory {
-                *action = Some(SidebarAction::ToggleWorkspaceFolder(entry_path.to_path_buf()));
+                *action = Some(SidebarAction::ToggleWorkspaceFolder(
+                    entry_path.to_path_buf(),
+                ));
             } else {
                 *action = Some(SidebarAction::OpenWorkspaceFile(entry_path.to_path_buf()));
             }
         }
     } else if response.double_clicked() {
         if entry_is_directory {
-            *action = Some(SidebarAction::ToggleWorkspaceFolder(entry_path.to_path_buf()));
+            *action = Some(SidebarAction::ToggleWorkspaceFolder(
+                entry_path.to_path_buf(),
+            ));
         } else {
             *action = Some(SidebarAction::OpenWorkspaceFile(entry_path.to_path_buf()));
         }
@@ -295,9 +295,7 @@ fn render_tree_entry(
                 egui::StrokeKind::Inside,
             );
         }
-        if let Some(sources) =
-            response.dnd_release_payload::<Vec<std::path::PathBuf>>()
-        {
+        if let Some(sources) = response.dnd_release_payload::<Vec<std::path::PathBuf>>() {
             *action = Some(SidebarAction::WorkspaceMove(
                 (*sources).clone(),
                 entry_path.to_path_buf(),
@@ -307,7 +305,8 @@ fn render_tree_entry(
 
     // Professional Reusable Context Menu (Right-click)
     if response.secondary_clicked() && !any_modal_open {
-        let pointer_pos = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+        let pointer_pos = ui
+            .input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
             .unwrap_or(row_rect.left_bottom());
         let items = if entry_is_directory {
             crate::ui::menu::folder_menu(entry_path, expanded)
@@ -359,23 +358,35 @@ pub fn render_sidebar_body(
                     .fill(if ui.rect_contains_pointer(body_rect) {
                         theme.surface()
                     } else {
-                        Color32::from_rgba_unmultiplied(theme.surface().r(), theme.surface().g(), theme.surface().b(), 80)
+                        Color32::from_rgba_unmultiplied(
+                            theme.surface().r(),
+                            theme.surface().g(),
+                            theme.surface().b(),
+                            80,
+                        )
                     })
                     .stroke(Stroke::new(1.0, theme.border().gamma_multiply(0.50)));
 
-                let resp = card_frame.show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("📂").size(15.0));
-                        ui.add_space(4.0);
-                        ui.label(
-                            egui::RichText::new("nothing available")
-                                .size(12.5)
-                                .color(theme.muted),
-                        );
-                    });
-                }).response;
+                let resp = card_frame
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new("📂").size(15.0));
+                            ui.add_space(4.0);
+                            ui.label(
+                                egui::RichText::new("nothing available")
+                                    .size(12.5)
+                                    .color(theme.muted),
+                            );
+                        });
+                    })
+                    .response;
 
-                let btn_interact = ui.interact(resp.rect, ui.id().with("empty_workspace_btn"), egui::Sense::click())
+                let btn_interact = ui
+                    .interact(
+                        resp.rect,
+                        ui.id().with("empty_workspace_btn"),
+                        egui::Sense::click(),
+                    )
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                     .on_hover_text("Click to open a workspace folder");
 
@@ -402,7 +413,8 @@ pub fn render_sidebar_body(
                         workspace.dialog,
                         Some(WorkspaceDialog::CreateFile | WorkspaceDialog::CreateFolder)
                     );
-                    let is_creating_dir = matches!(workspace.dialog, Some(WorkspaceDialog::CreateFolder));
+                    let is_creating_dir =
+                        matches!(workspace.dialog, Some(WorkspaceDialog::CreateFolder));
                     let creating_at_root = workspace
                         .root
                         .as_ref()
@@ -411,7 +423,14 @@ pub fn render_sidebar_body(
 
                     // Inline creation row at root level
                     if is_creating && creating_at_root {
-                        render_inline_creation(ui, workspace, 0, is_creating_dir, theme, &mut action);
+                        render_inline_creation(
+                            ui,
+                            workspace,
+                            0,
+                            is_creating_dir,
+                            theme,
+                            &mut action,
+                        );
                         inline_created_rendered = true;
                     }
 
@@ -478,7 +497,14 @@ pub fn render_sidebar_body(
 
                     // Fallback for inline creation if parent was not encountered
                     if is_creating && !inline_created_rendered {
-                        render_inline_creation(ui, workspace, 0, is_creating_dir, theme, &mut action);
+                        render_inline_creation(
+                            ui,
+                            workspace,
+                            0,
+                            is_creating_dir,
+                            theme,
+                            &mut action,
+                        );
                     }
                 });
         },
@@ -486,12 +512,8 @@ pub fn render_sidebar_body(
 
     // 3. Render Reusable MindForge Context Menu (if open)
     if let Some(mut menu_state) = workspace.context_menu.take() {
-        let (menu_action, should_close) = crate::ui::menu::render_menu_container(
-            ui.ctx(),
-            &mut menu_state,
-            theme,
-            1.0,
-        );
+        let (menu_action, should_close) =
+            crate::ui::menu::render_menu_container(ui.ctx(), &mut menu_state, theme, 1.0);
 
         if let Some(m_act) = menu_action {
             match m_act {
@@ -502,10 +524,16 @@ pub fn render_sidebar_body(
                     action = Some(SidebarAction::ToggleWorkspaceFolder(p));
                 }
                 crate::ui::menu::MenuAction::NewFile(p) => {
-                    action = Some(SidebarAction::WorkspaceCreate(p, WorkspaceDialog::CreateFile));
+                    action = Some(SidebarAction::WorkspaceCreate(
+                        p,
+                        WorkspaceDialog::CreateFile,
+                    ));
                 }
                 crate::ui::menu::MenuAction::NewFolder(p) => {
-                    action = Some(SidebarAction::WorkspaceCreate(p, WorkspaceDialog::CreateFolder));
+                    action = Some(SidebarAction::WorkspaceCreate(
+                        p,
+                        WorkspaceDialog::CreateFolder,
+                    ));
                 }
                 crate::ui::menu::MenuAction::Rename(p) => {
                     action = Some(SidebarAction::WorkspaceRename(p));

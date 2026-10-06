@@ -1,5 +1,5 @@
-use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect};
 use super::particles::Particle;
+use eframe::egui::{pos2, vec2, Color32, Painter, Pos2, Rect};
 
 pub fn emit_snow(particles: &mut Vec<Particle>, pos: Pos2, w: f32, _lh: f32, n: usize) {
     for _ in 0..n {
@@ -8,10 +8,7 @@ pub fn emit_snow(particles: &mut Vec<Particle>, pos: Pos2, w: f32, _lh: f32, n: 
                 pos.x + w * 0.5 + (fastrand::f32() - 0.5) * 1.5,
                 pos.y - 1.0 - fastrand::f32() * 3.0,
             ),
-            vel: vec2(
-                (fastrand::f32() - 0.5) * 4.0,
-                14.0 + fastrand::f32() * 18.0,
-            ),
+            vel: vec2((fastrand::f32() - 0.5) * 4.0, 14.0 + fastrand::f32() * 18.0),
             age: 0.0,
             life: 0.45 + fastrand::f32() * 0.35,
             size: 0.8 + fastrand::f32() * 0.6,
@@ -37,10 +34,6 @@ pub fn paint_snow(p: &Painter, pos: Pos2, w: f32, lh: f32, particles: &[Particle
         } else {
             Color32::from_rgba_unmultiplied(245, 250, 255, a)
         };
-        p.circle_filled(
-            s.pos,
-            s.size * (1.0 - 0.2 * t),
-            flake_color,
-        );
+        p.circle_filled(s.pos, s.size * (1.0 - 0.2 * t), flake_color);
     }
 }

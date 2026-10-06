@@ -54,32 +54,47 @@ pub fn get_mode_colors(mode: &str, color_mode: LunaColorMode, theme: &Theme) -> 
             let m = mode.to_uppercase();
             if m == "INSERT" {
                 // Warm amber / golden orange
-                (Color32::from_rgb(230, 145, 20), Color32::from_rgb(18, 18, 20))
+                (
+                    Color32::from_rgb(230, 145, 20),
+                    Color32::from_rgb(18, 18, 20),
+                )
             } else if m.starts_with("VISUAL") || m == "V-LINE" {
                 // Royal purple / magenta
                 (Color32::from_rgb(168, 85, 247), Color32::WHITE)
             } else if m.starts_with("CMD") || m.contains("SEARCH") {
                 // Ocean sky blue
                 (Color32::from_rgb(14, 165, 233), Color32::WHITE)
-            } else if m == "HYBRID" {
-                // Cyan / teal
-                (Color32::from_rgb(20, 184, 166), Color32::from_rgb(18, 20, 24))
             } else if m.starts_with("DOC") {
                 // Indigo
                 (Color32::from_rgb(99, 102, 241), Color32::WHITE)
             } else {
                 // NORMAL
-                (theme.accent, if theme.is_light() { Color32::WHITE } else { Color32::from_rgb(16, 18, 20) })
+                (
+                    theme.accent,
+                    if theme.is_light() {
+                        Color32::WHITE
+                    } else {
+                        Color32::from_rgb(16, 18, 20)
+                    },
+                )
             }
         }
-        LunaColorMode::ThemeAccent => {
-            (theme.accent, if theme.is_light() { Color32::WHITE } else { Color32::from_rgb(16, 18, 20) })
-        }
+        LunaColorMode::ThemeAccent => (
+            theme.accent,
+            if theme.is_light() {
+                Color32::WHITE
+            } else {
+                Color32::from_rgb(16, 18, 20)
+            },
+        ),
         LunaColorMode::Monochrome => {
             if theme.is_light() {
                 (Color32::from_rgb(45, 48, 55), Color32::WHITE)
             } else {
-                (Color32::from_rgb(220, 225, 235), Color32::from_rgb(24, 26, 30))
+                (
+                    Color32::from_rgb(220, 225, 235),
+                    Color32::from_rgb(24, 26, 30),
+                )
             }
         }
     }
@@ -100,12 +115,8 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
     }
 
     let dock_alpha = (params.opacity * 255.0) as u8;
-    let base_dock_bg = Color32::from_rgba_unmultiplied(
-        theme.bg.r(),
-        theme.bg.g(),
-        theme.bg.b(),
-        dock_alpha,
-    );
+    let base_dock_bg =
+        Color32::from_rgba_unmultiplied(theme.bg.r(), theme.bg.g(), theme.bg.b(), dock_alpha);
 
     // ── 1. Render Outer Dock Surface ─────────────────────────────────────────
     let actual_bar_rect = match config.style {
@@ -142,7 +153,12 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
             painter.rect(
                 actual_bar_rect,
                 3.0,
-                Color32::from_rgba_unmultiplied(theme.surface().r(), theme.surface().g(), theme.surface().b(), dock_alpha),
+                Color32::from_rgba_unmultiplied(
+                    theme.surface().r(),
+                    theme.surface().g(),
+                    theme.surface().b(),
+                    dock_alpha,
+                ),
                 Stroke::NONE,
                 egui::StrokeKind::Inside,
             );
@@ -163,7 +179,10 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
     // ── 2. Interactive Resize Gripper on Bottom-Right ────────────────────────
     let knob_size = 28.0;
     let knob_rect = Rect::from_min_max(
-        pos2(actual_bar_rect.max.x - knob_size, actual_bar_rect.max.y - knob_size),
+        pos2(
+            actual_bar_rect.max.x - knob_size,
+            actual_bar_rect.max.y - knob_size,
+        ),
         actual_bar_rect.max,
     );
     let is_knob_hovered = ui.rect_contains_pointer(knob_rect);
@@ -172,10 +191,17 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeSouthEast);
     }
     if is_knob_hovered && ui.input(|i| i.pointer.primary_down() || i.pointer.primary_clicked()) {
-        ui.ctx().send_viewport_cmd(egui::ViewportCommand::BeginResize(egui::ResizeDirection::SouthEast));
+        ui.ctx()
+            .send_viewport_cmd(egui::ViewportCommand::BeginResize(
+                egui::ResizeDirection::SouthEast,
+            ));
     }
 
-    let knob_color = if is_knob_hovered { theme.accent } else { theme.muted };
+    let knob_color = if is_knob_hovered {
+        theme.accent
+    } else {
+        theme.muted
+    };
     for &d in &[5.0, 9.0, 13.0, 17.0] {
         painter.line_segment(
             [
@@ -197,7 +223,8 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         let ai_w = 76.0;
         let ai_h = 22.0;
         right_x -= ai_w;
-        let ai_btn_rect = Rect::from_min_size(pos2(right_x, bar_center_y - ai_h * 0.5), vec2(ai_w, ai_h));
+        let ai_btn_rect =
+            Rect::from_min_size(pos2(right_x, bar_center_y - ai_h * 0.5), vec2(ai_w, ai_h));
         is_ai_hovered = ui.rect_contains_pointer(ai_btn_rect);
 
         if is_ai_hovered {
@@ -208,7 +235,15 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         }
 
         let (ai_bg, ai_fg) = if params.is_ai_open {
-            (Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 40), theme.accent)
+            (
+                Color32::from_rgba_unmultiplied(
+                    theme.accent.r(),
+                    theme.accent.g(),
+                    theme.accent.b(),
+                    40,
+                ),
+                theme.accent,
+            )
         } else if is_ai_hovered {
             (theme.surface(), theme.accent)
         } else {
@@ -220,7 +255,11 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
                 ai_btn_rect,
                 11.0,
                 ai_bg,
-                if params.is_ai_open || is_ai_hovered { Stroke::new(1.0_f32, theme.accent.gamma_multiply(0.7)) } else { Stroke::NONE },
+                if params.is_ai_open || is_ai_hovered {
+                    Stroke::new(1.0_f32, theme.accent.gamma_multiply(0.7))
+                } else {
+                    Stroke::NONE
+                },
                 egui::StrokeKind::Inside,
             );
         }
@@ -236,16 +275,35 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
 
     // Encoding Badge (e.g. "UTF-8")
     if config.show_encoding && is_wide {
-        let enc_str = if config.show_line_ending { "UTF-8 [LF]" } else { "UTF-8" };
+        let enc_str = if config.show_line_ending {
+            "UTF-8 [LF]"
+        } else {
+            "UTF-8"
+        };
         let enc_w = (enc_str.len() as f32 * 7.0 + 16.0).max(42.0);
         let enc_h = 20.0;
         right_x -= enc_w;
-        let enc_rect = Rect::from_min_size(pos2(right_x, bar_center_y - enc_h * 0.5), vec2(enc_w, enc_h));
+        let enc_rect = Rect::from_min_size(
+            pos2(right_x, bar_center_y - enc_h * 0.5),
+            vec2(enc_w, enc_h),
+        );
 
         if matches!(config.style, LunaStyle::Pill | LunaStyle::Floating) {
-            painter.rect(enc_rect, 4.0, theme.surface(), Stroke::new(0.5_f32, theme.border()), egui::StrokeKind::Inside);
+            painter.rect(
+                enc_rect,
+                4.0,
+                theme.surface(),
+                Stroke::new(0.5_f32, theme.border()),
+                egui::StrokeKind::Inside,
+            );
         }
-        painter.text(enc_rect.center(), Align2::CENTER_CENTER, enc_str, font_info.clone(), theme.muted);
+        painter.text(
+            enc_rect.center(),
+            Align2::CENTER_CENTER,
+            enc_str,
+            font_info.clone(),
+            theme.muted,
+        );
         right_x -= 8.0;
     }
 
@@ -282,13 +340,27 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         }
     }
     if let Some((glyph, color)) = lsp_glyph {
-        painter.text(pos2(language_rect.min.x + 7.0, language_rect.center().y), Align2::LEFT_CENTER, glyph, font_info.clone(), color);
+        painter.text(
+            pos2(language_rect.min.x + 7.0, language_rect.center().y),
+            Align2::LEFT_CENTER,
+            glyph,
+            font_info.clone(),
+            color,
+        );
         if language_hovered && !params.lsp.1.is_empty() {
-            egui::show_tooltip_text(ui.ctx(), ui.layer_id(), egui::Id::new("mindforge-lsp-tip"), format!("{}: {}", params.lsp.0, params.lsp.1));
+            egui::show_tooltip_text(
+                ui.ctx(),
+                ui.layer_id(),
+                egui::Id::new("mindforge-lsp-tip"),
+                format!("{}: {}", params.lsp.0, params.lsp.1),
+            );
         }
     }
     painter.text(
-        pos2(language_rect.min.x + 7.0 + lsp_pad, language_rect.center().y),
+        pos2(
+            language_rect.min.x + 7.0 + lsp_pad,
+            language_rect.center().y,
+        ),
         Align2::LEFT_CENTER,
         language_label,
         font_info.clone(),
@@ -299,7 +371,11 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         Align2::RIGHT_CENTER,
         "▾",
         font_info.clone(),
-        if language_hovered { theme.accent } else { theme.muted },
+        if language_hovered {
+            theme.accent
+        } else {
+            theme.muted
+        },
     );
     right_x -= 8.0;
 
@@ -310,18 +386,34 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         } else if params.cursor_row >= params.total_rows.max(1) {
             "Bot".to_string()
         } else {
-            let pct = ((params.cursor_row as f32 / params.total_rows.max(1) as f32) * 100.0).round() as usize;
+            let pct = ((params.cursor_row as f32 / params.total_rows.max(1) as f32) * 100.0).round()
+                as usize;
             format!("{}%", pct)
         };
         let prog_w = (progress_str.len() as f32 * 7.5 + 16.0).max(40.0);
         let prog_h = 20.0;
         right_x -= prog_w;
-        let prog_rect = Rect::from_min_size(pos2(right_x, bar_center_y - prog_h * 0.5), vec2(prog_w, prog_h));
+        let prog_rect = Rect::from_min_size(
+            pos2(right_x, bar_center_y - prog_h * 0.5),
+            vec2(prog_w, prog_h),
+        );
 
         if matches!(config.style, LunaStyle::Pill | LunaStyle::Floating) {
-            painter.rect(prog_rect, 4.0, theme.surface(), Stroke::new(0.5_f32, theme.border()), egui::StrokeKind::Inside);
+            painter.rect(
+                prog_rect,
+                4.0,
+                theme.surface(),
+                Stroke::new(0.5_f32, theme.border()),
+                egui::StrokeKind::Inside,
+            );
         }
-        painter.text(prog_rect.center(), Align2::CENTER_CENTER, &progress_str, font_info.clone(), theme.muted);
+        painter.text(
+            prog_rect.center(),
+            Align2::CENTER_CENTER,
+            &progress_str,
+            font_info.clone(),
+            theme.muted,
+        );
         right_x -= 8.0;
     }
 
@@ -331,12 +423,27 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         let pos_w = pos_str.len() as f32 * 7.2 + 16.0;
         let pos_h = 20.0;
         right_x -= pos_w;
-        let pos_rect = Rect::from_min_size(pos2(right_x, bar_center_y - pos_h * 0.5), vec2(pos_w, pos_h));
+        let pos_rect = Rect::from_min_size(
+            pos2(right_x, bar_center_y - pos_h * 0.5),
+            vec2(pos_w, pos_h),
+        );
 
         if matches!(config.style, LunaStyle::Pill | LunaStyle::Floating) {
-            painter.rect(pos_rect, 4.0, theme.surface(), Stroke::new(0.5_f32, theme.border()), egui::StrokeKind::Inside);
+            painter.rect(
+                pos_rect,
+                4.0,
+                theme.surface(),
+                Stroke::new(0.5_f32, theme.border()),
+                egui::StrokeKind::Inside,
+            );
         }
-        painter.text(pos_rect.center(), Align2::CENTER_CENTER, &pos_str, font_info.clone(), theme.text);
+        painter.text(
+            pos_rect.center(),
+            Align2::CENTER_CENTER,
+            &pos_str,
+            font_info.clone(),
+            theme.text,
+        );
         right_x -= 8.0;
     }
 
@@ -357,12 +464,27 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         let metrics_w = metrics_str.len() as f32 * 7.0 + 16.0;
         let metrics_h = 20.0;
         right_x -= metrics_w;
-        let metrics_rect = Rect::from_min_size(pos2(right_x, bar_center_y - metrics_h * 0.5), vec2(metrics_w, metrics_h));
+        let metrics_rect = Rect::from_min_size(
+            pos2(right_x, bar_center_y - metrics_h * 0.5),
+            vec2(metrics_w, metrics_h),
+        );
 
         if matches!(config.style, LunaStyle::Pill | LunaStyle::Floating) {
-            painter.rect(metrics_rect, 4.0, theme.surface(), Stroke::new(0.5_f32, theme.border()), egui::StrokeKind::Inside);
+            painter.rect(
+                metrics_rect,
+                4.0,
+                theme.surface(),
+                Stroke::new(0.5_f32, theme.border()),
+                egui::StrokeKind::Inside,
+            );
         }
-        painter.text(metrics_rect.center(), Align2::CENTER_CENTER, &metrics_str, font_info.clone(), theme.muted);
+        painter.text(
+            metrics_rect.center(),
+            Align2::CENTER_CENTER,
+            &metrics_str,
+            font_info.clone(),
+            theme.muted,
+        );
         right_x -= 12.0;
     }
 
@@ -381,16 +503,32 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
             format!("{} FIND", params.cmd_prefix)
         };
         let prompt_w = cmd_prompt.len() as f32 * 7.5 + 16.0;
-        let prompt_rect = Rect::from_min_size(pos2(left_x, bar_center_y - 11.0), vec2(prompt_w, 22.0));
+        let prompt_rect =
+            Rect::from_min_size(pos2(left_x, bar_center_y - 11.0), vec2(prompt_w, 22.0));
         let (cmd_bg, cmd_fg) = get_mode_colors("CMD", config.color_mode, theme);
 
-        painter.rect(prompt_rect, 5.0, cmd_bg, Stroke::NONE, egui::StrokeKind::Inside);
-        painter.text(prompt_rect.center(), Align2::CENTER_CENTER, &cmd_prompt, FontId::monospace(11.0), cmd_fg);
+        painter.rect(
+            prompt_rect,
+            5.0,
+            cmd_bg,
+            Stroke::NONE,
+            egui::StrokeKind::Inside,
+        );
+        painter.text(
+            prompt_rect.center(),
+            Align2::CENTER_CENTER,
+            &cmd_prompt,
+            FontId::monospace(11.0),
+            cmd_fg,
+        );
         left_x += prompt_w + 10.0;
 
         let cmd_avail_w = (right_boundary_x - left_x - 10.0).max(40.0);
         let cmd_font = FontId::monospace(13.5);
-        let cmd_clip_rect = Rect::from_min_max(pos2(left_x, actual_bar_rect.min.y), pos2(left_x + cmd_avail_w, actual_bar_rect.max.y));
+        let cmd_clip_rect = Rect::from_min_max(
+            pos2(left_x, actual_bar_rect.min.y),
+            pos2(left_x + cmd_avail_w, actual_bar_rect.max.y),
+        );
         let cmd_painter = painter.with_clip_rect(cmd_clip_rect);
 
         let cur_clamped = params.cmd_cur.min(params.cmd_text.len());
@@ -399,8 +537,14 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
             valid_cur -= 1;
         }
         let before_cur = &params.cmd_text[..valid_cur];
-        let cursor_offset_x = cmd_painter.layout_no_wrap(before_cur.to_string(), cmd_font.clone(), theme.text).size().x;
-        let total_text_w = cmd_painter.layout_no_wrap(params.cmd_text.to_string(), cmd_font.clone(), theme.text).size().x;
+        let cursor_offset_x = cmd_painter
+            .layout_no_wrap(before_cur.to_string(), cmd_font.clone(), theme.text)
+            .size()
+            .x;
+        let total_text_w = cmd_painter
+            .layout_no_wrap(params.cmd_text.to_string(), cmd_font.clone(), theme.text)
+            .size()
+            .x;
 
         let scroll_x = if total_text_w > cmd_avail_w {
             let max_scroll = (total_text_w - cmd_avail_w + 24.0).max(0.0);
@@ -415,21 +559,40 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
             let s_min = start.min(end).min(params.cmd_text.len());
             let s_max = start.max(end).min(params.cmd_text.len());
             let mut valid_min = s_min;
-            while !params.cmd_text.is_char_boundary(valid_min) && valid_min > 0 { valid_min -= 1; }
+            while !params.cmd_text.is_char_boundary(valid_min) && valid_min > 0 {
+                valid_min -= 1;
+            }
             let mut valid_max = s_max;
-            while !params.cmd_text.is_char_boundary(valid_max) && valid_max > 0 { valid_max -= 1; }
+            while !params.cmd_text.is_char_boundary(valid_max) && valid_max > 0 {
+                valid_max -= 1;
+            }
             let prefix = &params.cmd_text[..valid_min];
             let selected_part = &params.cmd_text[valid_min..valid_max];
-            let x_off = cmd_painter.layout_no_wrap(prefix.to_string(), cmd_font.clone(), theme.text).size().x;
-            let sel_w = cmd_painter.layout_no_wrap(selected_part.to_string(), cmd_font.clone(), theme.text).size().x;
+            let x_off = cmd_painter
+                .layout_no_wrap(prefix.to_string(), cmd_font.clone(), theme.text)
+                .size()
+                .x;
+            let sel_w = cmd_painter
+                .layout_no_wrap(selected_part.to_string(), cmd_font.clone(), theme.text)
+                .size()
+                .x;
             cmd_painter.rect_filled(
-                Rect::from_min_size(pos2(text_origin.x + x_off, text_origin.y), vec2(sel_w, 18.0)),
+                Rect::from_min_size(
+                    pos2(text_origin.x + x_off, text_origin.y),
+                    vec2(sel_w, 18.0),
+                ),
                 2.0,
-                Color32::from_rgba_unmultiplied(theme.accent.r(), theme.accent.g(), theme.accent.b(), 90),
+                Color32::from_rgba_unmultiplied(
+                    theme.accent.r(),
+                    theme.accent.g(),
+                    theme.accent.b(),
+                    90,
+                ),
             );
         }
 
-        let galley = cmd_painter.layout_no_wrap(params.cmd_text.to_string(), cmd_font.clone(), theme.text);
+        let galley =
+            cmd_painter.layout_no_wrap(params.cmd_text.to_string(), cmd_font.clone(), theme.text);
         cmd_painter.galley(text_origin, galley, theme.text);
 
         let cursor_x = text_origin.x + cursor_offset_x;
@@ -443,48 +606,124 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         }
     } else if let Some((symbol, query, match_count)) = params.search_prompt {
         // Active In-Buffer Search
-        let prompt_str = if symbol == "?" { "? SEARCH" } else { "/ SEARCH" };
+        let prompt_str = if symbol == "?" {
+            "? SEARCH"
+        } else {
+            "/ SEARCH"
+        };
         let prompt_w = prompt_str.len() as f32 * 7.5 + 16.0;
-        let prompt_rect = Rect::from_min_size(pos2(left_x, bar_center_y - 11.0), vec2(prompt_w, 22.0));
+        let prompt_rect =
+            Rect::from_min_size(pos2(left_x, bar_center_y - 11.0), vec2(prompt_w, 22.0));
         let (s_bg, s_fg) = get_mode_colors("SEARCH", config.color_mode, theme);
 
-        painter.rect(prompt_rect, 5.0, s_bg, Stroke::NONE, egui::StrokeKind::Inside);
-        painter.text(prompt_rect.center(), Align2::CENTER_CENTER, prompt_str, FontId::monospace(11.0), s_fg);
+        painter.rect(
+            prompt_rect,
+            5.0,
+            s_bg,
+            Stroke::NONE,
+            egui::StrokeKind::Inside,
+        );
+        painter.text(
+            prompt_rect.center(),
+            Align2::CENTER_CENTER,
+            prompt_str,
+            FontId::monospace(11.0),
+            s_fg,
+        );
         left_x += prompt_w + 10.0;
 
         let search_text = format!("{}{}_", symbol, query);
-        painter.text(pos2(left_x, bar_center_y), Align2::LEFT_CENTER, search_text, FontId::monospace(13.0), theme.text);
+        painter.text(
+            pos2(left_x, bar_center_y),
+            Align2::LEFT_CENTER,
+            search_text,
+            FontId::monospace(13.0),
+            theme.text,
+        );
         let q_w = query.len() as f32 * 8.0 + 20.0;
-        let match_info = if match_count == 0 { "(no matches)".into() } else { format!("({} matches)", match_count) };
-        painter.text(pos2(left_x + q_w, bar_center_y), Align2::LEFT_CENTER, match_info, font_info.clone(), theme.muted);
+        let match_info = if match_count == 0 {
+            "(no matches)".into()
+        } else {
+            format!("({} matches)", match_count)
+        };
+        painter.text(
+            pos2(left_x + q_w, bar_center_y),
+            Align2::LEFT_CENTER,
+            match_info,
+            font_info.clone(),
+            theme.muted,
+        );
     } else {
         // Mode Badge
         if config.show_mode {
             let badge_w = mode_str.len() as f32 * 7.8 + 18.0;
             let badge_h = 22.0;
-            let mode_rect = Rect::from_min_size(pos2(left_x, bar_center_y - badge_h * 0.5), vec2(badge_w, badge_h));
+            let mode_rect = Rect::from_min_size(
+                pos2(left_x, bar_center_y - badge_h * 0.5),
+                vec2(badge_w, badge_h),
+            );
 
             match config.style {
                 LunaStyle::Pill | LunaStyle::Floating => {
-                    painter.rect(mode_rect, 11.0, mode_bg, Stroke::NONE, egui::StrokeKind::Inside);
-                    painter.text(mode_rect.center(), Align2::CENTER_CENTER, mode_str, FontId::monospace(11.0), mode_fg);
+                    painter.rect(
+                        mode_rect,
+                        11.0,
+                        mode_bg,
+                        Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.text(
+                        mode_rect.center(),
+                        Align2::CENTER_CENTER,
+                        mode_str,
+                        FontId::monospace(11.0),
+                        mode_fg,
+                    );
                     left_x += badge_w + 8.0;
                 }
                 LunaStyle::Powerline => {
-                    painter.rect(mode_rect, 2.0, mode_bg, Stroke::NONE, egui::StrokeKind::Inside);
-                    painter.text(mode_rect.center(), Align2::CENTER_CENTER, mode_str, FontId::monospace(11.0), mode_fg);
+                    painter.rect(
+                        mode_rect,
+                        2.0,
+                        mode_bg,
+                        Stroke::NONE,
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.text(
+                        mode_rect.center(),
+                        Align2::CENTER_CENTER,
+                        mode_str,
+                        FontId::monospace(11.0),
+                        mode_fg,
+                    );
                     // Chevron arrow pointing right
                     let arrow_w = 8.0;
                     let p1 = pos2(mode_rect.max.x, mode_rect.min.y);
                     let p2 = pos2(mode_rect.max.x + arrow_w, bar_center_y);
                     let p3 = pos2(mode_rect.max.x, mode_rect.max.y);
-                    painter.add(Shape::convex_polygon(vec![p1, p2, p3], mode_bg, Stroke::NONE));
+                    painter.add(Shape::convex_polygon(
+                        vec![p1, p2, p3],
+                        mode_bg,
+                        Stroke::NONE,
+                    ));
                     left_x += badge_w + arrow_w + 8.0;
                 }
                 LunaStyle::Minimal => {
-                    painter.text(mode_rect.center(), Align2::CENTER_CENTER, mode_str, FontId::monospace(11.0), mode_bg);
+                    painter.text(
+                        mode_rect.center(),
+                        Align2::CENTER_CENTER,
+                        mode_str,
+                        FontId::monospace(11.0),
+                        mode_bg,
+                    );
                     left_x += badge_w + 4.0;
-                    painter.text(pos2(left_x, bar_center_y), Align2::LEFT_CENTER, "·", font_info.clone(), theme.muted);
+                    painter.text(
+                        pos2(left_x, bar_center_y),
+                        Align2::LEFT_CENTER,
+                        "·",
+                        font_info.clone(),
+                        theme.muted,
+                    );
                     left_x += 10.0;
                 }
             }
@@ -503,13 +742,28 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
             let info_h = 22.0;
 
             if left_x + info_w < right_boundary_x {
-                let info_rect = Rect::from_min_size(pos2(left_x, bar_center_y - info_h * 0.5), vec2(info_w, info_h));
+                let info_rect = Rect::from_min_size(
+                    pos2(left_x, bar_center_y - info_h * 0.5),
+                    vec2(info_w, info_h),
+                );
 
                 if matches!(config.style, LunaStyle::Pill | LunaStyle::Floating) {
-                    painter.rect(info_rect, 6.0, theme.surface(), Stroke::new(0.5_f32, theme.border()), egui::StrokeKind::Inside);
+                    painter.rect(
+                        info_rect,
+                        6.0,
+                        theme.surface(),
+                        Stroke::new(0.5_f32, theme.border()),
+                        egui::StrokeKind::Inside,
+                    );
                 }
                 let text_anchor = pos2(info_rect.min.x + 8.0, bar_center_y);
-                painter.text(text_anchor, Align2::LEFT_CENTER, &info_str, font_info.clone(), theme.text);
+                painter.text(
+                    text_anchor,
+                    Align2::LEFT_CENTER,
+                    &info_str,
+                    font_info.clone(),
+                    theme.text,
+                );
 
                 if params.is_dirty {
                     let dot_pos = pos2(info_rect.max.x - 10.0, bar_center_y);
@@ -526,17 +780,34 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
             let text_x = left_x + 22.0;
             let avail = (right_boundary_x - text_x - 12.0).max(0.0);
             if avail > 40.0 {
-                let clip = Rect::from_min_max(pos2(text_x, actual_bar_rect.min.y), pos2(text_x + avail, actual_bar_rect.max.y));
-                painter.with_clip_rect(clip).text(pos2(text_x, bar_center_y), Align2::LEFT_CENTER, label, font_info.clone(), theme.text);
+                let clip = Rect::from_min_max(
+                    pos2(text_x, actual_bar_rect.min.y),
+                    pos2(text_x + avail, actual_bar_rect.max.y),
+                );
+                painter.with_clip_rect(clip).text(
+                    pos2(text_x, bar_center_y),
+                    Align2::LEFT_CENTER,
+                    label,
+                    font_info.clone(),
+                    theme.text,
+                );
             }
         } else if !params.status_msg.is_empty() && (now - params.status_time) < 3.5 {
             let fade_t = ((3.5 - (now - params.status_time)) / 0.5).clamp(0.0, 1.0) as f32;
             let status_alpha = (fade_t * 255.0) as u8;
-            let status_color = Color32::from_rgba_unmultiplied(theme.text.r(), theme.text.g(), theme.text.b(), status_alpha);
+            let status_color = Color32::from_rgba_unmultiplied(
+                theme.text.r(),
+                theme.text.g(),
+                theme.text.b(),
+                status_alpha,
+            );
             let avail_status_w = (right_boundary_x - left_x - 12.0).max(0.0);
 
             if avail_status_w > 40.0 {
-                let status_clip = Rect::from_min_max(pos2(left_x, actual_bar_rect.min.y), pos2(left_x + avail_status_w, actual_bar_rect.max.y));
+                let status_clip = Rect::from_min_max(
+                    pos2(left_x, actual_bar_rect.min.y),
+                    pos2(left_x + avail_status_w, actual_bar_rect.max.y),
+                );
                 let status_response = params.ui.interact(
                     status_clip,
                     params.ui.make_persistent_id("lunaline_status_message_copy"),
@@ -549,7 +820,13 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
                     status_response.on_hover_text("Double-click to copy this message");
                 }
                 let status_painter = painter.with_clip_rect(status_clip);
-                status_painter.text(pos2(left_x, bar_center_y), Align2::LEFT_CENTER, params.status_msg, font_info.clone(), status_color);
+                status_painter.text(
+                    pos2(left_x, bar_center_y),
+                    Align2::LEFT_CENTER,
+                    params.status_msg,
+                    font_info.clone(),
+                    status_color,
+                );
             }
         }
     }
@@ -587,7 +864,9 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
             .into_iter()
             .filter(|(_, label)| query.is_empty() || label.to_ascii_lowercase().contains(&query))
             .collect();
-        selector.selected_index = selector.selected_index.min(filtered.len().saturating_sub(1));
+        selector.selected_index = selector
+            .selected_index
+            .min(filtered.len().saturating_sub(1));
 
         if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
             selector.open = false;
@@ -621,7 +900,9 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
 
             // Outside click dismiss
             if ui.input(|i| i.pointer.primary_clicked() || i.pointer.secondary_clicked()) {
-                if let Some(pos) = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos())) {
+                if let Some(pos) =
+                    ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+                {
                     if !popup_rect.contains(pos) && !language_rect.contains(pos) {
                         selector.open = false;
                     }
@@ -651,7 +932,9 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
                                 ui.add_space(6.0);
                                 ui.horizontal(|ui| {
                                     ui.add_space(8.0);
-                                    ui.label(egui::RichText::new("🔍").size(12.0).color(theme.muted));
+                                    ui.label(
+                                        egui::RichText::new("🔍").size(12.0).color(theme.muted),
+                                    );
                                     let search = ui.add(
                                         egui::TextEdit::singleline(&mut selector.query)
                                             .id_salt("mindforge-language-search")
@@ -677,9 +960,13 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
                                     .max_height(popup_height - 50.0)
                                     .auto_shrink([false, false])
                                     .show(ui, |ui| {
-                                        for (index, (language, label)) in filtered.iter().enumerate() {
+                                        for (index, (language, label)) in
+                                            filtered.iter().enumerate()
+                                        {
                                             let is_selected = match language {
-                                                Some(language) => params.language_override == Some(*language),
+                                                Some(language) => {
+                                                    params.language_override == Some(*language)
+                                                }
                                                 None => params.language_override.is_none(),
                                             };
                                             let is_highlighted = index == selector.selected_index;
@@ -697,7 +984,9 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
                                                     if theme.is_light() {
                                                         Color32::from_rgba_unmultiplied(0, 0, 0, 14)
                                                     } else {
-                                                        Color32::from_rgba_unmultiplied(255, 255, 255, 14)
+                                                        Color32::from_rgba_unmultiplied(
+                                                            255, 255, 255, 14,
+                                                        )
                                                     },
                                                 );
                                             }
@@ -718,7 +1007,10 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
 
                                             let label_x = text_x + 16.0;
                                             let display_name = if language.is_none() {
-                                                format!("{label} ({})", params.detected_language.label())
+                                                format!(
+                                                    "{label} ({})",
+                                                    params.detected_language.label()
+                                                )
                                             } else {
                                                 (*label).to_string()
                                             };
@@ -743,7 +1035,9 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
 
                                             if resp.clicked() {
                                                 action.language_selection = Some(match language {
-                                                    Some(language) => LanguageSelection::Language(*language),
+                                                    Some(language) => {
+                                                        LanguageSelection::Language(*language)
+                                                    }
                                                     None => LanguageSelection::AutoDetect,
                                                 });
                                                 selector.open = false;
@@ -770,12 +1064,21 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
 }
 
 /// Small rotating arc used as an activity indicator.
-fn paint_spinner(painter: &egui::Painter, center: egui::Pos2, radius: f32, now: f64, color: Color32) {
+fn paint_spinner(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    radius: f32,
+    now: f64,
+    color: Color32,
+) {
     let start = (now * 6.0) as f32;
     let points: Vec<egui::Pos2> = (0..=10)
         .map(|i| {
             let angle = start + i as f32 * 0.28;
-            pos2(center.x + radius * angle.cos(), center.y + radius * angle.sin())
+            pos2(
+                center.x + radius * angle.cos(),
+                center.y + radius * angle.sin(),
+            )
         })
         .collect();
     painter.add(Shape::line(points, Stroke::new(1.8, color)));

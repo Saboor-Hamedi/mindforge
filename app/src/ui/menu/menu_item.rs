@@ -1,7 +1,7 @@
 //! Individual menu item row component with aligned icons, labels, and shortcut columns.
 
-use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Response, Ui};
 use crate::ui::theme::Theme;
+use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Response, Ui};
 
 pub const ITEM_HEIGHT: f32 = 26.0;
 pub const ICON_COL_W: f32 = 22.0;
@@ -22,7 +22,11 @@ pub fn render_menu_item(
 ) -> (Response, bool) {
     let (rect, response) = ui.allocate_exact_size(
         vec2(width, ITEM_HEIGHT),
-        if disabled { egui::Sense::hover() } else { egui::Sense::click() },
+        if disabled {
+            egui::Sense::hover()
+        } else {
+            egui::Sense::click()
+        },
     );
 
     let is_hovered = response.hovered() || is_keyboard_selected;

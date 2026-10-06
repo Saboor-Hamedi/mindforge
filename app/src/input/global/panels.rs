@@ -14,7 +14,12 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
     // While the Neovim completion popup is open, Ctrl+J/K move the selection
     // instead of toggling the terminal.
     if !app.command_bar.in_command
-        && app.services.vim_runtime.backend.as_ref().is_some_and(|b| b.popup_visible())
+        && app
+            .services
+            .vim_runtime
+            .backend
+            .as_ref()
+            .is_some_and(|b| b.popup_visible())
     {
         let step = ctx.input_mut(|i| {
             if i.consume_key(egui::Modifiers::CTRL, egui::Key::J) {
@@ -37,7 +42,10 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
     let toggle_term = !app.command_bar.in_command
         && !is_panel_nav_active
         && ctx.input(|i| {
-            (i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::J))
+            (i.modifiers.ctrl
+                && !i.modifiers.shift
+                && !i.modifiers.alt
+                && i.key_pressed(egui::Key::J))
                 || (i.modifiers.ctrl && i.key_pressed(egui::Key::Backtick))
         });
     if toggle_term {
@@ -45,7 +53,10 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
         if app.terminal.open {
             app.terminal.prev_mode_before_term = app.misc.mode;
             app.terminal.focused = true;
-            app.set_status("Terminal opened (Ctrl+J to toggle, click editor or Esc to edit)", now);
+            app.set_status(
+                "Terminal opened (Ctrl+J to toggle, click editor or Esc to edit)",
+                now,
+            );
         } else {
             app.terminal.focused = false;
             app.set_status("Terminal closed", now);
@@ -55,7 +66,10 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
 
     // AI Agent Right Pane Toggle: Ctrl+Shift+I
     let toggle_ai = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::I)
+        (i.modifiers.ctrl || i.modifiers.command)
+            && i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(egui::Key::I)
     });
     if toggle_ai && !app.command_bar.in_command {
         if app.editor.preview_open && app.right_pane.tab == crate::app::RightPaneTab::AiAgent {
@@ -74,7 +88,10 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
 
     // Split Preview Toggle: Ctrl+\
     let toggle_preview = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && !i.modifiers.alt && !i.modifiers.shift && i.key_pressed(egui::Key::Backslash)
+        (i.modifiers.ctrl || i.modifiers.command)
+            && !i.modifiers.alt
+            && !i.modifiers.shift
+            && i.key_pressed(egui::Key::Backslash)
     });
     if toggle_preview && !app.command_bar.in_command {
         if app.editor.preview_open && app.right_pane.tab == crate::app::RightPaneTab::Preview {
@@ -90,7 +107,10 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
 
     // Outline Toggle: Ctrl+Shift+O
     let toggle_outline = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command) && i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::O)
+        (i.modifiers.ctrl || i.modifiers.command)
+            && i.modifiers.shift
+            && !i.modifiers.alt
+            && i.key_pressed(egui::Key::O)
     });
     if toggle_outline && !app.command_bar.in_command {
         if app.editor.preview_open && app.right_pane.tab == crate::app::RightPaneTab::Outline {
@@ -105,7 +125,10 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
     }
 
     // AI Assistant Input Priority: when user is focused on the AI prompt textarea
-    if !app.command_bar.in_command && app.editor.preview_open && app.right_pane.tab == crate::app::RightPaneTab::AiAgent {
+    if !app.command_bar.in_command
+        && app.editor.preview_open
+        && app.right_pane.tab == crate::app::RightPaneTab::AiAgent
+    {
         let ai_input_id = egui::Id::new("deepseek_prompt_input");
         let is_ai_focused = app.services.agent_state.is_input_focused
             || ctx.memory(|m| m.has_focus(ai_input_id))
@@ -122,7 +145,9 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
     }
 
     // Sidebar Toggle: Ctrl+B
-    let ctrl_b = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && i.key_pressed(egui::Key::B));
+    let ctrl_b = ctx.input(|i| {
+        i.modifiers.ctrl && !i.modifiers.alt && !i.modifiers.shift && i.key_pressed(egui::Key::B)
+    });
     if ctrl_b && !app.command_bar.in_command {
         app.sidebar.open = !app.sidebar.open;
         if app.sidebar.open {
@@ -137,10 +162,17 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
             app.tabs.doc_sidebar_focused = false;
             app.set_status("Sidebar closed", now);
         }
-        let _ = app.services.db_tx.send(crate::services::db_worker::DbMsg::SaveSetting {
-            key: "sidebar".into(),
-            val: if app.sidebar.open { "true".into() } else { "false".into() },
-        });
+        let _ = app
+            .services
+            .db_tx
+            .send(crate::services::db_worker::DbMsg::SaveSetting {
+                key: "sidebar".into(),
+                val: if app.sidebar.open {
+                    "true".into()
+                } else {
+                    "false".into()
+                },
+            });
         return Some(false);
     }
 
@@ -174,7 +206,9 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
     }
 
     // Panel Navigation: Ctrl+L (Focus Editor / Right Pane)
-    let ctrl_l = ctx.input(|i| i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::L));
+    let ctrl_l = ctx.input(|i| {
+        i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::L)
+    });
     if ctrl_l && !app.command_bar.in_command {
         if app.sidebar.open && (app.sidebar.focused || app.tabs.doc_sidebar_focused) {
             if app.misc.mode == Mode::Doc {
@@ -204,12 +238,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ctrl_h_is_not_consumed_as_a_sidebar_shortcut(){
-        let mut app=App::new();
-        let ctx=egui::Context::default();
-        let mut result=None;
-        let raw=egui::RawInput{events:vec![egui::Event::Key{key:egui::Key::H,physical_key:Some(egui::Key::H),pressed:true,repeat:false,modifiers:egui::Modifiers::CTRL}],..Default::default()};
-        let _=ctx.run(raw,|ctx|{result=handle_panel_shortcuts(&mut app,ctx,1.0);});
-        assert_eq!(result,None);
+    fn ctrl_h_is_not_consumed_as_a_sidebar_shortcut() {
+        let mut app = App::new();
+        let ctx = egui::Context::default();
+        let mut result = None;
+        let raw = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::H,
+                physical_key: Some(egui::Key::H),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::CTRL,
+            }],
+            ..Default::default()
+        };
+        let _ = ctx.run(raw, |ctx| {
+            result = handle_panel_shortcuts(&mut app, ctx, 1.0);
+        });
+        assert_eq!(result, None);
     }
 }

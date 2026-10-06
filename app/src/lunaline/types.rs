@@ -43,7 +43,7 @@ impl LunaStyle {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LunaColorMode {
-    /// Dynamic mode-reactive accents (Normal = Green, Insert = Amber, Visual = Violet, Command = Sky Blue, Hybrid = Cyan)
+    /// Dynamic mode-reactive accents (Normal = Green, Insert = Amber, Visual = Violet, Command = Sky Blue)
     Dynamic,
     /// Always matches current application theme accent
     ThemeAccent,
@@ -68,8 +68,12 @@ impl LunaColorMode {
 
     pub fn description(&self) -> &'static str {
         match self {
-            LunaColorMode::Dynamic => "Vibrant mode-responsive colors (Normal, Insert, Visual, Cmd)",
-            LunaColorMode::ThemeAccent => "Harmonizes directly with your active Lumina theme accent",
+            LunaColorMode::Dynamic => {
+                "Vibrant mode-responsive colors (Normal, Insert, Visual, Cmd)"
+            }
+            LunaColorMode::ThemeAccent => {
+                "Harmonizes directly with your active Lumina theme accent"
+            }
             LunaColorMode::Monochrome => "Minimalist stealth grayscale tones with maximum clarity",
         }
     }
@@ -133,7 +137,8 @@ mod tests {
         assert!(default_cfg.show_ai_button);
 
         let json = serde_json::to_string(&default_cfg).expect("serialize default LunaLineConfig");
-        let deserialized: LunaLineConfig = serde_json::from_str(&json).expect("deserialize LunaLineConfig");
+        let deserialized: LunaLineConfig =
+            serde_json::from_str(&json).expect("deserialize LunaLineConfig");
         assert_eq!(default_cfg, deserialized);
     }
 

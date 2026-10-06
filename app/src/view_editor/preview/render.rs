@@ -18,7 +18,17 @@ pub fn render_markdown_preview(
     font_size: f32,
     block_scroll: bool,
 ) -> bool {
-    render_markdown_view_inner(ui, painter, rect, content, scroll_y, theme, font_size, false, block_scroll)
+    render_markdown_view_inner(
+        ui,
+        painter,
+        rect,
+        content,
+        scroll_y,
+        theme,
+        font_size,
+        false,
+        block_scroll,
+    )
 }
 
 /// Renders parsed markdown blocks inside `rect` as a full-height document without any nested header bar.
@@ -32,7 +42,9 @@ pub fn render_markdown_document(
     theme: &Theme,
     font_size: f32,
 ) {
-    let _ = render_markdown_view_inner(ui, painter, rect, content, scroll_y, theme, font_size, false, false);
+    let _ = render_markdown_view_inner(
+        ui, painter, rect, content, scroll_y, theme, font_size, false, false,
+    );
 }
 
 pub fn render_markdown_view_inner(
@@ -52,10 +64,7 @@ pub fn render_markdown_view_inner(
     let content_rect = if show_header {
         // Header bar (28px height)
         let header_h = 28.0;
-        let header_rect = Rect::from_min_max(
-            rect.min,
-            pos2(rect.max.x, rect.min.y + header_h),
-        );
+        let header_rect = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.min.y + header_h));
 
         // Header subtle translucent background & bottom border
         let header_bg = Color32::from_rgba_unmultiplied(
@@ -66,7 +75,10 @@ pub fn render_markdown_view_inner(
         );
         painter.rect_filled(header_rect, 0.0, header_bg);
         painter.line_segment(
-            [pos2(header_rect.min.x, header_rect.max.y), pos2(header_rect.max.x, header_rect.max.y)],
+            [
+                pos2(header_rect.min.x, header_rect.max.y),
+                pos2(header_rect.max.x, header_rect.max.y),
+            ],
             Stroke::new(1.0_f32, theme.border()),
         );
 
@@ -92,10 +104,7 @@ pub fn render_markdown_view_inner(
             close_clicked = true;
         }
 
-        Rect::from_min_max(
-            pos2(rect.min.x, rect.min.y + header_h),
-            rect.max,
-        )
+        Rect::from_min_max(pos2(rect.min.x, rect.min.y + header_h), rect.max)
     } else {
         rect
     };
@@ -132,7 +141,8 @@ pub fn render_markdown_view_inner(
         let avail_w = (content_rect.width() - 32.0).max(80.0);
 
         let title_font = FontId::proportional(font_size * 1.05);
-        let title_color = Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 130);
+        let title_color =
+            Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 130);
         let title_galley = painter.layout(
             "Nothing to preview yet".to_string(),
             title_font,
@@ -141,7 +151,8 @@ pub fn render_markdown_view_inner(
         );
 
         let sub_font = FontId::proportional(font_size * 0.85);
-        let sub_color = Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 90);
+        let sub_color =
+            Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 90);
         let sub_galley = painter.layout(
             "Type markdown in the editor to see live rendering".to_string(),
             sub_font,
@@ -154,7 +165,9 @@ pub fn render_markdown_view_inner(
         let gap = (font_size * 0.55).round().max(8.0);
         let total_h = title_h + gap + sub_h;
 
-        let start_y = (content_rect.center().y - total_h * 0.5).round().max(content_rect.min.y + 10.0);
+        let start_y = (content_rect.center().y - total_h * 0.5)
+            .round()
+            .max(content_rect.min.y + 10.0);
 
         let title_pos = pos2(
             (content_rect.center().x - title_galley.size().x * 0.5).round(),
@@ -284,7 +297,8 @@ pub fn render_markdown_view_inner(
                         // Custom vector checkbox widget matching inline editor
                         let cb_size = 15.0;
                         let cb_y = current_y + 1.5;
-                        let cb_rect = Rect::from_min_size(pos2(item_start_x, cb_y), vec2(cb_size, cb_size));
+                        let cb_rect =
+                            Rect::from_min_size(pos2(item_start_x, cb_y), vec2(cb_size, cb_size));
 
                         // Render unified vector checkbox
                         crate::view_editor::inline::elements::render_task_checkbox(
@@ -298,15 +312,35 @@ pub fn render_markdown_view_inner(
                         if *is_checked {
                             // Text: dimmed with strike-through
                             let text_start = pos2(item_start_x + 24.0, current_y);
-                            let text_dimmed = Color32::from_rgba_unmultiplied(theme.text.r(), theme.text.g(), theme.text.b(), 140);
+                            let text_dimmed = Color32::from_rgba_unmultiplied(
+                                theme.text.r(),
+                                theme.text.g(),
+                                theme.text.b(),
+                                140,
+                            );
                             content_painter.galley(text_start, galley, text_dimmed);
                             let strike_y = current_y + text_h * 0.52;
                             content_painter.line_segment(
-                                [pos2(text_start.x, strike_y), pos2(text_start.x + available_w - 28.0, strike_y)],
-                                Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(theme.muted.r(), theme.muted.g(), theme.muted.b(), 120)),
+                                [
+                                    pos2(text_start.x, strike_y),
+                                    pos2(text_start.x + available_w - 28.0, strike_y),
+                                ],
+                                Stroke::new(
+                                    1.0_f32,
+                                    Color32::from_rgba_unmultiplied(
+                                        theme.muted.r(),
+                                        theme.muted.g(),
+                                        theme.muted.b(),
+                                        120,
+                                    ),
+                                ),
                             );
                         } else {
-                            content_painter.galley(pos2(item_start_x + 24.0, current_y), galley, theme.text);
+                            content_painter.galley(
+                                pos2(item_start_x + 24.0, current_y),
+                                galley,
+                                theme.text,
+                            );
                         }
                     } else {
                         // Standard bullet or numbered list
@@ -317,8 +351,18 @@ pub fn render_markdown_view_inner(
                         } else {
                             16.0
                         };
-                        content_painter.text(pos2(item_start_x, current_y), Align2::LEFT_TOP, bullet, bullet_font, b_color);
-                        content_painter.galley(pos2(item_start_x + bullet_w + 6.0, current_y), galley, theme.text);
+                        content_painter.text(
+                            pos2(item_start_x, current_y),
+                            Align2::LEFT_TOP,
+                            bullet,
+                            bullet_font,
+                            b_color,
+                        );
+                        content_painter.galley(
+                            pos2(item_start_x + bullet_w + 6.0, current_y),
+                            galley,
+                            theme.text,
+                        );
                     }
                 }
                 current_y += row_h + 6.0;
@@ -369,7 +413,10 @@ pub fn render_markdown_view_inner(
                 }
                 if current_y >= rect.min.y && current_y <= rect.max.y {
                     content_painter.line_segment(
-                        [pos2(start_x, current_y), pos2(start_x + max_text_w, current_y)],
+                        [
+                            pos2(start_x, current_y),
+                            pos2(start_x + max_text_w, current_y),
+                        ],
                         Stroke::new(1.0_f32, theme.border()),
                     );
                 }

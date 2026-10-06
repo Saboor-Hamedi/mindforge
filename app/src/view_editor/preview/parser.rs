@@ -103,7 +103,9 @@ pub fn parse_markdown(text: &str) -> Vec<MdBlock> {
 
         // Horizontal Rule: --- or *** or ___
         if (trimmed.starts_with("---") || trimmed.starts_with("***") || trimmed.starts_with("___"))
-            && trimmed.chars().all(|c| c == '-' || c == '*' || c == '_' || c == ' ')
+            && trimmed
+                .chars()
+                .all(|c| c == '-' || c == '*' || c == '_' || c == ' ')
             && trimmed.len() >= 3
         {
             blocks.push(MdBlock::Rule);
@@ -147,7 +149,10 @@ pub fn parse_markdown(text: &str) -> Vec<MdBlock> {
                     break;
                 }
             }
-            blocks.push(MdBlock::Quote { depth, text: quote_text });
+            blocks.push(MdBlock::Quote {
+                depth,
+                text: quote_text,
+            });
             continue;
         }
 
@@ -174,11 +179,17 @@ pub fn parse_markdown(text: &str) -> Vec<MdBlock> {
 
                 let sep_idx = table_lines.iter().position(|l| {
                     let t = l.trim();
-                    t.contains('-') && t.chars().all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
+                    t.contains('-')
+                        && t.chars()
+                            .all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
                 });
 
                 let header_idx = if let Some(s_idx) = sep_idx {
-                    if s_idx > 0 { s_idx - 1 } else { 0 }
+                    if s_idx > 0 {
+                        s_idx - 1
+                    } else {
+                        0
+                    }
                 } else {
                     0
                 };
@@ -205,9 +216,10 @@ pub fn parse_markdown(text: &str) -> Vec<MdBlock> {
         }
 
         // Compute indentation level for nested list items
-        let indent_spaces = line.chars().take_while(|&c| c == ' ' || c == '\t').fold(0, |acc, c| {
-            if c == '\t' { acc + 4 } else { acc + 1 }
-        });
+        let indent_spaces = line
+            .chars()
+            .take_while(|&c| c == ' ' || c == '\t')
+            .fold(0, |acc, c| if c == '\t' { acc + 4 } else { acc + 1 });
         let indent_level = indent_spaces / 2;
 
         // List item with checkbox: - [ ] or - [x]
@@ -220,7 +232,10 @@ pub fn parse_markdown(text: &str) -> Vec<MdBlock> {
             });
             continue;
         }
-        if let Some(rest) = trimmed.strip_prefix("- [x] ").or_else(|| trimmed.strip_prefix("- [X] ")) {
+        if let Some(rest) = trimmed
+            .strip_prefix("- [x] ")
+            .or_else(|| trimmed.strip_prefix("- [X] "))
+        {
             blocks.push(MdBlock::ListItem {
                 bullet: "".to_string(),
                 text: rest.trim().to_string(),
@@ -231,7 +246,11 @@ pub fn parse_markdown(text: &str) -> Vec<MdBlock> {
         }
 
         // Unordered List item: - or * or +
-        if let Some(rest) = trimmed.strip_prefix("- ").or_else(|| trimmed.strip_prefix("* ")).or_else(|| trimmed.strip_prefix("+ ")) {
+        if let Some(rest) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+            .or_else(|| trimmed.strip_prefix("+ "))
+        {
             blocks.push(MdBlock::ListItem {
                 bullet: "•".to_string(),
                 text: rest.trim().to_string(),
@@ -419,7 +438,10 @@ pub fn build_inline_job(
     let flush_plain = |acc: &mut String, job: &mut LayoutJob| {
         if !acc.is_empty() {
             let s = substitute_ligatures(acc);
-            let fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), default_color);
+            let fmt = TextFormat::simple(
+                crate::services::font_manager::editor_font_id(base_font_size),
+                default_color,
+            );
             job.append(&s, 0.0, fmt);
             acc.clear();
         }
@@ -433,7 +455,10 @@ pub fn build_inline_job(
                 flush_plain(&mut plain_acc, &mut job);
                 let bold_raw: String = chars[i + 2..bold_end].iter().collect();
                 let bold_text = substitute_ligatures(&bold_raw);
-                let fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), theme.highlight);
+                let fmt = TextFormat::simple(
+                    crate::services::font_manager::editor_font_id(base_font_size),
+                    theme.highlight,
+                );
                 job.append(&bold_text, 0.0, fmt);
                 i = bold_end + 2;
                 continue;
@@ -447,7 +472,10 @@ pub fn build_inline_job(
                 flush_plain(&mut plain_acc, &mut job);
                 let strike_raw: String = chars[i + 2..strike_end].iter().collect();
                 let strike_text = substitute_ligatures(&strike_raw);
-                let mut fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), theme.muted);
+                let mut fmt = TextFormat::simple(
+                    crate::services::font_manager::editor_font_id(base_font_size),
+                    theme.muted,
+                );
                 fmt.strikethrough = Stroke::new(1.0_f32, theme.muted);
                 job.append(&strike_text, 0.0, fmt);
                 i = strike_end + 2;
@@ -462,7 +490,10 @@ pub fn build_inline_job(
                 flush_plain(&mut plain_acc, &mut job);
                 let code_raw: String = chars[i + 1..code_end].iter().collect();
                 let code_text = substitute_ligatures(&code_raw);
-                let fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size * 0.92), theme.text);
+                let fmt = TextFormat::simple(
+                    crate::services::font_manager::editor_font_id(base_font_size * 0.92),
+                    theme.text,
+                );
                 job.append(&code_text, 0.0, fmt);
                 i = code_end + 1;
                 continue;
@@ -474,12 +505,17 @@ pub fn build_inline_job(
             if let Some(close_bracket) = chars[i + 1..].iter().position(|&c| c == ']') {
                 let bracket_end = i + 1 + close_bracket;
                 if bracket_end + 1 < n && chars[bracket_end + 1] == '(' {
-                    if let Some(close_paren) = chars[bracket_end + 2..].iter().position(|&c| c == ')') {
+                    if let Some(close_paren) =
+                        chars[bracket_end + 2..].iter().position(|&c| c == ')')
+                    {
                         let paren_end = bracket_end + 2 + close_paren;
                         flush_plain(&mut plain_acc, &mut job);
                         let link_raw: String = chars[i + 1..bracket_end].iter().collect();
                         let link_text = substitute_ligatures(&link_raw);
-                        let mut fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), theme.accent);
+                        let mut fmt = TextFormat::simple(
+                            crate::services::font_manager::editor_font_id(base_font_size),
+                            theme.accent,
+                        );
                         fmt.underline = Stroke::new(1.0_f32, theme.accent);
                         job.append(&link_text, 0.0, fmt);
                         i = paren_end + 1;
@@ -496,7 +532,10 @@ pub fn build_inline_job(
                 flush_plain(&mut plain_acc, &mut job);
                 let ital_raw: String = chars[i + 1..ital_end].iter().collect();
                 let ital_text = substitute_ligatures(&ital_raw);
-                let mut fmt = TextFormat::simple(crate::services::font_manager::editor_font_id(base_font_size), theme.text);
+                let mut fmt = TextFormat::simple(
+                    crate::services::font_manager::editor_font_id(base_font_size),
+                    theme.text,
+                );
                 fmt.italics = true;
                 job.append(&ital_text, 0.0, fmt);
                 i = ital_end + 1;

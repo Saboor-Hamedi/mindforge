@@ -1,4 +1,4 @@
-﻿//! Vim engine type definitions — enums and structures representing
+//! Vim engine type definitions — enums and structures representing
 //! modal states, operators, motions, text objects, and high-level editing actions.
 //!
 //! Designed to be completely decoupled from concrete keybindings so keymaps
@@ -120,24 +120,15 @@ pub enum VimAction {
         kind: TextObjectKind,
     },
     /// Visual mode text object selection (`vi"`, `va(`, etc.).
-    SelectTextObject {
-        inner: bool,
-        kind: TextObjectKind,
-    },
+    SelectTextObject { inner: bool, kind: TextObjectKind },
     /// Switch to Insert mode at specified position.
     EnterInsert(InsertPosition),
     /// Switch to Visual or VisualLine mode.
-    EnterVisual {
-        is_line: bool,
-    },
+    EnterVisual { is_line: bool },
     /// Open in-buffer search mode.
-    EnterSearch {
-        backward: bool,
-    },
+    EnterSearch { backward: bool },
     /// Repeat previous search in forward or backward direction (`n` / `N`).
-    RepeatSearch {
-        reverse: bool,
-    },
+    RepeatSearch { reverse: bool },
     /// Single-character delete under cursor (`x`).
     DeleteChar,
     /// Undo last edit (`u`).
@@ -145,9 +136,7 @@ pub enum VimAction {
     /// Redo last undone edit (`Ctrl+R`).
     Redo,
     /// Paste register text (`p` for after, `P` for before).
-    Paste {
-        before: bool,
-    },
+    Paste { before: bool },
     /// Duplicate line (`Ctrl+D`).
     DuplicateLine,
     /// Toggle task checkbox (`- [ ]` <-> `- [x]`) on current line or selection (`Ctrl+Shift+X`).

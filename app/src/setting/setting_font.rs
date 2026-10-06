@@ -39,10 +39,7 @@ pub fn render_font_settings(
     let card_gap = 7.0;
 
     for font in SUPPORTED_FONTS.iter() {
-        let card_rect = Rect::from_min_size(
-            pos2(origin.x, cur_y),
-            vec2(available_w, card_h),
-        );
+        let card_rect = Rect::from_min_size(pos2(origin.x, cur_y), vec2(available_w, card_h));
 
         let is_selected = selected_font.eq_ignore_ascii_case(font.display_name)
             || (selected_font.is_empty() && font.id == "jetbrains_mono");
@@ -83,7 +80,11 @@ pub fn render_font_settings(
             Align2::LEFT_TOP,
             font.display_name,
             FontId::proportional(13.5),
-            if is_selected { theme.accent } else { theme.text },
+            if is_selected {
+                theme.accent
+            } else {
+                theme.text
+            },
         );
 
         // Status pill / badge on right of row 1
@@ -125,7 +126,10 @@ pub fn render_font_settings(
         let desc = if is_installed || font.is_embedded {
             font.description.to_string()
         } else {
-            format!("{} • Install in Windows or drop .ttf into fonts/", font.description)
+            format!(
+                "{} • Install in Windows or drop .ttf into fonts/",
+                font.description
+            )
         };
         painter.text(
             card_rect.min + vec2(14.0, 27.5),
@@ -198,7 +202,11 @@ pub fn render_font_settings(
     painter.circle_filled(
         pos2(thumb_x, track_y),
         if slider_hover { 7.5 } else { 6.5 },
-        if slider_hover { Color32::WHITE } else { theme.accent },
+        if slider_hover {
+            Color32::WHITE
+        } else {
+            theme.accent
+        },
     );
 
     painter.text(

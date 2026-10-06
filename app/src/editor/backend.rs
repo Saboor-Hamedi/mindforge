@@ -1,9 +1,6 @@
-use super::{
-    events::{EditorKeyEvent, EditorMouseEvent},
-    types::EditorMode,
-};
-use eframe::egui::{Rect, Ui};
+use super::events::{EditorKeyEvent, EditorMouseEvent};
 use crate::ui::theme::Theme;
+use eframe::egui::{Rect, Ui};
 
 pub type EditorResult<T> = Result<T, String>;
 
@@ -28,7 +25,6 @@ pub trait EditorBackend {
         show_line_numbers: bool,
     );
     fn tick(&mut self);
-    fn mode(&self) -> EditorMode;
     fn is_dirty(&self) -> bool;
     fn text(&self) -> Option<String>;
     fn save(&mut self) -> EditorResult<()>;

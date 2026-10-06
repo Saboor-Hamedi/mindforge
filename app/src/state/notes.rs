@@ -53,7 +53,11 @@ impl NotesState {
 
     /// Toggles the sidebar notes limit between 50 and 100.
     pub fn toggle_notes_limit(&mut self) {
-        self.sidebar_notes_limit = if self.sidebar_notes_limit >= 100 { 50 } else { 100 };
+        self.sidebar_notes_limit = if self.sidebar_notes_limit >= 100 {
+            50
+        } else {
+            100
+        };
     }
 }
 

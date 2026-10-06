@@ -26,7 +26,8 @@ pub fn check(headers: &HeaderMap, body: &str) -> Vec<Finding> {
                 category: Category::Outdated,
                 severity: Severity::Low,
                 title: format!("Technology leaked via X-Powered-By: '{}'", pby),
-                description: "Backend runtime or framework signature exposed in response headers.".into(),
+                description: "Backend runtime or framework signature exposed in response headers."
+                    .into(),
             });
         }
     }
@@ -54,7 +55,8 @@ pub fn check(headers: &HeaderMap, body: &str) -> Vec<Finding> {
                 category: Category::Outdated,
                 severity: Severity::Low,
                 title: format!("CMS / Framework generator disclosed: '{}'", generator),
-                description: "HTML generator tag reveals website software and build tooling.".into(),
+                description: "HTML generator tag reveals website software and build tooling."
+                    .into(),
             });
         }
     }
