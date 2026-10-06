@@ -47,6 +47,7 @@ impl Editor {
             self.selection = None;
             self.selection_inclusive = false;
             self.desired_col = None;
+            self.mark_dirty();
             true
         } else {
             false

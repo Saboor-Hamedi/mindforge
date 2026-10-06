@@ -310,19 +310,9 @@ impl App {
                     .map(crate::vim::VimBackend::document_stats)
                     .unwrap_or((0, 0, 0))
             } else if self.misc.mode == Mode::Doc {
-                let text = self.editor.doc_ed.text();
-                (
-                    text.lines().count(),
-                    text.split_whitespace().count(),
-                    text.len(),
-                )
+                self.editor.doc_ed.document_stats()
             } else {
-                let text = self.editor.ed.text();
-                (
-                    text.lines().count(),
-                    text.split_whitespace().count(),
-                    text.len(),
-                )
+                self.editor.ed.document_stats()
             };
         let mode_badge_str = match self.services.editor_controller.mode {
             EditorInputMode::Vim => self

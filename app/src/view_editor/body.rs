@@ -329,20 +329,18 @@ pub fn render_editor_body(
             .map(|line| line.char_start)
             .unwrap_or(0)
             .min(ed.buf.len());
-        let current_physical_line = ed.buf[..current_line_start]
-            .iter()
-            .filter(|&&character| character == '\n')
-            .count()
-            + 1;
+        let current_physical_line = ed.row_col_of(current_line_start).0 + 1;
 
-        // Compute physical line number for each visual line
-        let mut physical_line = 1;
+        // Compute starting physical line for start_row
+        let start_char = visual_lines.get(start_row).map_or(0, |l| l.char_start);
+        let mut physical_line = ed.row_col_of(start_char).0 + 1;
 
-        for (r, v_line) in visual_lines.iter().enumerate() {
+        for r in start_row..end_row {
+            let v_line = &visual_lines[r];
             let line_y = ed_origin.y + r as f32 * lh;
             let is_new_physical = r == 0 || (v_line.char_start > 0 && ed.buf.get(v_line.char_start.saturating_sub(1)) == Some(&'\n'));
 
-            if r > 0 && is_new_physical {
+            if r > start_row && is_new_physical {
                 physical_line += 1;
             }
 

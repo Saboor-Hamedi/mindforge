@@ -1,9 +1,9 @@
-//! Sidebar body component: High-performance documents explorer and notes library.
+//! Sidebar body component: High-performance documents explorer and workspace tree.
 
 use crate::sidebar::SidebarAction;
 use crate::workspace::{WorkspaceDialog, WorkspaceState};
 use core::Note;
-use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect};
+use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
 use crate::ui::theme::Theme;
 
@@ -187,7 +187,7 @@ fn render_tree_entry(
     // 1. Background highlighting
     if active || selected || hovered {
         if active {
-            ui.painter().rect_filled(row_rect, 4.0, theme.accent.gamma_multiply(0.18));
+            ui.painter().rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(0.18));
             // Thin left-edge accent indicator
             let bar = Rect::from_min_size(
                 pos2(row_rect.min.x + 1.0, row_rect.min.y + 3.0),
@@ -195,14 +195,14 @@ fn render_tree_entry(
             );
             ui.painter().rect_filled(bar, 1.25, theme.accent);
         } else if selected {
-            ui.painter().rect_filled(row_rect, 4.0, theme.accent.gamma_multiply(0.10));
+            ui.painter().rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(0.10));
         } else if hovered {
             let hover_bg = if theme.is_light() {
                 Color32::from_rgba_unmultiplied(0, 0, 0, 10)
             } else {
                 Color32::from_rgba_unmultiplied(255, 255, 255, 12)
             };
-            ui.painter().rect_filled(row_rect, 4.0, hover_bg);
+            ui.painter().rect_filled(row_rect, 3.0, hover_bg);
         }
     }
 
@@ -229,7 +229,7 @@ fn render_tree_entry(
         pos2(text_x, row_rect.center().y),
         Align2::LEFT_CENTER,
         display_str,
-        FontId::proportional(13.0),
+        FontId::proportional(12.5),
         text_color,
     );
 
@@ -290,7 +290,7 @@ fn render_tree_entry(
         }
     }
 
-    // Only set drag payload when actually dragged!
+    // Only set drag payload when actually dragged with left button!
     if response.dragged() {
         let payload = if workspace.selected_items.contains(entry_path) {
             workspace.selected_items.iter().cloned().collect::<Vec<_>>()
@@ -309,7 +309,7 @@ fn render_tree_entry(
             ui.painter().rect_stroke(
                 response.rect.shrink(1.0),
                 3.0,
-                egui::Stroke::new(1.5, theme.accent),
+                Stroke::new(1.5, theme.accent),
                 egui::StrokeKind::Inside,
             );
         }
@@ -323,679 +323,233 @@ fn render_tree_entry(
         }
     }
 
-    // Context menu (Right-click)
-    response.context_menu(|ui| {
-        if entry_is_directory {
-            if ui
-                .button(if workspace.expanded.contains(entry_path) {
-                    "Collapse"
-                } else {
-                    "Expand"
-                })
-                .clicked()
-            {
-                *action = Some(SidebarAction::ToggleWorkspaceFolder(entry_path.to_path_buf()));
-                ui.close_menu();
-            }
-            if ui.button("📄 New File").clicked() {
-                *action = Some(SidebarAction::WorkspaceCreate(
-                    entry_path.to_path_buf(),
-                    WorkspaceDialog::CreateFile,
-                ));
-                ui.close_menu();
-            }
-            if ui.button("📁 New Folder").clicked() {
-                *action = Some(SidebarAction::WorkspaceCreate(
-                    entry_path.to_path_buf(),
-                    WorkspaceDialog::CreateFolder,
-                ));
-                ui.close_menu();
-            }
-            ui.separator();
+    // Professional Reusable Context Menu (Right-click)
+    if response.secondary_clicked() && !any_modal_open {
+        let pointer_pos = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+            .unwrap_or(row_rect.left_bottom());
+        let items = if entry_is_directory {
+            crate::ui::menu::folder_menu(entry_path, expanded)
         } else {
-            if ui.button("Open").clicked() {
-                *action = Some(SidebarAction::OpenWorkspaceFile(entry_path.to_path_buf()));
-                ui.close_menu();
-            }
-            ui.separator();
-        }
-        if ui.button("Rename").clicked() {
-            *action = Some(SidebarAction::WorkspaceRename(entry_path.to_path_buf()));
-            ui.close_menu();
-        }
-        if ui
-            .button(egui::RichText::new("Delete").color(Color32::from_rgb(248, 113, 113)))
-            .clicked()
-        {
-            *action = Some(SidebarAction::WorkspaceDelete(entry_path.to_path_buf()));
-            ui.close_menu();
-        }
-        ui.separator();
-        if ui.button("Copy Path").clicked() {
-            ui.ctx().copy_text(entry_path.to_string_lossy().into_owned());
-            ui.close_menu();
-        }
-        if ui.button("Reveal in File Manager").clicked() {
-            *action = Some(SidebarAction::WorkspaceReveal(entry_path.to_path_buf()));
-            ui.close_menu();
-        }
-    });
+            crate::ui::menu::file_menu(entry_path)
+        };
+        workspace.context_menu = Some(crate::ui::menu::MenuState::new(pointer_pos, items));
+    }
 }
 
-/// Renders the scrollable documents list, active selection indicators, and note management controls.
+/// Renders the sidebar body: workspace file tree when a project is open, or clean clickable 'nothing available' message when empty.
 pub fn render_sidebar_body(
     ui: &mut egui::Ui,
-    painter: &egui::Painter,
-    sb_rect: Rect,
-    sb_origin: egui::Pos2,
-    active_note_id: Option<i64>,
-    notes: &[Note],
-    notes_limit: usize,
-    total_notes_count: usize,
-    is_dirty: bool,
+    _painter: &egui::Painter,
+    body_rect: Rect,
+    _active_note_id: Option<i64>,
+    _notes: &[Note],
+    _notes_limit: usize,
+    _total_notes_count: usize,
+    _is_dirty: bool,
     theme: &Theme,
-    sidebar_selected_idx: usize,
-    sidebar_focused: bool,
-    sidebar_needs_scroll: bool,
+    _sidebar_selected_idx: usize,
+    _sidebar_focused: bool,
+    _sidebar_needs_scroll: bool,
     any_modal_open: bool,
     workspace: &mut WorkspaceState,
     active_file: Option<&std::path::Path>,
 ) -> Option<SidebarAction> {
     let mut action = None;
 
-    // Start cleanly below the Stats header and divider
-    let workspace_y = sb_origin.y + 64.0;
+    // 1. EMPTY STATE: When no project is open, show ONLY the clickable 'nothing available' message with inner padding
+    if workspace.root.is_none() {
+        ui.allocate_new_ui(
+            egui::UiBuilder::new()
+                .max_rect(body_rect)
+                .layout(egui::Layout::top_down(egui::Align::Center)),
+            |ui| {
+                ui.add_space(24.0);
 
-    // Track whether documents section is expanded (defaults to true if no workspace open)
-    let docs_expanded_id = egui::Id::new("sidebar_docs_expanded");
-    let mut docs_expanded: bool = ui.data_mut(|d| {
-        *d.get_temp_mut_or_insert_with(docs_expanded_id, || workspace.root.is_none())
-    });
+                let card_padding = egui::Margin {
+                    left: 14,
+                    right: 14,
+                    top: 10,
+                    bottom: 10,
+                };
 
-    let tree_max_y = if workspace.root.is_some() && !notes.is_empty() {
-        if docs_expanded {
-            sb_origin.y + (sb_rect.height() * 0.55).max(180.0)
-        } else {
-            sb_rect.max.y - 66.0
-        }
-    } else {
-        sb_rect.max.y - 42.0
-    };
+                let card_frame = egui::Frame::NONE
+                    .inner_margin(card_padding)
+                    .fill(if ui.rect_contains_pointer(body_rect) {
+                        theme.surface()
+                    } else {
+                        Color32::from_rgba_unmultiplied(theme.surface().r(), theme.surface().g(), theme.surface().b(), 80)
+                    })
+                    .stroke(Stroke::new(1.0, theme.border().gamma_multiply(0.50)));
 
-    // 1. WORKSPACE FILE EXPLORER
-    let tree_rect = Rect::from_min_max(
-        pos2(sb_origin.x, workspace_y),
-        pos2(sb_rect.max.x - 10.0, tree_max_y),
-    );
+                let resp = card_frame.show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("📂").size(15.0));
+                        ui.add_space(4.0);
+                        ui.label(
+                            egui::RichText::new("nothing available")
+                                .size(12.5)
+                                .color(theme.muted),
+                        );
+                    });
+                }).response;
 
-    ui.allocate_new_ui(egui::UiBuilder::new().max_rect(tree_rect), |ui| {
-        // Workspace Header (clean project name + action buttons)
-        ui.horizontal(|ui| {
-            let project_name = if let Some(root) = workspace.root.as_deref() {
-                root.file_name()
-                    .unwrap_or(root.as_os_str())
-                    .to_string_lossy()
-                    .to_string()
-            } else {
-                "NO WORKSPACE".to_string()
-            };
+                let btn_interact = ui.interact(resp.rect, ui.id().with("empty_workspace_btn"), egui::Sense::click())
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .on_hover_text("Click to open a workspace folder");
 
-            let title_text = egui::RichText::new(project_name.to_uppercase())
-                .size(11.0)
-                .strong()
-                .color(theme.highlight);
-
-            if let Some(root) = workspace.root.as_deref() {
-                let root_button = ui.add(
-                    egui::Button::new(title_text)
-                        .frame(false)
-                        .sense(egui::Sense::click_and_drag()),
-                );
-                if let Some(sources) = root_button.dnd_release_payload::<Vec<std::path::PathBuf>>() {
-                    action = Some(SidebarAction::WorkspaceMove(
-                        (*sources).clone(),
-                        root.to_path_buf(),
-                    ));
-                }
-                if root_button.dnd_hover_payload::<Vec<std::path::PathBuf>>().is_some() {
-                    ui.painter().rect_stroke(
-                        root_button.rect,
-                        3.0,
-                        egui::Stroke::new(1.5, theme.accent),
-                        egui::StrokeKind::Inside,
-                    );
-                }
-                root_button.on_hover_text(format!("Workspace root:\n{}", root.display()));
-            } else {
-                ui.label(title_text);
-            }
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .add(egui::Button::new(egui::RichText::new("↗").size(12.0)).frame(false))
-                    .on_hover_text("Open workspace folder...")
-                    .clicked()
-                {
+                if btn_interact.clicked() {
                     action = Some(SidebarAction::OpenWorkspace);
                 }
-                if workspace.root.is_some() {
-                    if ui
-                        .add(egui::Button::new(egui::RichText::new("↻").size(12.0)).frame(false))
-                        .on_hover_text("Refresh explorer")
-                        .clicked()
-                    {
-                        action = Some(SidebarAction::WorkspaceRefresh);
-                    }
-                    if ui
-                        .add(egui::Button::new(egui::RichText::new("📁+").size(11.5)).frame(false))
-                        .on_hover_text("New Folder")
-                        .clicked()
-                    {
-                        if let Some(root) = workspace.root.clone() {
-                            action = Some(SidebarAction::WorkspaceCreate(
-                                root,
-                                WorkspaceDialog::CreateFolder,
-                            ));
-                        }
-                    }
-                    if ui
-                        .add(egui::Button::new(egui::RichText::new("📄+").size(11.5)).frame(false))
-                        .on_hover_text("New File")
-                        .clicked()
-                    {
-                        if let Some(root) = workspace.root.clone() {
-                            action = Some(SidebarAction::WorkspaceCreate(
-                                root,
-                                WorkspaceDialog::CreateFile,
-                            ));
-                        }
-                    }
-                }
-            });
-        });
+            },
+        );
 
-        ui.add_space(4.0);
+        return action;
+    }
 
-        egui::ScrollArea::vertical()
-            .id_salt("workspace_tree")
-            .show(ui, |ui| {
-                if workspace.root.is_none() {
-                    ui.add_space(8.0);
-                    ui.label(
-                        egui::RichText::new("Open a folder to browse and edit project files")
-                            .color(theme.muted)
-                            .size(11.5),
+    // 2. ACTIVE WORKSPACE: Render filesystem tree within body_rect
+    ui.allocate_new_ui(
+        egui::UiBuilder::new()
+            .max_rect(body_rect)
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+        |ui| {
+            egui::ScrollArea::vertical()
+                .id_salt("workspace_tree_scroll")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    let is_creating = matches!(
+                        workspace.dialog,
+                        Some(WorkspaceDialog::CreateFile | WorkspaceDialog::CreateFolder)
                     );
-                    if ui.button("↗ Open Folder").clicked() {
-                        action = Some(SidebarAction::OpenWorkspace);
-                    }
-                    return;
-                }
+                    let is_creating_dir = matches!(workspace.dialog, Some(WorkspaceDialog::CreateFolder));
+                    let creating_at_root = workspace
+                        .root
+                        .as_ref()
+                        .map_or(false, |r| r == &workspace.dialog_parent);
+                    let mut inline_created_rendered = false;
 
-                let is_creating = matches!(
-                    workspace.dialog,
-                    Some(WorkspaceDialog::CreateFile | WorkspaceDialog::CreateFolder)
-                );
-                let is_creating_dir = matches!(workspace.dialog, Some(WorkspaceDialog::CreateFolder));
-                let creating_at_root = workspace
-                    .root
-                    .as_ref()
-                    .map_or(false, |r| r == &workspace.dialog_parent);
-                let mut inline_created_rendered = false;
-
-                // Inline creation row at root level
-                if is_creating && creating_at_root {
-                    render_inline_creation(ui, workspace, 0, is_creating_dir, theme, &mut action);
-                    inline_created_rendered = true;
-                }
-
-                let total_entries = workspace.entries.len();
-                if total_entries == 0 && !is_creating {
-                    ui.label(
-                        egui::RichText::new("This folder is empty")
-                            .color(theme.muted)
-                            .size(12.0),
-                    );
-                }
-
-                // Iterate through entries without full vector cloning every frame
-                for i in 0..total_entries {
-                    let (entry_path, entry_depth, entry_directory) = {
-                        let e = &workspace.entries[i];
-                        (e.path.clone(), e.depth, e.directory)
-                    };
-
-                    let is_renaming_this = workspace.dialog == Some(WorkspaceDialog::Rename)
-                        && workspace.selected_path.as_ref() == Some(&entry_path);
-
-                    if is_renaming_this {
-                        render_inline_rename(
-                            ui,
-                            workspace,
-                            entry_depth,
-                            entry_directory,
-                            theme,
-                            &mut action,
-                        );
-                    } else {
-                        render_tree_entry(
-                            ui,
-                            &entry_path,
-                            entry_depth,
-                            entry_directory,
-                            workspace,
-                            active_file,
-                            any_modal_open,
-                            theme,
-                            &mut action,
-                        );
-                    }
-
-                    // Inline creation row under this folder
-                    if is_creating
-                        && !inline_created_rendered
-                        && entry_directory
-                        && entry_path == workspace.dialog_parent
-                    {
-                        render_inline_creation(
-                            ui,
-                            workspace,
-                            entry_depth + 1,
-                            is_creating_dir,
-                            theme,
-                            &mut action,
-                        );
+                    // Inline creation row at root level
+                    if is_creating && creating_at_root {
+                        render_inline_creation(ui, workspace, 0, is_creating_dir, theme, &mut action);
                         inline_created_rendered = true;
                     }
-                }
 
-                // Fallback for inline creation if parent was not encountered
-                if is_creating && !inline_created_rendered {
-                    render_inline_creation(ui, workspace, 0, is_creating_dir, theme, &mut action);
-                }
-            });
-    });
+                    let total_entries = workspace.entries.len();
+                    if total_entries == 0 && !is_creating {
+                        ui.add_space(8.0);
+                        ui.label(
+                            egui::RichText::new("Folder is empty")
+                                .color(theme.muted)
+                                .size(12.0),
+                        );
+                    }
 
-    // 2. DOCUMENTS (Knowledge notes) - Collapsible or bottom area
-    if workspace.root.is_some() && !notes.is_empty() {
-        let docs_bar_y = tree_max_y + 6.0;
-        let docs_header_rect = Rect::from_min_size(
-            pos2(sb_origin.x, docs_bar_y),
-            vec2(sb_rect.width() - 24.0, 22.0),
-        );
+                    // Iterate through tree entries
+                    for i in 0..total_entries {
+                        let (entry_path, entry_depth, entry_directory) = {
+                            let e = &workspace.entries[i];
+                            (e.path.clone(), e.depth, e.directory)
+                        };
 
-        let toggle_label = if docs_expanded {
-            format!("▾ DOCUMENTS ({})", notes.len())
-        } else {
-            format!("▸ DOCUMENTS ({})", notes.len())
-        };
+                        let is_renaming_this = workspace.dialog == Some(WorkspaceDialog::Rename)
+                            && workspace.selected_path.as_ref() == Some(&entry_path);
 
-        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(docs_header_rect), |ui| {
-            ui.horizontal(|ui| {
-                if ui
-                    .add(egui::Button::new(
-                        egui::RichText::new(toggle_label)
-                            .size(11.0)
-                            .color(theme.muted),
-                    ).frame(false))
-                    .clicked()
-                {
-                    docs_expanded = !docs_expanded;
-                    ui.data_mut(|d| d.insert_temp(docs_expanded_id, docs_expanded));
-                }
+                        if is_renaming_this {
+                            render_inline_rename(
+                                ui,
+                                workspace,
+                                entry_depth,
+                                entry_directory,
+                                theme,
+                                &mut action,
+                            );
+                        } else {
+                            render_tree_entry(
+                                ui,
+                                &entry_path,
+                                entry_depth,
+                                entry_directory,
+                                workspace,
+                                active_file,
+                                any_modal_open,
+                                theme,
+                                &mut action,
+                            );
+                        }
 
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .add(egui::Button::new(egui::RichText::new("+").size(13.0).color(theme.accent)).frame(false))
-                        .on_hover_text("New Note")
-                        .clicked()
-                    {
-                        action = Some(SidebarAction::NewNote);
+                        // Inline creation row under this folder
+                        if is_creating
+                            && !inline_created_rendered
+                            && entry_directory
+                            && entry_path == workspace.dialog_parent
+                        {
+                            render_inline_creation(
+                                ui,
+                                workspace,
+                                entry_depth + 1,
+                                is_creating_dir,
+                                theme,
+                                &mut action,
+                            );
+                            inline_created_rendered = true;
+                        }
+                    }
+
+                    // Fallback for inline creation if parent was not encountered
+                    if is_creating && !inline_created_rendered {
+                        render_inline_creation(ui, workspace, 0, is_creating_dir, theme, &mut action);
                     }
                 });
-            });
-        });
+        },
+    );
 
-        if docs_expanded {
-            let docs_list_rect = Rect::from_min_max(
-                pos2(sb_origin.x, docs_bar_y + 24.0),
-                pos2(sb_rect.max.x - 12.0, sb_rect.max.y - 48.0),
-            );
-            render_documents_list(
-                ui,
-                docs_list_rect,
-                sb_rect,
-                active_note_id,
-                notes,
-                notes_limit,
-                total_notes_count,
-                is_dirty,
-                theme,
-                sidebar_selected_idx,
-                sidebar_focused,
-                sidebar_needs_scroll,
-                any_modal_open,
-                &mut action,
-            );
-        }
-    } else if workspace.root.is_none() {
-        let docs_y = workspace_y + 70.0;
-        let header_label = if total_notes_count > notes.len() {
-            format!("DOCUMENTS ({}/{})", notes.len(), total_notes_count)
-        } else {
-            format!("DOCUMENTS ({})", notes.len())
-        };
-
-        painter.text(
-            pos2(sb_origin.x, docs_y),
-            Align2::LEFT_TOP,
-            header_label,
-            FontId::proportional(11.5),
-            theme.muted,
+    // 3. Render Reusable MindForge Context Menu (if open)
+    if let Some(mut menu_state) = workspace.context_menu.take() {
+        let (menu_action, should_close) = crate::ui::menu::render_menu_container(
+            ui.ctx(),
+            &mut menu_state,
+            theme,
+            1.0,
         );
 
-        let new_btn = Rect::from_min_size(pos2(sb_rect.max.x - 38.0, docs_y - 2.0), vec2(22.0, 20.0));
-        if ui.rect_contains_pointer(new_btn) {
-            painter.rect_filled(
-                new_btn,
-                4.0,
-                theme.surface().lerp_to_gamma(theme.accent, 0.15),
-            );
-            if ui.input(|inp| inp.pointer.primary_clicked()) {
-                action = Some(SidebarAction::NewNote);
+        if let Some(m_act) = menu_action {
+            match m_act {
+                crate::ui::menu::MenuAction::OpenFile(p) => {
+                    action = Some(SidebarAction::OpenWorkspaceFile(p));
+                }
+                crate::ui::menu::MenuAction::ToggleFolder(p) => {
+                    action = Some(SidebarAction::ToggleWorkspaceFolder(p));
+                }
+                crate::ui::menu::MenuAction::NewFile(p) => {
+                    action = Some(SidebarAction::WorkspaceCreate(p, WorkspaceDialog::CreateFile));
+                }
+                crate::ui::menu::MenuAction::NewFolder(p) => {
+                    action = Some(SidebarAction::WorkspaceCreate(p, WorkspaceDialog::CreateFolder));
+                }
+                crate::ui::menu::MenuAction::Rename(p) => {
+                    action = Some(SidebarAction::WorkspaceRename(p));
+                }
+                crate::ui::menu::MenuAction::Delete(p) => {
+                    action = Some(SidebarAction::WorkspaceDelete(p));
+                }
+                crate::ui::menu::MenuAction::CopyPath(p) => {
+                    ui.ctx().copy_text(p.to_string_lossy().into_owned());
+                }
+                crate::ui::menu::MenuAction::Reveal(p) => {
+                    action = Some(SidebarAction::WorkspaceReveal(p));
+                }
+                crate::ui::menu::MenuAction::OpenWorkspace => {
+                    action = Some(SidebarAction::OpenWorkspace);
+                }
+                crate::ui::menu::MenuAction::RefreshWorkspace => {
+                    action = Some(SidebarAction::WorkspaceRefresh);
+                }
             }
         }
-        painter.text(
-            new_btn.center(),
-            Align2::CENTER_CENTER,
-            "+",
-            FontId::proportional(14.0),
-            theme.accent,
-        );
 
-        let docs_list_rect = Rect::from_min_max(
-            pos2(sb_origin.x, docs_y + 24.0),
-            pos2(sb_rect.max.x - 12.0, sb_rect.max.y - 48.0),
-        );
-        render_documents_list(
-            ui,
-            docs_list_rect,
-            sb_rect,
-            active_note_id,
-            notes,
-            notes_limit,
-            total_notes_count,
-            is_dirty,
-            theme,
-            sidebar_selected_idx,
-            sidebar_focused,
-            sidebar_needs_scroll,
-            any_modal_open,
-            &mut action,
-        );
+        if !should_close {
+            workspace.context_menu = Some(menu_state);
+        }
     }
 
     action
-}
-
-fn render_documents_list(
-    ui: &mut egui::Ui,
-    docs_list_rect: Rect,
-    sb_rect: Rect,
-    active_note_id: Option<i64>,
-    notes: &[Note],
-    notes_limit: usize,
-    total_notes_count: usize,
-    is_dirty: bool,
-    theme: &Theme,
-    sidebar_selected_idx: usize,
-    sidebar_focused: bool,
-    sidebar_needs_scroll: bool,
-    any_modal_open: bool,
-    action: &mut Option<SidebarAction>,
-) {
-    ui.allocate_new_ui(egui::UiBuilder::new().max_rect(docs_list_rect), |ui| {
-        egui::ScrollArea::vertical()
-            .id_salt("sidebar_docs_scroll")
-            .auto_shrink([false; 2])
-            .enable_scrolling(!any_modal_open)
-            .show(ui, |ui| {
-                for (idx, note) in notes.iter().enumerate() {
-                    let is_active = active_note_id == Some(note.id);
-                    let is_selected = idx == sidebar_selected_idx;
-                    let row_w = ui.available_width();
-                    let row_h = 30.0;
-                    let sense = if any_modal_open {
-                        egui::Sense::hover()
-                    } else {
-                        egui::Sense::click()
-                    };
-                    let (rect, resp) = ui.allocate_exact_size(vec2(row_w, row_h), sense);
-                    let hovered = !any_modal_open && resp.hovered();
-
-                    if is_selected && sidebar_focused && sidebar_needs_scroll {
-                        resp.scroll_to_me(Some(egui::Align::Center));
-                    }
-
-                    let del_w = 20.0;
-                    let del_rect = Rect::from_center_size(
-                        pos2(rect.max.x - 14.0, rect.center().y),
-                        vec2(del_w, 20.0),
-                    );
-                    let del_hover = !any_modal_open
-                        && del_rect
-                            .contains(ui.input(|i| i.pointer.hover_pos().unwrap_or_default()));
-
-                    let pill_rect = Rect::from_min_max(
-                        pos2(rect.min.x + 4.0, rect.min.y + 1.5),
-                        pos2(rect.max.x - 4.0, rect.max.y - 1.5),
-                    );
-
-                    if is_active || (is_selected && sidebar_focused) || hovered {
-                        let is_active_or_selected = is_active || (is_selected && sidebar_focused);
-                        let bg_color = if is_active_or_selected {
-                            if theme.is_light() {
-                                Color32::from_rgba_unmultiplied(
-                                    theme.accent.r(),
-                                    theme.accent.g(),
-                                    theme.accent.b(),
-                                    16,
-                                )
-                            } else {
-                                Color32::from_rgba_unmultiplied(
-                                    theme.accent.r(),
-                                    theme.accent.g(),
-                                    theme.accent.b(),
-                                    20,
-                                )
-                            }
-                        } else {
-                            if theme.is_light() {
-                                Color32::from_rgba_unmultiplied(0, 0, 0, 10)
-                            } else {
-                                Color32::from_rgba_unmultiplied(255, 255, 255, 12)
-                            }
-                        };
-                        ui.painter().rect_filled(pill_rect, 5.0, bg_color);
-
-                        if is_active_or_selected {
-                            let bar = Rect::from_min_size(
-                                pos2(pill_rect.min.x + 1.5, pill_rect.min.y + 4.0),
-                                vec2(2.5, pill_rect.height() - 8.0),
-                            );
-                            ui.painter().rect_filled(bar, 1.25, theme.accent);
-                        }
-                    }
-
-                    if !any_modal_open && resp.clicked() && !del_hover {
-                        *action = Some(SidebarAction::LoadNote {
-                            id: note.id,
-                            topic: note.topic.clone(),
-                            body: note.body.clone(),
-                            index: idx,
-                        });
-                    }
-
-                    let text_x = pill_rect.min.x + 12.0;
-                    let text_right_limit = (rect.max.x - del_w - 6.0).min(sb_rect.max.x - 20.0);
-                    let avail_w = (text_right_limit - text_x).max(10.0);
-
-                    let font_id = egui::FontId::proportional(12.5);
-                    let mut display_title = note.topic.clone();
-                    let full_w = ui.fonts(|f| {
-                        f.layout_no_wrap(display_title.clone(), font_id.clone(), Color32::WHITE)
-                            .size()
-                            .x
-                    });
-                    if full_w > avail_w {
-                        let mut truncated = String::new();
-                        for ch in note.topic.chars() {
-                            let candidate = format!("{}...", truncated);
-                            let w = ui.fonts(|f| {
-                                f.layout_no_wrap(candidate.clone(), font_id.clone(), Color32::WHITE)
-                                    .size()
-                                    .x
-                            });
-                            if w > avail_w {
-                                break;
-                            }
-                            truncated.push(ch);
-                        }
-                        display_title = if truncated.is_empty() {
-                            "…".to_string()
-                        } else {
-                            format!("{}…", truncated)
-                        };
-                    }
-
-                    let title_color = if is_active {
-                        theme.accent
-                    } else if is_selected && sidebar_focused {
-                        theme.highlight
-                    } else if hovered {
-                        theme.text
-                    } else {
-                        theme.text.lerp_to_gamma(theme.muted, 0.35)
-                    };
-
-                    let row_clip = Rect::from_min_max(
-                        pos2(rect.min.x, rect.min.y),
-                        pos2(text_right_limit, rect.max.y),
-                    )
-                    .intersect(sb_rect);
-                    let row_painter = ui.painter().with_clip_rect(row_clip);
-
-                    row_painter.text(
-                        pos2(text_x, pill_rect.center().y),
-                        Align2::LEFT_CENTER,
-                        display_title,
-                        font_id,
-                        title_color,
-                    );
-
-                    if is_active && is_dirty {
-                        let dot_color = Color32::from_rgba_unmultiplied(
-                            theme.accent.r(),
-                            theme.accent.g(),
-                            theme.accent.b(),
-                            180,
-                        );
-                        let dot_x = if hovered {
-                            rect.max.x - del_w - 12.0
-                        } else {
-                            rect.max.x - 14.0
-                        };
-                        ui.painter().text(
-                            pos2(dot_x, rect.center().y),
-                            Align2::CENTER_CENTER,
-                            "●",
-                            FontId::proportional(11.0),
-                            dot_color,
-                        );
-                    }
-
-                    if hovered && !any_modal_open {
-                        if crate::ui_components::render_close_button_rect(
-                            ui,
-                            ui.painter(),
-                            del_rect,
-                            theme,
-                            ("del_note", note.id),
-                        ) {
-                            *action = Some(SidebarAction::DeleteNote(note.id));
-                        }
-                    }
-                }
-
-                if notes_limit < 100 && total_notes_count > notes.len() {
-                    ui.add_space(6.0);
-                    let row_w = ui.available_width();
-                    let (btn_rect, btn_resp) = ui.allocate_exact_size(
-                        vec2(row_w, 28.0),
-                        if any_modal_open {
-                            egui::Sense::hover()
-                        } else {
-                            egui::Sense::click()
-                        },
-                    );
-                    let b_hover = !any_modal_open && btn_resp.hovered();
-                    let b_bg = if b_hover {
-                        theme.surface().lerp_to_gamma(theme.accent, 0.12)
-                    } else {
-                        theme.surface()
-                    };
-                    ui.painter().rect(
-                        btn_rect,
-                        5.0,
-                        b_bg,
-                        egui::Stroke::new(1.0_f32, theme.border()),
-                        egui::StrokeKind::Inside,
-                    );
-                    ui.painter().text(
-                        btn_rect.center(),
-                        Align2::CENTER_CENTER,
-                        "▼ See more (100 max)",
-                        FontId::proportional(11.5),
-                        theme.accent,
-                    );
-                    if !any_modal_open && btn_resp.clicked() {
-                        *action = Some(SidebarAction::ToggleNotesLimit);
-                    }
-                } else if notes_limit >= 100 {
-                    ui.add_space(6.0);
-                    let row_w = ui.available_width();
-                    let (btn_rect, btn_resp) = ui.allocate_exact_size(
-                        vec2(row_w, 28.0),
-                        if any_modal_open {
-                            egui::Sense::hover()
-                        } else {
-                            egui::Sense::click()
-                        },
-                    );
-                    let b_hover = !any_modal_open && btn_resp.hovered();
-                    let b_bg = if b_hover {
-                        theme.surface().lerp_to_gamma(theme.accent, 0.12)
-                    } else {
-                        theme.surface()
-                    };
-                    ui.painter().rect(
-                        btn_rect,
-                        5.0,
-                        b_bg,
-                        egui::Stroke::new(1.0_f32, theme.border()),
-                        egui::StrokeKind::Inside,
-                    );
-                    ui.painter().text(
-                        btn_rect.center(),
-                        Align2::CENTER_CENTER,
-                        "▲ Show less (50)",
-                        FontId::proportional(11.5),
-                        theme.muted,
-                    );
-                    if !any_modal_open && btn_resp.clicked() {
-                        *action = Some(SidebarAction::ToggleNotesLimit);
-                    }
-                }
-            });
-    });
 }

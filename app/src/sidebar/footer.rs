@@ -1,23 +1,22 @@
 //! Sidebar footer component: Round settings icon button with shortcut tooltip.
 
-use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
+use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke, Ui};
 use crate::sidebar::SidebarAction;
-
 use crate::ui::theme::Theme;
 
-/// Renders the bottom footer of the sidebar: round settings icon button with hover tooltip.
+/// Renders the bottom footer of the sidebar inside the allocated footer_rect.
 pub fn render_sidebar_footer(
-    ui: &mut egui::Ui,
+    ui: &mut Ui,
     painter: &egui::Painter,
-    sb_rect: Rect,
+    footer_rect: Rect,
     theme: &Theme,
     any_modal_open: bool,
 ) -> Option<SidebarAction> {
     let mut action = None;
 
-    let btn_size = 30.0;
+    let btn_size = 28.0;
     let btn_rect = Rect::from_min_size(
-        pos2(sb_rect.min.x + 14.0, sb_rect.max.y - btn_size - 10.0),
+        pos2(footer_rect.min.x + 2.0, footer_rect.center().y - btn_size * 0.5),
         vec2(btn_size, btn_size),
     );
 
@@ -40,14 +39,14 @@ pub fn render_sidebar_footer(
     } else {
         Stroke::NONE
     };
-    painter.rect(btn_rect, 6.0, bg_color, stroke, egui::StrokeKind::Inside);
+    painter.rect(btn_rect, 4.0, bg_color, stroke, egui::StrokeKind::Inside);
 
     // Integrated gear icon centered with secondary text color
     painter.text(
         center,
         Align2::CENTER_CENTER,
         "⚙",
-        FontId::proportional(15.5),
+        FontId::proportional(15.0),
         if is_hovered { theme.text } else { theme.muted },
     );
 

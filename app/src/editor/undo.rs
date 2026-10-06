@@ -26,6 +26,7 @@ impl Editor {
             self.cur = prev.cur.min(self.buf.len());
             self.selection = None;
             self.desired_col = None;
+            self.mark_dirty();
             true
         } else {
             false
@@ -42,6 +43,7 @@ impl Editor {
             self.cur = next.cur.min(self.buf.len());
             self.selection = None;
             self.desired_col = None;
+            self.mark_dirty();
             true
         } else {
             false

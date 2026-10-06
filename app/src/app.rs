@@ -360,6 +360,12 @@ impl App {
             self.sidebar.focused=false;
             return;
         }
+        if let Ok(meta) = std::fs::metadata(&path) {
+            if meta.len() > 30 * 1024 * 1024 {
+                self.set_status(format!("File too large to open ({} MB, limit is 30MB)", meta.len() / (1024 * 1024)), now);
+                return;
+            }
+        }
         let content = match std::fs::read_to_string(&path) {
             Ok(content) => content.replace("\r\n", "\n").replace('\r', "\n"),
             Err(error) => {
@@ -672,7 +678,16 @@ impl eframe::App for App {
             };
             let text_area_w = (effective_editor_w - gutter_space - 8.0).max(100.0);
             let max_cols = (text_area_w / cw).floor().max(15.0) as usize;
-            active_ed.compute_visual_lines(max_cols)
+            if self.editor.cached_visual_cols == Some(max_cols)
+                && self.editor.cached_buf_len == active_ed.buf.len()
+                && !self.editor.visual_lines.is_empty()
+            {
+                std::mem::take(&mut self.editor.visual_lines)
+            } else {
+                self.editor.cached_visual_cols = Some(max_cols);
+                self.editor.cached_buf_len = active_ed.buf.len();
+                active_ed.compute_visual_lines(max_cols)
+            }
         };
 
         if self.terminal.open || self.misc.mode == Mode::Terminal {

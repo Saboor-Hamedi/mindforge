@@ -1,532 +1,849 @@
-# MindForge — Reusable Explorer Context Menu System
+# MindForge — Workspace, Explorer, Editor & LSP Stabilization
 
-I want to replace the current small Explorer right-click menus with a proper, reusable MindForge menu system.
+The filesystem architecture is now in place. Do NOT redesign it again.
 
-## 1. Create a reusable `menu` module
+This pass is about making the existing MindForge experience **correct, persistent, seamless, and polished**.
 
-Create a shared menu module/folder:
+Do not add unrelated features.
 
-```text
-ui/
-└── menu/
-    ├── menu_container.rs
-    ├── menu_item.rs
-    ├── menu_separator.rs
-    ├── menu_model.rs
-    └── mod.rs
-```
-
-The **folder/module is called `menu`**.
-
-The main reusable menu container is called:
-
-```text
-menu_container
-```
-
-This must be the parent/container primitive for MindForge menus so the same menu system can be reused anywhere in the application.
-
-Conceptually:
-
-```text
-menu/
-├── menu_container
-├── menu_item
-├── menu_separator
-├── menu_model
-└── mod
-```
-
-The goal is:
-
-```text
-Explorer file menu
-Explorer folder menu
-Tab menu
-Editor menu
-Sidebar menu
-future menus
-        ↓
-   menu_container
-```
-
-Do NOT create separate visual implementations for every menu.
-
-The `menu_container` should own the common menu behavior and appearance.
+First inspect the existing architecture and fix the actual causes rather than adding patches on top of patches.
 
 ---
 
-# 2. Make it feel like a professional IDE
+## 1. Workspace lifecycle
 
-Use VS Code as a **behavioral/quality reference**, not as a visual clone.
+### Open workspace → remain open
 
-The current right-click menu is far too small.
+When a workspace/project is opened, MindForge must remember it.
 
-Make it:
+There must be a clear way to:
 
-- comfortably wide;
-- comfortably tall;
-- easy to read;
-- generous enough for mouse interaction;
-- properly aligned;
-- visually clean;
-- fast to open.
+- open a workspace;
+- close the current workspace;
+- remove it from the recent-workspace list;
+- return to the welcome page.
 
-Do NOT make it tiny just because the menu has only a few items.
+Do NOT make the user delete the actual project from disk just to remove it from MindForge.
+
+Separate:
+
+```text
+Remove from recent/workspace list
+```
+
+from:
+
+```text
+Delete files from disk
+```
+
+Never delete a user's filesystem project when they simply want to close/remove it from MindForge.
 
 ---
 
-# 3. NO ROUND BORDER
+# 2. Welcome page + Recent files
 
-This is important.
+When no workspace/editor is active, the welcome page should be useful.
 
-I do **not** want a rounded floating-card appearance.
+Show approximately 3–4 recent files/projects where appropriate.
+
+For example:
+
+```text
+Welcome to MindForge
+
+Recent
+
+README.md
+main.py
+MyProject
+index.html
+```
+
+Clicking a recent item should reopen the real filesystem-backed document/workspace.
+
+Do not create copies.
+
+Do not store the document contents in SQLite.
+
+---
+
+# 3. Ctrl+Shift+N — New Window
+
+Implement:
+
+```text
+Ctrl + Shift + N
+```
+
+as **New Window**.
+
+It must create a completely new MindForge application window/instance.
+
+The current window must remain open.
+
+Expected behavior:
+
+```text
+Window A
+    ↓
+Ctrl+Shift+N
+    ↓
+Window A remains open
+Window B opens
+```
+
+Each window must have independent:
+
+- workspace state;
+- tabs;
+- editor state;
+- sidebar state;
+- Explorer state.
+
+Do not accidentally close or replace the original instance.
+
+Use the correct native window/process architecture already present in MindForge.
+
+---
+
+# 4. Status-bar language/extension dropdown
+
+The language selector in the status bar currently changes the language correctly, but its input/dropdown UI is poor.
+
+Fix the UI.
+
+It should:
+
+- open cleanly;
+- have enough width;
+- be readable;
+- have proper spacing;
+- have a search/filter input if appropriate;
+- show the current language clearly;
+- allow selecting a language;
+- close correctly;
+- not interfere with the editor;
+- not look like a tiny default egui control.
+
+Keep the existing status-bar design language.
+
+---
+
+# 5. Editor scrolling is broken
+
+I currently cannot reliably scroll upward in the editor.
+
+Investigate the complete scroll pipeline:
+
+```text
+mouse wheel
+    ↓
+egui input
+    ↓
+editor
+    ↓
+Hybrid / Neovim
+```
+
+Determine where upward scroll is being consumed, inverted, clamped, or lost.
+
+Fix scrolling properly.
+
+Test:
+
+- scroll up;
+- scroll down;
+- large documents;
+- Markdown;
+- Python;
+- HTML;
+- Neovim;
+- Hybrid.
+
+Do not patch only one editor mode.
+
+---
+
+# 6. Sidebar state persistence
+
+If the sidebar is open when MindForge closes:
+
+```text
+Sidebar = open
+    ↓
+close MindForge
+    ↓
+reopen MindForge
+    ↓
+Sidebar = open
+```
+
+Persist the sidebar state.
+
+Likewise preserve the appropriate Explorer/sidebar state such as:
+
+- open/closed;
+- expanded folders;
+- selected item;
+- scroll position where practical.
+
+Do not reset the UI to defaults every launch.
+
+---
+
+# 7. Welcome tab bug
+
+Currently the welcome page can leave a tab open even though there is no editor/document behind it.
+
+Fix this.
+
+The welcome page must not create a fake document tab.
+
+Correct states:
+
+```text
+Welcome page
+    → no document tab
+```
+
+or:
+
+```text
+Real file
+    → real editor tab
+```
+
+Never:
+
+```text
+Welcome page
+    → empty/fake editor tab
+```
+
+---
+
+# 8. Markdown highlighting must be consistent
+
+Neovim currently provides good Markdown highlighting.
+
+Hybrid currently looks almost completely plain.
+
+This must be unified.
+
+Markdown should visually behave consistently in:
+
+```text
+Hybrid
+Neovim
+```
+
+Do not necessarily make both render identically internally.
+
+Instead, establish a shared MindForge language/theme definition so the visual language is consistent.
+
+Headings, emphasis, links, code, lists, quotes, etc. should have appropriate highlighting.
+
+---
+
+# 9. Wikilinks are broken
+
+This is critical to MindForge.
+
+Test:
+
+```text
+[[My Note]]
+```
+
+in both:
+
+```text
+Hybrid
+Neovim
+```
+
+Wikilinks must be recognized by the MindForge application layer.
+
+They must not depend entirely on Neovim's Markdown implementation.
+
+Expected architecture:
+
+```text
+Editor
+   ↓
+document content
+   ↓
+MindForge Markdown/Wikilink layer
+   ↓
+[[My Note]]
+   ↓
+open/navigate/index/backlink behavior
+```
+
+Preserve normal Vim/Neovim editing semantics.
+
+Do not hard-code Wikilink behavior into Vim motions.
+
+---
+
+# 10. Hybrid ↔ Neovim transition
+
+The transition currently visibly jumps.
+
+When switching:
+
+```text
+Hybrid → Neovim
+```
+
+or:
+
+```text
+Neovim → Hybrid
+```
+
+there should be no obvious visual jump.
+
+Preserve:
+
+- document content;
+- cursor position;
+- scroll position;
+- line height;
+- font;
+- font size;
+- syntax colors;
+- gutter width;
+- selection;
+- editor rectangle;
+- horizontal position.
+
+The user should feel like they are switching **editing engines**, not switching to another completely different editor.
 
 Avoid:
 
 ```text
-╭──────────────╮
-│              │
-╰──────────────╯
+Hybrid disappears
+→ blank area
+→ Neovim appears
+→ content drops into place
 ```
 
-Use a more professional IDE-style menu:
+Make the transition synchronized.
 
-```text
-┌──────────────────────────────┐
-│ Open                         │
-│ Open With                    │
-│                              │
-│ Rename                       │
-│ Delete                       │
-│                              │
-│ Copy Path                    │
-└──────────────────────────────┘
-```
-
-Use a subtle border/shadow only if appropriate.
-
-**No excessive rounded corners.**
-
-Do not turn the menu into a modern rounded card.
+If the editor surface is already rendered by the application, reuse the same geometry and visual metrics.
 
 ---
 
-# 4. Menu geometry
+# 11. Folder rename must close correctly
 
-Establish consistent menu tokens:
+Current bug:
 
 ```text
-Menu width
-Menu item height
-Horizontal padding
-Icon column width
-Shortcut column width
-Separator spacing
-Section spacing
+Right-click folder
+→ Rename
+→ rename input appears
+→ click somewhere else
+→ rename input remains open
 ```
 
-All menus should use these shared values.
+Fix the interaction lifecycle.
 
-Do not hard-code different dimensions in individual menus.
+Clicking outside the rename input should commit or cancel according to the existing rename semantics.
 
-The `menu_container` should guarantee consistent geometry.
+At minimum:
+
+```text
+Escape → cancel
+Enter → commit
+click outside → finish/cancel safely
+switch selection → finish/cancel safely
+open another item → finish/cancel safely
+```
+
+Never leave a stale rename field floating in the Explorer.
 
 ---
 
-# 5. File context menu
+# 12. Root-level file creation
 
-When right-clicking a FILE, show file-specific actions.
+There must be a clear way to create a file in the workspace root.
+
+Currently there is no useful empty/root area to click.
+
+Provide an obvious root-level creation target.
 
 For example:
 
 ```text
-Open
-Open With
+WORKSPACE
+MyProject
 
-────────────
+▾ src
+  main.py
 
-Rename
-Delete
+README.md
 
-────────────
-
-Copy Path
-Reveal in File Explorer
++ New File
 ```
 
-Only include actions that actually exist in MindForge.
+or an appropriate empty area/action.
 
-Do not add fake menu entries.
+The user must be able to create:
+
+```text
+MyProject/
+    new_file.py
+```
+
+without first creating a folder.
+
+Do not require a fake folder or modal.
 
 ---
 
-# 6. Folder context menu
+# 13. Sidebar empty-state / create-file bug
 
-When right-clicking a FOLDER, show folder-specific actions.
+There is currently an issue where the sidebar says something equivalent to:
+
+```text
+Nothing available
+```
+
+when trying to create a file.
+
+Fix the underlying state/data flow.
+
+The empty state should be visually centered within the sidebar body.
 
 For example:
 
 ```text
-Open
+┌─────────────────────────┐
+│                         │
+│                         │
+│      No files yet       │
+│                         │
+│       + New File        │
+│                         │
+└─────────────────────────┘
+```
+
+Not:
+
+```text
+No files available
+```
+
+stuck awkwardly near the top.
+
+---
+
+# 14. New file creation must replace the creation state
+
+When the user clicks New File:
+
+```text
 New File
-New Folder
-
-────────────
-
-Rename
-Delete
-
-────────────
-
-Copy Path
-Reveal in File Explorer
+    ↓
+inline filename input
 ```
 
-Folder actions must operate on the actual filesystem.
-
----
-
-# 7. File and folder menus must NOT be identical
-
-Establish one menu system but allow different menu models.
-
-Conceptually:
-
-```rust
-MenuTarget::File(...)
-MenuTarget::Folder(...)
-MenuTarget::Tab(...)
-MenuTarget::Editor(...)
-```
-
-Then:
+After entering:
 
 ```text
-MenuTarget
-      ↓
-Menu model
-      ↓
-menu_container
-      ↓
-MenuItems
+hello.py
 ```
 
-The **container is shared**.
-
-The **content/actions are contextual**.
-
----
-
-# 8. Right-click positioning
-
-The menu should open at the pointer position.
-
-However, it must remain completely inside the application/window.
-
-If the user right-clicks near:
-
-- bottom edge;
-- right edge;
-
-automatically reposition the menu so it remains visible.
-
-Do not allow it to render partially off-screen.
-
----
-
-# 9. Menu interaction
-
-Support:
-
-- mouse hover;
-- click;
-- keyboard navigation where practical;
-- Escape to close;
-- click outside to close;
-- submenu support if needed later.
-
-Hovering an item should produce a subtle selection state.
-
-Do not make hover colors excessively bright.
-
----
-
-# 10. Icons
-
-Use MindForge's existing icon system.
-
-For example:
+the creation row must be replaced by the actual file:
 
 ```text
-Open              [icon]
-Rename            [icon]
-Delete            [icon]
-Copy Path         [icon]
-Reveal            [icon]
+hello.py
 ```
 
-Icons must be:
+and the file must immediately become available/open in the editor.
 
-- consistent;
-- small;
-- aligned;
-- visually secondary to the text.
+It must NOT remain:
 
-Do not use random emoji.
+```text
+New File
+```
+
+while the real file exists somewhere else.
+
+The Explorer state must update atomically:
+
+```text
+filesystem creation
+        ↓
+Explorer refresh
+        ↓
+new file appears
+        ↓
+file opens
+        ↓
+tab becomes active
+```
 
 ---
 
-# 11. Keyboard shortcuts
+# 15. File and folder icons
 
-Where an action has a shortcut, provide a dedicated shortcut column.
+The current icons are ugly and visually weak.
 
-Example:
+Improve the icon system.
 
-```text
-Open                         Enter
-Rename                       F2
-Delete                       Delete
-```
+Use a coherent MindForge icon language for:
 
-The shortcut should be visually aligned to the right.
+- folder;
+- open folder;
+- Markdown;
+- Python;
+- HTML;
+- CSS;
+- JavaScript;
+- TypeScript;
+- TSX;
+- Rust;
+- JSON;
+- generic file.
 
-Do not manually pad strings with spaces.
+Icons should have enough visual distinction to be useful.
 
-Use proper layout columns.
+They should still remain professional and not become a rainbow of distracting colors.
 
----
-
-# 12. Separators
-
-Use separators to group actions.
-
-Example:
-
-```text
-Open
-Open With
-
-──────────────
-
-Rename
-Delete
-
-──────────────
-
-Copy Path
-Reveal in File Explorer
-```
-
-Do not overuse separators.
+Create an extensible mapping rather than hard-coding icons throughout the Explorer.
 
 ---
 
-# 13. Explorer integration
+# 16. Explorer filename typography
 
-Right-clicking an Explorer file:
+The filenames are currently too small.
 
-```text
-Explorer
-   ↓
-right click file
-   ↓
-menu_container
-   ↓
-file menu
-```
+Increase them to a comfortable readable size.
 
-Right-clicking a folder:
+Also improve:
 
-```text
-Explorer
-   ↓
-right click folder
-   ↓
-menu_container
-   ↓
-folder menu
-```
+- row height;
+- indentation;
+- spacing;
+- icon alignment;
+- hover state;
+- selected state;
+- active state.
 
-Both must use the same `menu_container`.
+The Explorer should be easy to scan visually.
 
 ---
 
-# 14. Do NOT interfere with normal clicking or dragging
+# 17. Folder visualization
 
-This is especially important because the Explorer recently had click/drag problems.
+Folder hierarchy currently lacks good visual structure.
 
-Right-click context menus must NOT break:
+Improve:
 
-- normal left-click;
-- double-click;
-- drag-and-drop;
-- multi-selection;
-- file opening;
-- folder expansion.
+```text
+▾ src
+  ▾ components
+    App.tsx
+    Header.tsx
 
-The context-menu interaction must be isolated from the existing pointer/drag state machine.
+  ▾ utils
+    format.ts
+
+README.md
+```
+
+Use:
+
+- consistent indentation;
+- subtle hierarchy guides where appropriate;
+- clean expand/collapse indicators;
+- consistent vertical rhythm.
+
+Do not overdecorate the tree.
 
 ---
 
-# 15. Do NOT start dragging on right-click
+# 18. Explorer settings
 
-Right-click must always belong to the context-menu interaction.
+The Explorer should eventually be configurable through MindForge settings.
 
-Left-click + movement beyond the drag threshold belongs to drag-and-drop.
+Prepare the architecture for settings such as:
 
-Keep these states separate.
+- Explorer font size;
+- row height;
+- icon visibility;
+- indentation;
+- compact/comfortable density;
+- folder guides;
+- file icon style.
 
----
+Do not necessarily implement every setting now.
 
-# 16. Menu architecture
-
-Prefer something conceptually similar to:
-
-```text
-ui/
-├── menu/
-│   ├── menu_container.rs
-│   ├── menu_item.rs
-│   ├── menu_separator.rs
-│   ├── menu_model.rs
-│   └── mod.rs
-│
-└── explorer/
-    └── context_menu.rs
-```
-
-Adapt this to the existing MindForge architecture rather than blindly creating this exact structure.
-
-The important principle is:
-
-> **The `menu` module is reusable infrastructure, and `menu_container` is its primary rendering/container component.**
+But do not hard-code the Explorer architecture so these options become difficult to add later.
 
 ---
 
-# 17. Keep menu actions separate from rendering
+# 19. LSP — CURRENTLY BROKEN
 
-Do not put filesystem operations directly inside `menu_container`.
+LSP currently does not work reliably.
 
-Prefer:
+Do not assume the previous LSP fixes solved everything.
 
-```text
-menu_container
-      ↓
-MenuAction
-      ↓
-Explorer / Workspace command
-      ↓
-Filesystem operation
-```
-
-For example:
+Trace the complete lifecycle:
 
 ```text
-MenuAction::Rename
+file opened
+    ↓
+language detected
+    ↓
+LSP configuration
+    ↓
+server startup
+    ↓
+buffer attachment
+    ↓
+didOpen
+    ↓
+diagnostics
+    ↓
+completion
+    ↓
+hover
+    ↓
+definition
 ```
 
-should trigger the existing rename workflow.
-
-The menu should not implement its own filesystem logic.
-
----
-
-# 18. Future reuse
-
-After this implementation, it should be easy to create a `menu_container` for:
+Test at minimum:
 
 ```text
-Explorer file
-Explorer folder
-Tab
-Editor
-Sidebar
-Terminal
-Graph
+Python → pyright
+HTML → HTML language server
+JavaScript/TypeScript → appropriate server
+Rust → rust-analyzer
 ```
-
-without creating another menu renderer.
-
----
-
-# 19. Visual acceptance
-
-The final menu should feel:
-
-- larger than the current menu;
-- readable;
-- professional;
-- dense but comfortable;
-- sharp/clean rather than rounded;
-- consistent with MindForge;
-- clearly associated with the clicked file/folder.
-
-It should NOT feel like a tiny generic popup.
-
-It should NOT feel like a rounded web-card component.
-
----
-
-# 20. Final testing
-
-Test:
-
-### File
-
-```text
-right-click file
-→ menu opens
-→ correct file actions
-→ menu positioned correctly
-→ click action works
-→ Escape closes
-→ outside click closes
-```
-
-### Folder
-
-```text
-right-click folder
-→ menu opens
-→ correct folder actions
-→ menu positioned correctly
-→ actions work
-```
-
-### Edges
-
-Right-click near:
-
-- top;
-- bottom;
-- left;
-- right;
-- window corner.
-
-Menu must remain visible.
-
-### Interaction regression
 
 Verify:
 
-- left click still opens/selects;
-- double click still opens;
-- drag still works;
-- multi-select still works;
-- folder expansion still works;
-- file movement still works.
+- server starts;
+- buffer attaches;
+- diagnostics appear;
+- completion works;
+- completion popup works;
+- navigation works;
+- server survives tab switching;
+- server does not restart unnecessarily.
+
+Do not block the UI while starting or communicating with LSP.
 
 ---
 
-## Definition of Done
+# 20. LSP and filesystem identity
 
-MindForge has **one reusable `menu` module** with `menu_container` as its primary reusable container.
+Make sure the LSP receives the **real filesystem URI/path**.
 
-Files and folders use the same menu infrastructure but expose context-appropriate actions.
+Do not give LSP:
 
-The menu is large enough to be comfortable, properly positioned, keyboard/mouse friendly, visually polished, and **not excessively rounded**.
+- database IDs;
+- temporary IDs;
+- duplicated virtual paths;
+- stale document paths.
 
-Most importantly:
+The document identity must be:
 
-> **Do not patch the current menu until it looks acceptable. Build a reusable `menu` module and `menu_container` primitive that the rest of MindForge can use.**
+```text
+real filesystem path
+        ↓
+document
+        ↓
+Neovim buffer
+        ↓
+LSP
+```
+
+---
+
+# 21. Preserve the filesystem-first architecture
+
+Do not reintroduce SQLite.
+
+The filesystem remains authoritative for:
+
+- files;
+- folders;
+- Markdown;
+- source code;
+- project structure.
+
+Application metadata can remain under:
+
+```text
+.mindforge/
+```
+
+as appropriate.
+
+Do not create another hidden document store.
+
+---
+
+# 22. DO NOT FIX ONE BUG BY BREAKING ANOTHER
+
+Before changing code, identify ownership.
+
+For every state ask:
+
+```text
+Who owns this?
+Who updates it?
+Who renders it?
+Who persists it?
+Who is allowed to mutate it?
+```
+
+Especially for:
+
+- Explorer selection;
+- filesystem state;
+- tabs;
+- editor documents;
+- Hybrid state;
+- Neovim state;
+- LSP state;
+- sidebar state;
+- welcome state.
+
+Avoid duplicate sources of truth.
+
+---
+
+# 23. REAL APPLICATION TESTING
+
+Do not stop at:
+
+```text
+cargo check
+cargo test
+```
+
+Those are necessary but insufficient.
+
+Run MindForge and manually test:
+
+### Workspace
+
+- open workspace;
+- close workspace;
+- reopen workspace;
+- remove workspace from recent;
+- reopen application.
+
+### Windows
+
+- Ctrl+Shift+N;
+- verify second window;
+- verify first window remains open;
+- switch between windows.
+
+### Explorer
+
+- create root file;
+- create folder;
+- create nested folder;
+- rename;
+- delete;
+- move;
+- drag/drop;
+- open file;
+- double-click;
+- switch tabs.
+
+### Editor
+
+- Markdown;
+- Python;
+- HTML;
+- JavaScript;
+- TypeScript;
+- JSON.
+
+### Hybrid / Neovim
+
+- switch both directions;
+- type;
+- cursor;
+- scroll;
+- selection;
+- Markdown highlighting;
+- Wikilinks;
+- preserve cursor/scroll.
+
+### LSP
+
+- Python;
+- HTML;
+- TypeScript/JavaScript;
+- Rust.
+
+### Persistence
+
+Close MindForge with:
+
+```text
+sidebar open
+workspace open
+folders expanded
+multiple tabs open
+```
+
+Reopen it.
+
+Verify the expected state is restored.
+
+---
+
+# Definition of Done
+
+Do not report completion because the project compiles.
+
+The pass is complete only when the running MindForge application behaves coherently:
+
+```text
+Workspace
+   ↓
+Explorer
+   ↓
+Filesystem
+   ↓
+Tabs
+   ↓
+Hybrid / Neovim
+   ↓
+LSP
+```
+
+Everything must point to the same real document.
+
+No fake welcome tabs.
+
+No broken empty-state creation.
+
+No stale rename inputs.
+
+No broken scrolling.
+
+No disappearing files.
+
+No broken LSP.
+
+No broken Wikilinks.
+
+No visual jump between editors.
+
+No accidental state resets.
+
+And:
+
+> **A user should be able to open a project, work in it, create/move/rename files, switch editors, use LSP, close MindForge, reopen it, and continue exactly where they left off.**

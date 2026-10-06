@@ -123,6 +123,16 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
     if app.services.editor_controller.mode == EditorInputMode::Hybrid {
         replay_pending_hybrid_input(app, now);
         sync_neovim_changes(app, now);
+        return;
+    }
+
+    let vim_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc)
+        && app.services.editor_controller.mode == EditorInputMode::Vim
+        && (!app.misc.show_welcome || app.misc.mode == Mode::Doc)
+        && (!app.open_notes.is_empty() || app.misc.mode == Mode::Doc);
+
+    if !vim_active {
+        return;
     }
 
     let (active_text, active_row, active_col, active_doc_id, active_tab_idx, file_name, language) =
@@ -153,10 +163,6 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64, mode_at_frame_start:
             )
         };
 
-    let vim_active = matches!(app.misc.mode, Mode::Normal | Mode::Doc)
-        && app.services.editor_controller.mode == EditorInputMode::Vim
-        && (!app.misc.show_welcome || app.misc.mode == Mode::Doc)
-        && (!app.open_notes.is_empty() || app.misc.mode == Mode::Doc);
     if vim_active
         && app.services.vim_runtime.backend.is_none()
         && app.services.vim_runtime.start_rx.is_none()

@@ -28,6 +28,7 @@ pub struct WorkspaceState {
     pub selection_anchor: Option<PathBuf>,
     pub dialog_error: Option<String>,
     pub dialog_focus_requested: bool,
+    pub context_menu: Option<crate::ui::menu::MenuState>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

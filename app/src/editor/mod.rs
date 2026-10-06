@@ -25,8 +25,9 @@ pub struct Editor {
     pub undo_stack: Vec<EditorSnapshot>,
     pub redo_stack: Vec<EditorSnapshot>,
     pub desired_col: Option<usize>,
-    line_offsets: Vec<usize>,
-    offsets_dirty: bool,
+    pub line_offsets: Vec<usize>,
+    pub offsets_dirty: bool,
+    cached_stats: Option<(usize, usize, usize)>,
 }
 
 impl Editor {
@@ -38,6 +39,11 @@ impl Editor {
         self.buf.is_empty()
     }
 
+    pub fn mark_dirty(&mut self) {
+        self.offsets_dirty = true;
+        self.cached_stats = None;
+    }
+
     pub fn clear(&mut self) {
         if !self.buf.is_empty() {
             self.save_undo_snapshot();
@@ -47,6 +53,7 @@ impl Editor {
         self.selection = None;
         self.selection_inclusive = false;
         self.desired_col = None;
+        self.mark_dirty();
     }
 
     pub fn clear_history(&mut self) {
@@ -60,11 +67,12 @@ impl Editor {
         self.selection = None;
         self.selection_inclusive = false;
         self.desired_col = None;
-        self.offsets_dirty = true;
+        self.mark_dirty();
+        self.ensure_line_offsets();
     }
 
-    fn ensure_line_offsets(&mut self) {
-        if !self.offsets_dirty && self.line_offsets.len() >= self.buf.len() {
+    pub fn ensure_line_offsets(&mut self) {
+        if !self.offsets_dirty && !self.line_offsets.is_empty() {
             return;
         }
         self.line_offsets.clear();
@@ -77,6 +85,32 @@ impl Editor {
         self.offsets_dirty = false;
     }
 
+    pub fn document_stats(&self) -> (usize, usize, usize) {
+        let total_chars = self.buf.len();
+        if let Some(stats) = self.cached_stats {
+            return stats;
+        }
+
+        let lines = if !self.offsets_dirty && !self.line_offsets.is_empty() {
+            self.line_offsets.len()
+        } else {
+            self.buf.iter().filter(|&&c| c == '\n').count() + 1
+        };
+
+        let mut words = 0;
+        let mut in_word = false;
+        for &c in &self.buf {
+            if c.is_whitespace() {
+                in_word = false;
+            } else if !in_word {
+                in_word = true;
+                words += 1;
+            }
+        }
+
+        (lines, words, total_chars)
+    }
+
     pub fn text(&self) -> String {
         self.buf.iter().collect()
     }
@@ -87,16 +121,28 @@ impl Editor {
 
     pub fn row_col_of(&self, idx: usize) -> (usize, usize) {
         let end = idx.min(self.buf.len());
-        let (mut row, mut col) = (0, 0);
-        for &c in &self.buf[..end] {
-            if c == '\n' {
-                row += 1;
-                col = 0;
-            } else {
-                col += 1;
+        if !self.offsets_dirty && !self.line_offsets.is_empty() {
+            match self.line_offsets.binary_search(&end) {
+                Ok(i) => (i, 0),
+                Err(i) => {
+                    let row = i.saturating_sub(1);
+                    let line_start = self.line_offsets[row];
+                    (row, end.saturating_sub(line_start))
+                }
             }
+        } else {
+            let mut row = 0;
+            let mut col = 0;
+            for &c in &self.buf[..end] {
+                if c == '\n' {
+                    row += 1;
+                    col = 0;
+                } else {
+                    col += 1;
+                }
+            }
+            (row, col)
         }
-        (row, col)
     }
 
     pub fn row_col_of_fast(&mut self, idx: usize) -> (usize, usize) {

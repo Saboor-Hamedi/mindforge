@@ -6,6 +6,7 @@
 
 pub mod docs;
 pub mod help_panel;
+pub mod menu;
 pub mod palette;
 pub mod showcmd;
 pub mod terminal_pane;
