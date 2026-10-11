@@ -461,6 +461,8 @@ impl App {
                     self.open_notes
                         .get(self.tabs.active_tab)
                         .and_then(|tab| tab.file_path.as_deref()),
+                    &mut self.sidebar.filter_query,
+                    &mut self.sidebar.focus_search,
                 );
                 self.sidebar.needs_scroll = false;
 

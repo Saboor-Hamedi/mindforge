@@ -24,7 +24,7 @@ pub fn get_explorer_icon(
         let icon = match ext.to_ascii_lowercase().as_str() {
             "rs" => "🦀",
             "md" | "markdown" => "📝",
-            "py" | "pyw" => "🐍",
+            "py" | "pyw" | "python" => "🐍",
             "js" | "mjs" | "cjs" => "⚡",
             "jsx" => "⚛",
             "ts" | "mts" => "🔷",

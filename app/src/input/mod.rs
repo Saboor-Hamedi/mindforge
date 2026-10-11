@@ -47,7 +47,7 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
 
     // Route critical modal shortcuts (Ctrl+P, Ctrl+Shift+P, Ctrl+,) from the raw key event
     // before Vim input or focused widgets can consume them.
-    let (ctrl_p, ctrl_shift_p, ctrl_comma) = ctx.input(|i| {
+    let (ctrl_p, ctrl_shift_p, ctrl_comma, ctrl_f, ctrl_shift_f) = ctx.input(|i| {
         let pressed = |wanted: egui::Key, shifted: bool| {
             i.events.iter().any(|event| {
                 matches!(event,
@@ -63,6 +63,8 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
             pressed(egui::Key::P, false),
             pressed(egui::Key::P, true),
             pressed(egui::Key::Comma, false),
+            pressed(egui::Key::F, false),
+            pressed(egui::Key::F, true),
         )
     });
 
@@ -105,6 +107,20 @@ pub fn handle_input(app: &mut App, ctx: &egui::Context, now: f64) -> bool {
             app.modal.search_opened_at = now;
             app.update_search_results();
         }
+        return false;
+    }
+    if !other_modal_open && (ctrl_f || ctrl_shift_f) {
+        app.sidebar.open = true;
+        app.sidebar.focused = true;
+        app.sidebar.focus_search = true;
+        let _ = app
+            .services
+            .db_tx
+            .send(crate::services::settings_store::StorageMsg::SaveSetting {
+                key: "sidebar".into(),
+                val: "true".into(),
+            });
+        app.set_status("Search workspace files (Ctrl+F)", now);
         return false;
     }
 

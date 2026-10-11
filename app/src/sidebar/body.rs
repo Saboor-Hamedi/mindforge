@@ -487,47 +487,66 @@ pub fn render_sidebar_body(
     any_modal_open: bool,
     workspace: &mut WorkspaceState,
     active_file: Option<&std::path::Path>,
+    filter_query: &str,
 ) -> Option<SidebarAction> {
     let mut action = None;
 
-    // 1. EMPTY STATE: When no project is open, show ONLY the clickable 'nothing available' message with inner padding
+    // 1. EMPTY STATE: When no project is open, center a beautiful card in the middle of the sidebar body
     if workspace.root.is_none() {
         ui.allocate_new_ui(
             egui::UiBuilder::new()
                 .max_rect(body_rect)
                 .layout(egui::Layout::top_down(egui::Align::Center)),
             |ui| {
-                ui.add_space(24.0);
+                // Generous vertical spacing to center in the middle of the sidebar
+                let center_y = ((body_rect.height() - 72.0) * 0.42).max(16.0);
+                ui.add_space(center_y);
 
                 let card_padding = egui::Margin {
-                    left: 14,
-                    right: 14,
-                    top: 10,
-                    bottom: 10,
+                    left: 20,
+                    right: 20,
+                    top: 14,
+                    bottom: 14,
                 };
 
+                let hovered_body = ui.rect_contains_pointer(body_rect);
                 let card_frame = egui::Frame::NONE
                     .inner_margin(card_padding)
-                    .fill(if ui.rect_contains_pointer(body_rect) {
+                    .corner_radius(6.0)
+                    .fill(if hovered_body {
                         theme.surface()
                     } else {
                         Color32::from_rgba_unmultiplied(
                             theme.surface().r(),
                             theme.surface().g(),
                             theme.surface().b(),
-                            80,
+                            140,
                         )
                     })
-                    .stroke(Stroke::new(1.0, theme.border().gamma_multiply(0.50)));
+                    .stroke(Stroke::new(
+                        1.0,
+                        if hovered_body {
+                            theme.accent.gamma_multiply(0.40)
+                        } else {
+                            theme.border().gamma_multiply(0.45)
+                        },
+                    ));
 
                 let resp = card_frame
                     .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("📂").size(15.0));
+                        ui.vertical_centered(|ui| {
+                            ui.label(egui::RichText::new("📂").size(22.0));
                             ui.add_space(4.0);
                             ui.label(
-                                egui::RichText::new("nothing available")
-                                    .size(12.5)
+                                egui::RichText::new("No Folder Open")
+                                    .size(13.0)
+                                    .strong()
+                                    .color(theme.highlight),
+                            );
+                            ui.add_space(2.0);
+                            ui.label(
+                                egui::RichText::new("Click to open workspace")
+                                    .size(11.5)
                                     .color(theme.muted),
                             );
                         });
@@ -541,7 +560,7 @@ pub fn render_sidebar_body(
                         egui::Sense::click(),
                     )
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .on_hover_text("Click to open a workspace folder");
+                    .on_hover_text("Click or drag and drop a folder to open workspace");
 
                 if btn_interact.clicked() {
                     action = Some(SidebarAction::OpenWorkspace);
@@ -556,6 +575,9 @@ pub fn render_sidebar_body(
     let Some(root) = workspace.root.clone() else {
         return action;
     };
+
+    let query_lower = filter_query.trim().to_lowercase();
+    let has_filter = !query_lower.is_empty();
 
     ui.allocate_new_ui(
         egui::UiBuilder::new()
@@ -580,7 +602,7 @@ pub fn render_sidebar_body(
                     );
                     let is_creating_dir =
                         matches!(workspace.dialog, Some(WorkspaceDialog::CreateFolder));
-                    let creating_at_root = workspace.dialog_parent == root;
+                    let creating_at_root = crate::workspace::same_path(&workspace.dialog_parent, &root);
                     let mut inline_created_rendered = false;
 
                     // Inline creation row at root level (indented inside root at depth 1)
@@ -608,12 +630,26 @@ pub fn render_sidebar_body(
                         });
                     }
 
+                    let mut matched_count = 0;
+
                     // Iterate through tree entries (children indented at depth + 1)
                     for i in 0..total_entries {
                         let (entry_path, entry_depth, entry_directory) = {
                             let e = &workspace.entries[i];
                             (e.path.clone(), e.depth + 1, e.directory)
                         };
+
+                        // Filter by query if query is typed
+                        if has_filter {
+                            let file_name = entry_path
+                                .file_name()
+                                .map(|f| f.to_string_lossy().to_lowercase())
+                                .unwrap_or_default();
+                            if !file_name.contains(&query_lower) {
+                                continue;
+                            }
+                        }
+                        matched_count += 1;
 
                         let is_renaming_this = workspace.dialog == Some(WorkspaceDialog::Rename)
                             && workspace.selected_path.as_ref() == Some(&entry_path);
@@ -645,7 +681,7 @@ pub fn render_sidebar_body(
                         if is_creating
                             && !inline_created_rendered
                             && entry_directory
-                            && entry_path == workspace.dialog_parent
+                            && crate::workspace::same_path(&entry_path, &workspace.dialog_parent)
                         {
                             render_inline_creation(
                                 ui,
@@ -669,6 +705,17 @@ pub fn render_sidebar_body(
                             theme,
                             &mut action,
                         );
+                    }
+
+                    if has_filter && matched_count == 0 {
+                        ui.horizontal(|ui| {
+                            ui.add_space(20.0);
+                            ui.label(
+                                egui::RichText::new(format!("No files matching \"{}\"", filter_query))
+                                    .color(theme.muted)
+                                    .size(11.5),
+                            );
+                        });
                     }
                 });
         },

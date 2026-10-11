@@ -41,7 +41,7 @@ pub enum WorkspaceDialog {
 
 impl WorkspaceState {
     pub fn open(&mut self, root: PathBuf) -> std::io::Result<()> {
-        let root = normalized_path(&fs::canonicalize(root)?);
+        let root = normalized_path(&root);
         if !root.is_dir() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -159,7 +159,7 @@ impl WorkspaceState {
         let Some(root) = self.root.as_deref() else {
             return false;
         };
-        if !path.starts_with(root) {
+        if !path_starts_with(path, root) {
             return false;
         }
         let mut changed = false;
@@ -168,9 +168,9 @@ impl WorkspaceState {
         } else {
             path.parent().unwrap_or(root)
         };
-        while current.starts_with(root) {
+        while path_starts_with(current, root) {
             changed |= self.expanded.insert(current.to_path_buf());
-            if current == root {
+            if same_path(current, root) {
                 break;
             }
             let Some(parent) = current.parent() else {
@@ -178,12 +178,12 @@ impl WorkspaceState {
             };
             current = parent;
         }
-        if self.selected_items.len() != 1 || !self.selected_items.contains(path) {
+        if self.selected_items.len() != 1 || !self.selected_items.iter().any(|p| same_path(p, path)) {
             self.selected_items.clear();
             self.selected_items.insert(path.to_path_buf());
             changed = true;
         }
-        if self.selection_anchor.as_deref() != Some(path) {
+        if self.selection_anchor.as_deref().map_or(true, |p| !same_path(p, path)) {
             self.selection_anchor = Some(path.to_path_buf());
             changed = true;
         }
@@ -367,7 +367,11 @@ pub fn normalized_path(path: &Path) -> PathBuf {
         if let Some(rest) = value.strip_prefix("\\\\?\\UNC\\") {
             PathBuf::from(format!("\\\\{rest}"))
         } else if let Some(rest) = value.strip_prefix("\\\\?\\") {
-            PathBuf::from(rest)
+            if rest.starts_with("Volume{") {
+                path.to_path_buf()
+            } else {
+                PathBuf::from(rest)
+            }
         } else {
             canonical
         }
@@ -375,6 +379,27 @@ pub fn normalized_path(path: &Path) -> PathBuf {
     #[cfg(not(windows))]
     {
         canonical
+    }
+}
+pub fn path_starts_with(path: &Path, base: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        let path_norm = normalized_path(path);
+        let base_norm = normalized_path(base);
+        let p_comps: Vec<_> = path_norm.components().collect();
+        let b_comps: Vec<_> = base_norm.components().collect();
+        if p_comps.len() < b_comps.len() {
+            return false;
+        }
+        b_comps.iter().zip(p_comps.iter()).all(|(b, p)| {
+            b.as_os_str()
+                .to_string_lossy()
+                .eq_ignore_ascii_case(&p.as_os_str().to_string_lossy())
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        path.starts_with(base)
     }
 }
 pub fn same_path(left: &Path, right: &Path) -> bool {
@@ -632,6 +657,22 @@ mod tests {
         ws.poll_at = 0.0;
         assert!(ws.poll_external(1.0));
         assert_eq!(ws.take_external_renames(), vec![(old, new)]);
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn test_create_custom_file_and_reveal() {
+        let root = fixture();
+        let mut ws = WorkspaceState::default();
+        ws.open(root.clone()).unwrap();
+
+        ws.dialog = Some(WorkspaceDialog::CreateFile);
+        ws.dialog_parent = root.clone();
+        ws.dialog_name = "hello.python".to_string();
+        ws.perform().unwrap();
+
+        assert!(root.join("hello.python").is_file());
+        assert!(ws.entries.iter().any(|e| e.path.ends_with("hello.python")));
+        assert!(ws.reveal(&root.join("hello.python")));
         fs::remove_dir_all(root).unwrap();
     }
 }

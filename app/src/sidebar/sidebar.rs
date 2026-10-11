@@ -67,6 +67,8 @@ pub fn render_sidebar(
     any_modal_open: bool,
     workspace: &mut WorkspaceState,
     active_file: Option<&std::path::Path>,
+    filter_query: &mut String,
+    focus_search: &mut bool,
 ) -> Option<SidebarAction> {
     // 1. Sidebar card background and border
     let sb_stroke = if sidebar_focused {
@@ -95,8 +97,8 @@ pub fn render_sidebar(
         pos2(sb_rect.max.x - pad_x, sb_rect.max.y - pad_y),
     );
 
-    // Header height: sleek compact 32.0 px
-    let header_h = 32.0;
+    // Header height: 58.0 px to accommodate sleek search input and flex controls row
+    let header_h = 58.0;
     let header_rect = Rect::from_min_max(
         inner_rect.min,
         pos2(inner_rect.max.x, inner_rect.min.y + header_h),
@@ -116,7 +118,7 @@ pub fn render_sidebar(
         pos2(inner_rect.max.x, body_bottom),
     );
 
-    // 1. Sidebar Header (Branding and Stats toggle)
+    // 1. Sidebar Header (Search input + Stats + Action Buttons)
     let header_action = header::render_sidebar_header(
         ui,
         painter,
@@ -124,6 +126,9 @@ pub fn render_sidebar(
         active_mode_idx,
         theme,
         any_modal_open,
+        filter_query,
+        focus_search,
+        workspace,
     );
 
     // 2. Sidebar Body (File explorer tree or clickable empty state)
@@ -143,6 +148,7 @@ pub fn render_sidebar(
         any_modal_open,
         workspace,
         active_file,
+        filter_query.as_str(),
     );
 
     // 3. Sidebar Footer (Round settings button with tooltip)

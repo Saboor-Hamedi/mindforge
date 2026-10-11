@@ -93,9 +93,12 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 if !target_path.exists() {
                     if let Some(parent) = target_path.parent() {
                         let _ = std::fs::create_dir_all(parent);
+                        app.workspace.expanded.insert(parent.to_path_buf());
                     }
                     let _ = std::fs::write(&target_path, "");
                     let _ = app.workspace.refresh();
+                    app.workspace.rebuild_search_index();
+                    app.persist_workspace_expansion();
                 }
                 app.open_file_path(target_path, now);
             } else {
@@ -128,9 +131,12 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 if !target_path.exists() {
                     if let Some(parent) = target_path.parent() {
                         let _ = std::fs::create_dir_all(parent);
+                        app.workspace.expanded.insert(parent.to_path_buf());
                     }
                     let _ = std::fs::write(&target_path, "");
                     let _ = app.workspace.refresh();
+                    app.workspace.rebuild_search_index();
+                    app.persist_workspace_expansion();
                 }
                 app.open_file_path(target_path, now);
             } else {

@@ -49,6 +49,8 @@ impl App {
                 width: crate::layout::DEFAULT_SIDEBAR_W,
                 dragging_splitter: false,
                 needs_scroll: false,
+                filter_query: String::new(),
+                focus_search: false,
             },
             modal: crate::state::modal::ModalState {
                 settings_open: false,

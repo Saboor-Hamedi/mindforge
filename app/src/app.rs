@@ -184,7 +184,7 @@ impl App {
         }
     }
 
-    fn persist_workspace_expansion(&self) {
+    pub fn persist_workspace_expansion(&self) {
         if let Some(root) = self.workspace.root.as_ref() {
             let key = format!("workspace_expanded:{}", root.to_string_lossy());
             let paths: Vec<String> = self
@@ -642,11 +642,20 @@ impl App {
                             | crate::workspace::WorkspaceDialog::CreateFolder
                     )
                 ) {
-                    self.workspace.expanded.insert(dialog_parent.clone());
+                    let actual_parent = if dialog_parent.as_os_str().is_empty() || !dialog_parent.exists() {
+                        self.workspace.root.clone().unwrap_or_else(crate::workspace::default_workspace_dir)
+                    } else {
+                        dialog_parent.clone()
+                    };
+                    self.workspace.expanded.insert(actual_parent.clone());
+                    if let Some(root) = self.workspace.root.clone() {
+                        self.workspace.expanded.insert(root);
+                    }
                     let _ = self.workspace.refresh();
+                    self.workspace.rebuild_search_index();
                     self.persist_workspace_expansion();
                     if kind == Some(crate::workspace::WorkspaceDialog::CreateFile) {
-                        let created_file = dialog_parent.join(&created_name);
+                        let created_file = actual_parent.join(&created_name);
                         if created_file.is_file() {
                             self.open_file_path(created_file, now);
                         }

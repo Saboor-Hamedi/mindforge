@@ -19,6 +19,10 @@ pub struct SidebarState {
     pub dragging_splitter: bool,
     /// Flag set when the sidebar needs to scroll the selected item into view
     pub needs_scroll: bool,
+    /// Live search filter query for explorer files
+    pub filter_query: String,
+    /// Request focus into the sidebar search input
+    pub focus_search: bool,
 }
 
 impl Default for SidebarState {
@@ -30,6 +34,8 @@ impl Default for SidebarState {
             width: 260.0,
             dragging_splitter: false,
             needs_scroll: false,
+            filter_query: String::new(),
+            focus_search: false,
         }
     }
 }
