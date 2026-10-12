@@ -561,6 +561,28 @@ impl App {
                         }
                     });
                 } else if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
+                    && self.services.vim_runtime.backend.is_none()
+                    && self.services.vim_runtime.start_error.is_none()
+                    && !self.open_notes.is_empty()
+                {
+                    // Neovim is still starting/attaching in the background.
+                    // Render the pending document immediately so the editor is
+                    // never blank; the real grid replaces it once redraws arrive.
+                    let pending = if self.misc.mode == Mode::Doc {
+                        self.editor.doc_ed.text()
+                    } else {
+                        self.editor.ed.text()
+                    };
+                    crate::vim::render::render_pending_text(
+                        painter,
+                        actual_editor_rect,
+                        &pending,
+                        ed_font_size,
+                        ed_lh,
+                        &self.misc.theme,
+                        self.editor.show_line_numbers,
+                    );
+                } else if matches!(self.misc.mode, Mode::Normal | Mode::Doc)
                     && self.services.vim_runtime.backend.is_some()
                 {
                     if let Some(backend) = self.services.vim_runtime.backend.as_mut() {

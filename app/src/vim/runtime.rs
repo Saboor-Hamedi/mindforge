@@ -154,13 +154,39 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64) {
         let repaint_context = ctx.clone();
         let text_clone = active_text.clone();
         let file_name_clone = file_name.clone();
+        // Match the grid sizing used by `vim::render` exactly, so Neovim is
+        // attached at the correct dimensions on the first try. A mismatch forced
+        // a reflow resize shortly after opening, which is what made the editor
+        // (and its line-number gutter) visibly settle a moment after opening.
         let (init_cols, init_rows) = if let (Some(rect), Some(font_size)) =
             (app.editor.last_editor_rect, app.editor.last_ed_font_size)
         {
             let (_, cw, lh) = app.misc.zoom.editor_metrics(font_size, ctx);
-            let cols = (rect.width() / cw.max(1.0)).floor().max(20.0) as usize;
-            let rows = (rect.height() / lh.max(1.0)).floor().max(5.0) as usize;
-            (cols, rows)
+            const NUMBER_WIDTH: usize = 4;
+            let show_numbers = app.editor.show_line_numbers;
+            let gutter_w = if show_numbers {
+                (NUMBER_WIDTH as f32 * (font_size * 0.55) + 14.0).max(28.0)
+            } else {
+                0.0
+            };
+            let effective_gutter_w = if rect.width() > gutter_w + 40.0 {
+                gutter_w
+            } else {
+                0.0
+            };
+            let pad_x = if show_numbers { 16.0 } else { 24.0 };
+            let text_left = rect.min.x + effective_gutter_w + pad_x;
+            let number_columns = if show_numbers && effective_gutter_w > 0.0 {
+                NUMBER_WIDTH
+            } else {
+                0
+            };
+            let cols = ((rect.max.x - text_left) / cw.max(1.0)).floor().max(1.0) as usize
+                + number_columns;
+            let rows = ((rect.max.y - (rect.min.y + 10.0)) / lh.max(1.0))
+                .floor()
+                .max(1.0) as usize;
+            (cols.max(20), rows.max(5))
         } else {
             (80, 24)
         };

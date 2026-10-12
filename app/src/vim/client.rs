@@ -40,16 +40,18 @@ impl NeovimClient {
         // Load MindForge's dedicated lightweight Neovim config when present.
         // This is distinct from a user's full Neovim setup, which can launch
         // dashboards or other UI that does not belong inside the editor pane.
-        let app_nvim_config = std::env::var_os("APPDATA")
-            .map(std::path::PathBuf::from)
-            .map(|path| {
-                path.join("mindforge")
-                    .join("mindforge")
-                    .join("nvim")
-                    .join("init.lua")
-            })
-            .filter(|path| path.is_file());
-        if let Some(config) = &app_nvim_config {
+        //
+        // The path is remembered even when the file does not exist yet, so that
+        // creating/editing `init.lua` later is picked up by the live-reload watcher
+        // instead of requiring an app restart.
+        let app_nvim_config = std::env::var_os("APPDATA").map(|path| {
+            std::path::PathBuf::from(path)
+                .join("mindforge")
+                .join("mindforge")
+                .join("nvim")
+                .join("init.lua")
+        });
+        if let Some(config) = app_nvim_config.as_ref().filter(|path| path.is_file()) {
             cmd.arg("-u").arg(config);
         } else {
             cmd.arg("--clean");

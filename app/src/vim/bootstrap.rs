@@ -70,6 +70,10 @@ pub const LSP_MODULES: &[(&str, &str)] = &[
         "mindforge.lsp.commands",
         include_str!("../../assets/nvim/mindforge/lsp/commands.lua"),
     ),
+    (
+        "mindforge.lsp.format",
+        include_str!("../../assets/nvim/mindforge/lsp/format.lua"),
+    ),
 ];
 
 /// Initial configuration script executed inside Neovim on backend startup.
@@ -94,6 +98,19 @@ pub const INIT_LUA: &str = r#"
     -- That prefix mapping delays every literal `j`; remove it only in
     -- this editor instance so ordinary typing is immediate.
     pcall(vim.keymap.del, 'i', 'jk')
+
+    -- K = hover. Use the attached language server's hover when one is active;
+    -- otherwise do nothing. The default `:Man` fallback prints the noisy
+    -- "no identifier under cursor" error for code files, which then lingers in
+    -- the message area.
+    vim.keymap.set('n', 'K', function()
+        for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
+            if client.supports_method('textDocument/hover') then
+                vim.lsp.buf.hover()
+                return
+            end
+        end
+    end, { silent = true })
 
     -- Clear search highlight and active snippet session on Escape in normal mode
     vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR><cmd>lua if vim.w._mindforge_live_search_id then pcall(vim.fn.matchdelete, vim.w._mindforge_live_search_id); vim.w._mindforge_live_search_id = nil end; if vim.snippet and vim.snippet.stop then pcall(vim.snippet.stop) end<CR>', { silent = true })

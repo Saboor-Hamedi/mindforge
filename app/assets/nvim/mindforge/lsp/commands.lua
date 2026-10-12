@@ -135,11 +135,24 @@ function M.setup(refresh)
     vim.cmd('edit ' .. vim.fn.fnameescape(paths.user_config()))
   end, { desc = 'Open your MindForge LSP configuration' })
 
+  --- True when any attached client advertises `method`.
+  local function supports(method)
+    for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
+      if client.supports_method(method) then
+        return true
+      end
+    end
+    return false
+  end
+
   cmd('Format', function()
-    local clients = vim.lsp.get_clients({ bufnr = 0 })
-    if #clients == 0 then return say('no LSP server attached to format this buffer') end
-    vim.lsp.buf.format({ async = true })
-  end, { desc = 'Format current buffer with LSP' })
+    local name = require('mindforge.lsp.format').format()
+    if name then
+      say(name == 'lsp' and 'Formatted with LSP' or ('Formatted with ' .. name))
+    else
+      say('no formatter available for this file (install one or :LspInstall)')
+    end
+  end, { desc = 'Format current buffer (LSP or external formatter)' })
 
   cmd('Rename', function()
     local clients = vim.lsp.get_clients({ bufnr = 0 })
@@ -156,26 +169,42 @@ function M.setup(refresh)
   end, { desc = 'Rename symbol under cursor' })
 
   cmd('CodeAction', function()
-    local clients = vim.lsp.get_clients({ bufnr = 0 })
-    if #clients == 0 then return say('no LSP server attached for code action') end
+    if #vim.lsp.get_clients({ bufnr = 0 }) == 0 then
+      return say('no LSP server attached for code action')
+    end
+    if not supports('textDocument/codeAction') then
+      return say('code actions are not supported for this filetype')
+    end
     vim.lsp.buf.code_action()
   end, { desc = 'Trigger LSP code action' })
 
   cmd('References', function()
-    local clients = vim.lsp.get_clients({ bufnr = 0 })
-    if #clients == 0 then return say('no LSP server attached to find references') end
+    if #vim.lsp.get_clients({ bufnr = 0 }) == 0 then
+      return say('no LSP server attached to find references')
+    end
+    if not supports('textDocument/references') then
+      return say('find references is not supported for this filetype')
+    end
     vim.lsp.buf.references()
   end, { desc = 'Find symbol references' })
 
   cmd('Hover', function()
-    local clients = vim.lsp.get_clients({ bufnr = 0 })
-    if #clients == 0 then return say('no LSP server attached for hover documentation') end
+    if #vim.lsp.get_clients({ bufnr = 0 }) == 0 then
+      return say('no LSP server attached for hover documentation')
+    end
+    if not supports('textDocument/hover') then
+      return say('hover documentation is not supported for this filetype')
+    end
     vim.lsp.buf.hover()
   end, { desc = 'Show hover documentation' })
 
   cmd('Definition', function()
-    local clients = vim.lsp.get_clients({ bufnr = 0 })
-    if #clients == 0 then return say('no LSP server attached to go to definition') end
+    if #vim.lsp.get_clients({ bufnr = 0 }) == 0 then
+      return say('no LSP server attached to go to definition')
+    end
+    if not supports('textDocument/definition') then
+      return say('go to definition is not supported for this filetype')
+    end
     vim.lsp.buf.definition()
   end, { desc = 'Go to symbol definition' })
 end

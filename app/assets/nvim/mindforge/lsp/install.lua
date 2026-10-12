@@ -153,6 +153,9 @@ function M.install(name, on_done)
       return say('rustup is required to install ' .. name .. ' (https://rustup.rs)')
     end
     cmd = { rustup, 'component', 'add', spec.rustup }
+  elseif not spec.npm then
+    -- Server is provided by the operating system / a package manager.
+    return say(name .. ' is not managed by MindForge — install it with your package manager (e.g. scoop, winget, brew, apt)')
   else
     local prefix, problem = prepare_prefix()
     if not prefix then
@@ -181,7 +184,7 @@ end
 
 function M.uninstall(name, on_done)
   local spec = registry.servers[name]
-  if not spec or spec.rustup then
+  if not spec or spec.rustup or not spec.npm then
     return say(name .. ' is not managed by MindForge (use rustup / your package manager)')
   end
   local prefix = paths.npm_prefix()

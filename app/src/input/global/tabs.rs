@@ -41,14 +41,16 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
         return Some(false);
     }
 
-    // Rename Active Note (Ctrl+R)
-    let ctrl_r = ctx.input(|i| {
+    // Rename Active Note (Ctrl+Shift+R).
+    // Plain Ctrl+R is reserved for Neovim's redo, which would otherwise never
+    // reach the embedded editor because this shortcut consumed it first.
+    let rename = ctx.input(|i| {
         (i.modifiers.ctrl || i.modifiers.command)
-            && !i.modifiers.shift
+            && i.modifiers.shift
             && !i.modifiers.alt
             && i.key_pressed(egui::Key::R)
     });
-    if ctrl_r && !app.command_bar.in_command {
+    if rename && !app.command_bar.in_command {
         if app.misc.mode == Mode::Doc {
             app.set_status("Documentation notes cannot be renamed", now);
             return Some(false);

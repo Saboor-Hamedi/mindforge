@@ -26,8 +26,9 @@ Snippet completion works immediately, with no server installed. Type "def" in a
 
 2. LANGUAGE INTELLIGENCE KEYMAPS
 --------------------------------
-    K                  Hover documentation popup (:Hover) - Esc immediately closes it
-    gd                 Go to definition (:Definition)
+    K                  Hover documentation popup (:Hover) - Esc closes it
+    gd                 Go to definition - opens a closable floating preview
+                       (Esc / q / Ctrl+C to close); the buffer is not hijacked
     gr                 Find references (:References)
     <F2>               Symbol rename (:Rename) - notifies if unsupported
     <leader>rn         Symbol rename (Space + r + n)
@@ -94,11 +95,26 @@ Snippet Placeholders (VS Code Friendly):
     pyright                Python (npm)
     yamlls                 YAML (npm)
     intelephense           PHP (npm)
+    cmake                  CMake (npm)
+    sql                    SQL (npm)
     rust_analyzer          Rust (rustup component add rust-analyzer)
+    clangd                 C / C++ / Objective-C (system PATH)
+    lua_ls                 Lua (system PATH)
+    gopls                  Go (system PATH)
+    taplo                  TOML (system PATH)
+    marksman               Markdown (system PATH)
+    texlab                 LaTeX / BibTeX (system PATH)
 
 npm servers are installed into:   <home>\nvim\servers\npm
 A server already on your PATH is used as-is. npm (Node.js) and rustup must be
-installed for the respective servers.
+installed for the respective servers. System servers (clangd, lua_ls, gopls,
+taplo, marksman, texlab) are not managed by MindForge — install them with your
+package manager (scoop, winget, brew, apt) and they are enabled automatically.
+
+Syntax formatting (`:Format`, <leader>f) uses an LSP formatter when the server
+provides one, otherwise falls back to a command-line formatter on PATH:
+python -> ruff/black/autopep8, rust -> rustfmt, go -> gofmt, lua -> stylua,
+js/ts/json/css/html/yaml/md -> prettier, c/cpp -> clang-format.
 <home> = %APPDATA%\mindforge\mindforge
 
 

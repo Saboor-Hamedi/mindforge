@@ -42,7 +42,15 @@ pub fn handle_event(
             modifiers,
             ..
         } => {
-            if *key == egui::Key::Semicolon
+            // Ctrl+] / Ctrl+[ indent and dedent the current line or Visual
+            // selection. Ctrl+[ is indistinguishable from <Esc> inside Neovim,
+            // so it cannot be a Neovim keymap — we drive it through Lua instead.
+            if (modifiers.ctrl || modifiers.command)
+                && !modifiers.alt
+                && matches!(key, egui::Key::OpenBracket | egui::Key::CloseBracket)
+            {
+                send_indent(app, *key == egui::Key::OpenBracket, now)
+            } else if *key == egui::Key::Semicolon
                 && modifiers.shift
                 && !modifiers.ctrl
                 && !modifiers.alt
@@ -165,6 +173,69 @@ fn send_text(app: &mut App, text: &str, now: f64) {
     }
 }
 
+/// Indents (or dedents) the current line / Visual selection inside Neovim.
+fn send_indent(app: &mut App, dedent: bool, now: f64) -> bool {
+    app.misc.sound.play();
+    app.misc.last_char_time = now;
+    app.misc
+        .showcmd
+        .record_action(if dedent { "<C-[>" } else { "<C-]>" }, now);
+    if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+        if let Err(error) = backend.indent(dedent) {
+            app.set_status(&format!("Neovim input failed: {error}"), now);
+        }
+    } else if !app
+        .services
+        .vim_runtime
+        .queue_input(PendingVimInput::Key(EditorKeyEvent {
+            key: if dedent {
+                egui::Key::OpenBracket
+            } else {
+                egui::Key::CloseBracket
+            },
+            modifiers: egui::Modifiers::CTRL,
+        }))
+    {
+        app.set_status(
+            "Neovim startup is taking too long; input queue is full",
+            now,
+        );
+    }
+    true
+}
+
+/// Vim-style label for a key event, e.g. `<C-]>`, `<Esc>`, `<S-Tab>`.
+fn key_label(key: egui::Key, modifiers: egui::Modifiers) -> String {
+    let base = match key {
+        egui::Key::Escape => "Esc".to_string(),
+        egui::Key::Enter => "CR".to_string(),
+        egui::Key::Tab => "Tab".to_string(),
+        egui::Key::Backspace => "BS".to_string(),
+        egui::Key::Delete => "Del".to_string(),
+        egui::Key::ArrowLeft => "Left".to_string(),
+        egui::Key::ArrowRight => "Right".to_string(),
+        egui::Key::ArrowUp => "Up".to_string(),
+        egui::Key::ArrowDown => "Down".to_string(),
+        egui::Key::Home => "Home".to_string(),
+        egui::Key::End => "End".to_string(),
+        egui::Key::PageUp => "PageUp".to_string(),
+        egui::Key::PageDown => "PageDown".to_string(),
+        egui::Key::OpenBracket => "[".to_string(),
+        egui::Key::CloseBracket => "]".to_string(),
+        egui::Key::Space => "Space".to_string(),
+        other => format!("{other:?}"),
+    };
+    if modifiers.ctrl || modifiers.command {
+        format!("<C-{base}>")
+    } else if modifiers.alt {
+        format!("<A-{base}>")
+    } else if modifiers.shift && base.len() > 1 {
+        format!("<S-{base}>")
+    } else {
+        format!("<{base}>")
+    }
+}
+
 fn send_paste(app: &mut App, text: &str, now: f64) {
     if !text.is_empty() {
         app.misc.sound.play();
@@ -198,7 +269,7 @@ fn send_key(app: &mut App, event: EditorKeyEvent, now: f64) {
     {
         app.misc
             .showcmd
-            .record_action(&format!("{:?}", event.key), now);
+            .record_action(&key_label(event.key, event.modifiers), now);
     }
     if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
         if let Err(error) = backend.handle_key(event) {

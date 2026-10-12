@@ -153,6 +153,67 @@ M.servers = {
     bin = 'rust-analyzer',
     config = { filetypes = { 'rust' }, root_markers = { 'Cargo.toml', 'rust-project.json', '.git' } },
   },
+  sql = {
+    desc = 'SQL (SQLite / PostgreSQL / MySQL / MariaDB)',
+    npm = { 'sql-language-server' },
+    bin = 'sql-language-server',
+    config = {
+      cmd_args = { 'up', '--method=stdio' },
+      filetypes = { 'sql' },
+    },
+  },
+  clangd = {
+    desc = 'C / C++ / Objective-C (clangd)',
+    bin = 'clangd',
+    config = {
+      cmd_args = { '--background-index', '--clang-tidy', '--header-insertion=iwyu' },
+      filetypes = { 'c', 'cpp', 'objc', 'objcpp', 'cuda' },
+      root_markers = { 'compile_commands.json', 'compile_flags.txt', '.clangd', 'CMakeLists.txt', '.git' },
+    },
+  },
+  lua_ls = {
+    desc = 'Lua (lua-language-server)',
+    bin = 'lua-language-server',
+    config = {
+      filetypes = { 'lua' },
+      root_markers = { '.luarc.json', '.luarc.jsonc', '.stylua.toml', '.git' },
+    },
+  },
+  gopls = {
+    desc = 'Go (gopls)',
+    bin = 'gopls',
+    config = {
+      filetypes = { 'go', 'gomod', 'gowork', 'gotmpl' },
+      root_markers = { 'go.work', 'go.mod', '.git' },
+    },
+  },
+  cmake = {
+    desc = 'CMake (cmake-language-server)',
+    npm = { 'cmake-language-server' },
+    bin = 'cmake-language-server',
+    config = {
+      filetypes = { 'cmake' },
+      root_markers = { 'CMakeLists.txt', '.git' },
+    },
+  },
+  taplo = {
+    desc = 'TOML (taplo)',
+    bin = 'taplo',
+    config = { cmd_args = { 'lsp', 'stdio' }, filetypes = { 'toml' } },
+  },
+  marksman = {
+    desc = 'Markdown (marksman)',
+    bin = 'marksman',
+    config = { cmd_args = { 'server' }, filetypes = { 'markdown', 'md' } },
+  },
+  texlab = {
+    desc = 'LaTeX / BibTeX (texlab)',
+    bin = 'texlab',
+    config = {
+      filetypes = { 'tex', 'plaintex', 'bib' },
+      root_markers = { '.latexmkrc', 'latexmkrc', '.git' },
+    },
+  },
 }
 
 --- Sorted list of server names.

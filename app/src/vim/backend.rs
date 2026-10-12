@@ -404,21 +404,15 @@ impl VimBackend {
                 "grid_line" if args.len() >= 4 => self.apply_grid_line(args),
                 "grid_scroll" if args.len() >= 7 => self.apply_grid_scroll(args),
                 "grid_cursor_goto" if args.len() >= 3 && num(&args[0]) == 1 => {
-                    let target_row = num(&args[1]);
-                    let target_col = num(&args[2]);
-                    let is_bottom_cmd_row =
-                        self.grid.height > 0 && target_row >= self.grid.height.saturating_sub(1);
-                    let in_cmd_or_msg = self.grid.mode == "c"
-                        || self.grid.mode.starts_with("cmdline")
-                        || !self.grid.command_line.is_empty()
-                        || !self.grid.message.is_empty();
-
-                    if !(is_bottom_cmd_row && in_cmd_or_msg) {
-                        self.grid.cursor = crate::editor::types::CursorPosition {
-                            row: target_row,
-                            column: target_col,
-                        };
-                    }
+                    // `ext_messages` / `ext_cmdline` are enabled, so the bottom
+                    // grid row is ordinary text — there is no reserved
+                    // status/command row to skip. Suppressing the cursor there
+                    // made the last line unreachable: the caret stuck one row
+                    // above while the Visual selection still highlighted it.
+                    self.grid.cursor = crate::editor::types::CursorPosition {
+                        row: num(&args[1]),
+                        column: num(&args[2]),
+                    };
                 }
                 "mode_change" if !args.is_empty() => {
                     self.grid.mode = args[0].as_str().unwrap_or("normal").to_owned();
@@ -635,6 +629,27 @@ impl VimBackend {
 
     pub fn send_input(&mut self, input: &str) -> EditorResult<()> {
         self.client.input(input)
+    }
+
+    /// Indents (`dedent == false`) or dedents (`dedent == true`) the current
+    /// line, or the active Visual selection (preserving it via `gv`).
+    ///
+    /// Driven through Lua rather than keys because Ctrl+[ is indistinguishable
+    /// from `<Esc>` once it reaches Neovim, so it can never be a keymap.
+    pub fn indent(&mut self, dedent: bool) -> EditorResult<()> {
+        let lua: &str = if dedent {
+            r#"local m = vim.fn.mode()
+if m:find('^[vV\22]') then vim.cmd('normal! <gv') else vim.cmd('normal! <<') end"#
+        } else {
+            r#"local m = vim.fn.mode()
+if m:find('^[vV\22]') then vim.cmd('normal! >gv') else vim.cmd('normal! >>') end"#
+        };
+        self.client
+            .notify(
+                "nvim_exec_lua",
+                vec![Value::from(lua), Value::Array(vec![])],
+            )
+            .map_err(Into::into)
     }
 
     /// (state, detail) of the language servers for the current buffer.

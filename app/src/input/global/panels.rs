@@ -176,9 +176,14 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
         return Some(false);
     }
 
-    // Toggle Documentation Mode: F2
+    // Toggle Documentation Mode: F2.
+    // While the embedded Neovim editor owns input, F2 must reach it so the
+    // documented <F2> LSP rename works; other LSP keys (K, gd, gr, ...) are
+    // forwarded for the same reason.
+    let neovim_owns_keys = app.services.vim_runtime.backend.is_some()
+        && matches!(app.misc.mode, Mode::Normal | Mode::Doc);
     let f2 = ctx.input(|i| i.key_pressed(egui::Key::F2));
-    if f2 && !app.command_bar.in_command {
+    if f2 && !app.command_bar.in_command && !neovim_owns_keys {
         if app.misc.mode == Mode::Doc {
             app.misc.mode = Mode::Normal;
             app.set_status("Returned to Notes Editor", now);

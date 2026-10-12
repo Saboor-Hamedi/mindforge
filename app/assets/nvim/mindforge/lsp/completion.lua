@@ -206,22 +206,90 @@ local function setup_keys()
     vim.lsp.buf.rename()
   end
 
-  local function safe_definition()
-    local clients = vim.lsp.get_clients({ bufnr = 0 })
-    if #clients == 0 then
-      vim.notify('LSP server is not running for this buffer', vim.log.levels.WARN)
+  -- True when at least one attached client advertises `method`. Calling a
+  -- feature a server does not implement makes Neovim print a noisy
+  -- "method ... is not supported" error, so every keymap gates on this.
+  local function supports(method)
+    for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
+      if client.supports_method(method) then
+        return true
+      end
+    end
+    return false
+  end
+
+  local function safe_hover()
+    if supports('textDocument/hover') then
+      vim.lsp.buf.hover()
+    end
+  end
+
+  -- Opens the definition as a *dismissable* floating preview instead of
+  -- jumping the buffer. Jumping replaced the editor's buffer with the target
+  -- file (e.g. pyright's builtins.pyi) and there was no way back, because the
+  -- app uses Ctrl+O for its own file picker. A preview keeps the buffer intact
+  -- and Esc / q closes it.
+  local function show_definition(item)
+    local filename = item.filename
+    if not filename then
       return
     end
-    vim.lsp.buf.definition()
+    local bufnr = vim.fn.bufadd(filename)
+    vim.fn.bufload(bufnr)
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local target = (item.lnum or 0) + 1
+    local first = math.max(1, target - 8)
+    local last = math.min(#lines, target + 8)
+    local snippet = {}
+    for i = first, last do
+      snippet[#snippet + 1] = string.format('%5d  %s', i, lines[i] or '')
+    end
+    local ft = vim.filetype.match({ filename = filename })
+    local buf = vim.lsp.util.open_floating_preview(snippet, ft, {
+      border = 'rounded',
+      focusable = true,
+      focus = true,
+      title = vim.fn.fnamemodify(filename, ':t') .. ':' .. target,
+    })
+    if buf then
+      vim.bo[buf].modifiable = false
+      for _, lhs in ipairs({ 'q', '<Esc>', '<C-c>' }) do
+        vim.keymap.set('n', lhs, close_floating_windows, { buffer = buf, silent = true, nowait = true })
+      end
+    end
+  end
+
+  local function safe_definition()
+    if not supports('textDocument/definition') then
+      return
+    end
+    local params = vim.lsp.util.make_position_params(0, 'utf-8')
+    vim.lsp.buf_request(0, 'textDocument/definition', params, function(err, result)
+      if err or not result or vim.tbl_isempty(result) then
+        vim.notify('No definition found', vim.log.levels.INFO)
+        return
+      end
+      local items = vim.lsp.util.locations_to_items(result, 'utf-8')
+      local item = items[1]
+      if item then
+        vim.schedule(function()
+          show_definition(item)
+        end)
+      end
+    end)
+  end
+
+  local function safe_format()
+    local name = require('mindforge.lsp.format').format()
+    if not name then
+      vim.notify('No formatter available for this file', vim.log.levels.WARN)
+    end
   end
 
   local function safe_references()
-    local clients = vim.lsp.get_clients({ bufnr = 0 })
-    if #clients == 0 then
-      vim.notify('LSP server is not running for this buffer', vim.log.levels.WARN)
-      return
+    if supports('textDocument/references') then
+      vim.lsp.buf.references()
     end
-    vim.lsp.buf.references()
   end
 
   map('i', '<CR>', function()
@@ -261,14 +329,14 @@ local function setup_keys()
   end)
   map('i', '<C-Space>', request_completion)
   map('n', 'gd', safe_definition)
-  map('n', 'K', vim.lsp.buf.hover)
+  map('n', 'K', safe_hover)
   map('n', 'gr', safe_references)
   map('n', '<F2>', safe_rename)
   map('n', '<leader>rn', safe_rename)
   map({ 'n', 'v' }, '<M-CR>', vim.lsp.buf.code_action)
   map({ 'n', 'v' }, '<leader>ca', vim.lsp.buf.code_action)
-  map({ 'n', 'v' }, '<leader>f', function() vim.lsp.buf.format({ async = true }) end)
-  map({ 'n', 'v' }, '<A-F>', function() vim.lsp.buf.format({ async = true }) end)
+  map({ 'n', 'v' }, '<leader>f', safe_format)
+  map({ 'n', 'v' }, '<A-F>', safe_format)
   map('n', '<leader>d', vim.diagnostic.open_float)
   map('n', '[d', vim.diagnostic.goto_prev)
   map('n', ']d', vim.diagnostic.goto_next)

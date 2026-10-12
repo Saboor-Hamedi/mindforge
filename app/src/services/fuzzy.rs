@@ -399,7 +399,7 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
     BuiltinCommand {
         title: "Rename Active Note",
         snippet: "Change topic title of the active document",
-        badge: "Ctrl+R",
+        badge: "Ctrl+Shift+R",
         icon: "📄",
         action: PaletteAction::RenameNote,
     },

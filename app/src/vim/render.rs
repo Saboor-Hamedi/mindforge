@@ -22,6 +22,7 @@ use crate::ui::theme::Theme;
 use eframe::egui::{self, Align2, Color32, Id, Pos2, Rect, Sense, Stroke, Ui};
 use rmpv::Value;
 use std::sync::Arc;
+use std::time::Duration;
 
 pub(crate) fn rgb(value: u32) -> Color32 {
     Color32::from_rgb((value >> 16) as u8, (value >> 8) as u8, value as u8)
@@ -145,6 +146,17 @@ impl VimBackend {
         show_line_numbers: bool,
     ) {
         self.tick();
+
+        // Expire stale messages/mode text so they never linger on screen (and
+        // so a leftover message can no longer interfere with layout).
+        if let Some(at) = self.grid.message_at {
+            if at.elapsed() > Duration::from_secs(5) {
+                self.grid.message.clear();
+                self.grid.message_at = None;
+                self.grid.message_is_error = false;
+            }
+        }
+
         let font = crate::services::font_manager::editor_font_id(font_size);
         if self.layout_font_size != font_size.to_bits() {
             self.row_layouts.clear();
@@ -248,23 +260,20 @@ impl VimBackend {
             );
         }
 
-        let rows = self.grid.cells.len().min(height);
+        // Lay out every row Neovim actually sent (clipped to the rect by the
+        // painter) rather than clamping to the locally-computed height. Clamping
+        // could hide the last row and thus the caret when the grid was briefly a
+        // row taller than our estimate.
+        let rows = self.grid.cells.len();
         self.row_layouts.resize_with(rows, || None);
 
         for row_idx in 0..rows {
             let row = &self.grid.cells[row_idx];
             let revision = self.grid.row_revision.get(row_idx).copied().unwrap_or(0);
-            let is_last_row = row_idx + 1 >= rows;
-            let is_mode_msg = is_last_row
-                && row
-                    .iter()
-                    .skip(number_columns)
-                    .any(|c| c.text.contains("--"));
-            let row_font = if is_mode_msg {
-                crate::services::font_manager::editor_font_id(13.0)
-            } else {
-                font.clone()
-            };
+            // Every grid row is real buffer text (messages/cmdline are handled
+            // out-of-band via `ext_messages`/`ext_cmdline`), so each row is laid
+            // out and positioned identically.
+            let row_font = font.clone();
             if self.row_layouts[row_idx]
                 .as_ref()
                 .is_none_or(|(cached_revision, _)| *cached_revision != revision)
@@ -308,16 +317,8 @@ impl VimBackend {
                 .unwrap_or(font_size * 1.25);
             let y_offset = ((nvim_row_height - font_row_height) * 0.5).max(0.0).round();
 
-            let row_top = if is_mode_msg {
-                rect.max.y - 20.0
-            } else {
-                origin.y + row_idx as f32 * nvim_row_height
-            };
-            let row_h = if is_mode_msg {
-                20.0
-            } else {
-                nvim_row_height + 0.5
-            };
+            let row_top = origin.y + row_idx as f32 * nvim_row_height;
+            let row_h = nvim_row_height + 0.5;
 
             let mut span_start: Option<(usize, Color32)> = None;
             for (col_offset, cell) in row
@@ -383,11 +384,7 @@ impl VimBackend {
             }
 
             if let Some((_, galley)) = &self.row_layouts[row_idx] {
-                let y_pos = if is_mode_msg {
-                    rect.max.y - 20.0
-                } else {
-                    origin.y + row_idx as f32 * nvim_row_height + y_offset
-                };
+                let y_pos = origin.y + row_idx as f32 * nvim_row_height + y_offset;
                 painter.galley(Pos2::new(text_left, y_pos), Arc::clone(galley), theme.text);
             }
 
@@ -411,7 +408,7 @@ impl VimBackend {
                     Stroke::new(1.0, color),
                 );
             }
-            if number_columns > 0 && !is_mode_msg {
+            if number_columns > 0 {
                 let number = row
                     .iter()
                     .take(number_columns)
@@ -554,10 +551,33 @@ impl VimBackend {
             }
         }
 
-        if !self.grid.message.is_empty() {
+        // Neovim's command line (`:` / `/`) arrives through `ext_cmdline`, not as
+        // grid text. Without drawing it here it would be invisible while Neovim
+        // is in command mode.
+        let has_cmdline = !self.grid.command_line.is_empty();
+        if has_cmdline {
             let fixed_font = crate::services::font_manager::editor_font_id(13.0);
             painter.text(
-                Pos2::new(origin.x, rect.max.y - 20.0),
+                Pos2::new(text_left, rect.max.y - nvim_row_height),
+                Align2::LEFT_TOP,
+                &self.grid.command_line,
+                fixed_font,
+                theme.text,
+            );
+        }
+
+        if !self.grid.message.is_empty() {
+            let fixed_font = crate::services::font_manager::editor_font_id(13.0);
+            // Anchor to the text column (not the gutter) so status/error text
+            // never overlaps the line numbers, and lift it above the command
+            // line when both are visible.
+            let message_y = if has_cmdline {
+                rect.max.y - nvim_row_height - 18.0
+            } else {
+                rect.max.y - 20.0
+            };
+            painter.text(
+                Pos2::new(text_left, message_y),
                 Align2::LEFT_TOP,
                 &self.grid.message,
                 fixed_font,
@@ -857,25 +877,85 @@ impl VimBackend {
                     i.raw_scroll_delta = egui::Vec2::ZERO;
                     i.smooth_scroll_delta = egui::Vec2::ZERO;
                 });
-                // Only scroll when the buffer is taller than the visible grid.
-                // Otherwise a short file (e.g. 15 lines) would let the viewport
-                // slide past the content, making "the whole editor move" for no
-                // reason. `height` is the number of visible grid rows.
-                if self.lines.len() > height {
-                    let steps = ((delta.abs() / nvim_row_height).ceil() as usize).clamp(1, 8);
-                    // Scroll the *viewport* instead of synthesizing a mouse-wheel
-                    // event. `<C-Y>`/`<C-E>` move the window while keeping the
-                    // cursor on its current line, whereas a wheel event drags the
-                    // cursor line-by-line and, in Visual mode, extends the
-                    // selection across the whole file. This gives normal-editor
-                    // scrolling: content moves, the caret stays put.
+                // In Visual mode a scroll drags the selection endpoint and can
+                // select the whole buffer in an instant, so we never scroll
+                // there — the selection stays exactly as the user made it.
+                let is_visual = self.grid.mode == "visual"
+                    || self.grid.mode.starts_with('v')
+                    || self.grid.mode.starts_with('V')
+                    || self.grid.mode == "\x16";
+                // Only scroll when the buffer is taller than the visible grid,
+                // so a short file (e.g. 15 lines) does not slide the viewport.
+                if !is_visual && self.lines.len() > height {
+                    let steps = ((delta.abs() / nvim_row_height).ceil() as i32).clamp(1, 8);
+                    // Neovim's native scroll keeps the caret on its text line
+                    // while there is room and only pushes it at the window edge.
+                    // <C-Y> shows earlier lines (wheel up), <C-E> later lines.
                     let key = if delta > 0.0 { "<C-y>" } else { "<C-e>" };
-                    let _ = self.client.input(&key.repeat(steps));
+                    let _ = self.client.input(&key.repeat(steps as usize));
                 }
             }
         }
         for event in mouse_actions {
             let _ = self.handle_mouse(event);
         }
+    }
+}
+
+/// Lightweight plain-text editor surface used while the Neovim backend is still
+/// starting (or re-attaching) so opening a note never shows a blank editor.
+///
+/// It mirrors the grid layout (`mod.rs` gutter + top padding + row height) so
+/// there is no visible jump when the real grid takes over. It is read-only and
+/// purely visual — no input handling, no mutation of authoritative state.
+pub fn render_pending_text(
+    painter: &egui::Painter,
+    rect: Rect,
+    text: &str,
+    font_size: f32,
+    row_height: f32,
+    theme: &Theme,
+    show_line_numbers: bool,
+) {
+    const NUMBER_WIDTH: usize = 4;
+    let font = crate::services::font_manager::editor_font_id(font_size);
+    let number_font = crate::services::font_manager::editor_font_id(font_size * 0.82);
+    let gutter_w = if show_line_numbers {
+        (NUMBER_WIDTH as f32 * (font_size * 0.55) + 14.0).max(28.0)
+    } else {
+        0.0
+    };
+    let effective_gutter_w = if rect.width() > gutter_w + 40.0 {
+        gutter_w
+    } else {
+        0.0
+    };
+    let pad_x = if show_line_numbers { 16.0 } else { 24.0 };
+    let text_left = rect.min.x + effective_gutter_w + pad_x;
+    let row_height = row_height.max(1.0);
+
+    let clip = painter.with_clip_rect(rect);
+    let mut y = rect.min.y + 10.0;
+    for (index, line) in text.lines().enumerate() {
+        if y > rect.max.y {
+            break;
+        }
+        if show_line_numbers && effective_gutter_w > 0.0 {
+            clip.text(
+                egui::pos2(rect.min.x + effective_gutter_w - 4.0, y),
+                Align2::RIGHT_TOP,
+                (index + 1).to_string(),
+                number_font.clone(),
+                theme.muted,
+            );
+        }
+        clip.text(
+            egui::pos2(text_left, y),
+            Align2::LEFT_TOP,
+            line,
+            font.clone(),
+            theme.text,
+        );
+        y += row_height;
     }
 }
