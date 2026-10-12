@@ -27,7 +27,7 @@ impl TerminalPane {
         let id = self.next_session_id;
         self.next_session_id += 1;
 
-        match spawn_backend_session(id, ctx, session_num) {
+        match spawn_backend_session(id, ctx, session_num, self.working_dir.clone()) {
             Ok(session) => {
                 self.sessions.push(session);
                 self.active_session_idx = self.sessions.len() - 1;

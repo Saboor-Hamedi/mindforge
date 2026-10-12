@@ -171,13 +171,13 @@ mindforge/
 │   │   │   └── tabs.rs (130)
 │   │   ├── terminal/
 │   │   │   ├── mod.rs (24)
-│   │   │   ├── terminal.rs (55)
+│   │   │   ├── terminal.rs (64)
 │   │   │   ├── state.rs (79)
-│   │   │   ├── process.rs (248)
+│   │   │   ├── process.rs (253)
 │   │   │   ├── session.rs (54)
 │   │   │   ├── events.rs (33)
 │   │   │   ├── input.rs (115)
-│   │   │   └── render.rs (643)
+│   │   │   └── render.rs (656)
 │   │   ├── statusbar.rs (318)
 │   │   ├── types/
 │   │   │   ├── mod.rs (5)

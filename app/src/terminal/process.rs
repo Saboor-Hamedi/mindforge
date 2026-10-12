@@ -219,15 +219,20 @@ pub(crate) fn spawn_backend_session(
     id: u64,
     ctx: &egui::Context,
     session_num: usize,
+    working_dir: Option<std::path::PathBuf>,
 ) -> anyhow::Result<TerminalSession> {
     let candidates = get_shell_candidates();
     let (tx, rx) = mpsc::channel();
+
+    // Prefer the active workspace root so shells open in the project the user
+    // is working in; fall back to the process CWD when no workspace is open.
+    let working_directory = working_dir.or_else(|| std::env::current_dir().ok());
 
     for candidate in candidates {
         let mut settings = BackendSettings::default();
         settings.shell = candidate.path.clone();
         settings.args = candidate.args.clone();
-        settings.working_directory = std::env::current_dir().ok();
+        settings.working_directory = working_directory.clone();
 
         match TerminalBackend::new(id, ctx.clone(), tx.clone(), settings) {
             Ok(backend) => {

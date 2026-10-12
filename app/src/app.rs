@@ -202,6 +202,8 @@ impl App {
     pub fn open_workspace(&mut self, path: std::path::PathBuf, now: f64) {
         match self.workspace.open(path) {
             Ok(()) => {
+                // Force terminal sessions to respawn in the newly opened workspace.
+                self.terminal.pane = None;
                 if let Some(root) = self.workspace.root.clone() {
                     let expanded_key = format!("workspace_expanded:{}", root.to_string_lossy());
                     if let Some(saved) =
@@ -275,6 +277,7 @@ impl App {
     /// Closes the active workspace and returns to the welcome page when no tabs are open.
     pub fn close_workspace(&mut self, now: f64) {
         self.workspace.root = None;
+        self.terminal.pane = None;
         self.workspace.entries.clear();
         self.workspace.expanded.clear();
         self.workspace.selected_items.clear();
@@ -923,15 +926,17 @@ impl eframe::App for App {
         }];
 
         if self.terminal.open || self.misc.mode == Mode::Terminal {
-            if let Some(ref mut pane) = self.terminal.pane {
-                if pane.pump() {
-                    self.terminal.open = false;
-                    self.terminal.focused = false;
-                    if self.misc.mode == Mode::Terminal {
-                        self.misc.mode = self.terminal.prev_mode_before_term;
-                    }
-                    self.set_status("Terminal session ended", now);
+            let all_exited = self.terminal.pane.as_mut().is_some_and(|pane| pane.pump());
+            if all_exited {
+                // Drop the emptied pane so the next Ctrl+J spawns a fresh shell
+                // instead of rendering a session-less terminal.
+                self.terminal.pane = None;
+                self.terminal.open = false;
+                self.terminal.focused = false;
+                if self.misc.mode == Mode::Terminal {
+                    self.misc.mode = self.terminal.prev_mode_before_term;
                 }
+                self.set_status("Terminal session ended", now);
             }
         }
 

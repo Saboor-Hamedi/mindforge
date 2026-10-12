@@ -639,6 +639,7 @@ impl App {
                     &self.misc.theme,
                     self.misc.font_size,
                     self.misc.opacity,
+                    self.workspace.root.clone(),
                 );
                 if drawer_action == crate::terminal::render::TerminalDrawerAction::Closed {
                     self.set_status("Terminal closed", now);
@@ -665,9 +666,18 @@ impl App {
                 self.render_scan_panes(ui, painter, editor_panel_rect);
             }
             Mode::Terminal => {
-                if self.terminal.pane.is_none() {
-                    self.terminal.pane =
-                        crate::terminal::TerminalPane::spawn(ui.ctx(), &self.misc.theme).ok();
+                let needs_spawn = self
+                    .terminal
+                    .pane
+                    .as_ref()
+                    .is_none_or(|pane| pane.sessions.is_empty());
+                if needs_spawn {
+                    self.terminal.pane = crate::terminal::TerminalPane::spawn(
+                        ui.ctx(),
+                        &self.misc.theme,
+                        self.workspace.root.clone(),
+                    )
+                    .ok();
                 }
                 if let Some(ref mut pane) = self.terminal.pane {
                     let action = pane.ui(

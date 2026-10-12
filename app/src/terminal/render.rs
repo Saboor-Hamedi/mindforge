@@ -199,14 +199,20 @@ impl TerminalPane {
         // Render active session embedded terminal widget with breathing room
         if let Some(ref term_theme) = self.cached_theme {
             if let Some(active_session) = self.sessions.get_mut(self.active_session_idx) {
+                // egui_term only performs mouse selection while the widget holds
+                // focus AND the pointer is over it. Keyboard input, however, is
+                // routed through `feed_event` so it works even when the pointer is
+                // elsewhere. Granting egui_term focus permanently would make both
+                // paths write to the PTY (duplicate characters), so we grant focus
+                // only for the duration of a mouse drag — enough to select text.
+                let selecting = is_focused
+                    && ui.input(|i| i.pointer.primary_down() || i.pointer.primary_released());
                 // Uniform padding inside terminal body: 8px horizontal, 6px vertical
                 let inner_rect = term_body_rect.shrink2(vec2(8.0, 6.0));
                 let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(inner_rect));
-                // set_focus(false) guarantees egui_term does not double-process keyboard events;
-                // feed_event in input/mod.rs remains the sole, crisp event writer to the backend.
                 let term_view = TerminalView::new(&mut child_ui, &mut active_session.backend)
                     .set_size(inner_rect.size())
-                    .set_focus(false)
+                    .set_focus(selecting)
                     .set_theme(term_theme.clone());
                 child_ui.add(term_view);
             }
@@ -534,6 +540,7 @@ pub fn render_terminal_drawer(
     theme: &Theme,
     font_size: f32,
     opacity: f32,
+    working_dir: Option<std::path::PathBuf>,
 ) -> TerminalDrawerAction {
     let mut action = TerminalDrawerAction::None;
     if let (Some(term_rect), Some(divider_rect)) = (bottom_terminal_rect, term_splitter_rect_opt) {
@@ -611,8 +618,14 @@ pub fn render_terminal_drawer(
             );
         }
 
-        if terminal.pane.is_none() {
-            terminal.pane = TerminalPane::spawn(ui.ctx(), theme).ok();
+        // Respawn when absent OR when every session has exited (so Ctrl+J after
+        // `exit` opens a fresh shell instead of rendering an empty pane).
+        let needs_spawn = terminal
+            .pane
+            .as_ref()
+            .is_none_or(|pane| pane.sessions.is_empty());
+        if needs_spawn {
+            terminal.pane = TerminalPane::spawn(ui.ctx(), theme, working_dir.clone()).ok();
         }
         if let Some(ref mut pane) = terminal.pane {
             let pane_action = pane.ui(
