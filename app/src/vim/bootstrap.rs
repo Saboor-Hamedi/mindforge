@@ -74,12 +74,17 @@ pub const LSP_MODULES: &[(&str, &str)] = &[
         "mindforge.lsp.format",
         include_str!("../../assets/nvim/mindforge/lsp/format.lua"),
     ),
+    (
+        "mindforge.autopairs",
+        include_str!("../../assets/nvim/mindforge/autopairs.lua"),
+    ),
 ];
 
 /// Initial configuration script executed inside Neovim on backend startup.
 pub const INIT_LUA: &str = r#"
     vim.cmd([[
         set mouse=a number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\ 
+        set expandtab tabstop=4 softtabstop=4 shiftwidth=4
         syntax on
         syntax enable
         filetype plugin indent on
@@ -151,41 +156,8 @@ pub const INIT_LUA: &str = r#"
     vim.keymap.set('i', '<A-Up>', '<Esc><cmd>m .-2<CR>==gi', { noremap = true, silent = true })
     vim.keymap.set('i', '<A-Down>', '<Esc><cmd>m .+1<CR>==gi', { noremap = true, silent = true })
 
-    -- Auto-closing pairs for intuitive typing.
-    if vim.g.mindforge_autopair ~= false then
-        local function next_char()
-            local col = vim.fn.col('.')
-            return vim.fn.getline('.'):sub(col, col)
-        end
-        local function prev_char()
-            local col = vim.fn.col('.') - 1
-            if col < 1 then return '' end
-            return vim.fn.getline('.'):sub(col, col)
-        end
-        local imap = function(lhs, fn)
-            vim.keymap.set('i', lhs, fn, { expr = true, noremap = true, silent = true })
-        end
-        for open, close in pairs({ ['('] = ')', ['['] = ']', ['{'] = '}' }) do
-            imap(open, function() return open .. close .. '<Left>' end)
-            imap(close, function()
-                if next_char() == close then return '<Right>' end
-                return close
-            end)
-        end
-        for _, quote in ipairs({ '"', "'", '`' }) do
-            imap(quote, function()
-                if next_char() == quote then return '<Right>' end
-                if prev_char():match('[%w_]') or next_char():match('[%w_]') then return quote end
-                return quote .. quote .. '<Left>'
-            end)
-        end
-        local pairs_map = { ['('] = ')', ['['] = ']', ['{'] = '}', ['"'] = '"', ["'"] = "'", ['`'] = '`' }
-        imap('<BS>', function()
-            local p, n = prev_char(), next_char()
-            if p ~= '' and pairs_map[p] == n then return '<Right><BS><BS>' end
-            return '<BS>'
-        end)
-    end
+    -- Auto-pairs are installed by the `mindforge.autopairs` module (see
+    -- LSP_BOOT), which is re-asserted after the user's init.lua is sourced.
 "#;
 
 /// Lua bootstrap code executed to register package preloads and initialize MindForge's LSP module.
@@ -196,6 +168,7 @@ pub const LSP_BOOT: &str = r#"
     end
     local ok, err = pcall(function() require('mindforge.lsp').setup() end)
     if not ok then vim.g.mindforge_lsp_error = tostring(err) end
+    pcall(function() require('mindforge.autopairs').setup() end)
 "#;
 
 /// Encodes the LSP module map into MessagePack for Neovim consumption.

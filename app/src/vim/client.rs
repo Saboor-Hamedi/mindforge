@@ -397,7 +397,9 @@ impl NeovimClient {
         let _ = self.notify(
             "nvim_exec_lua",
             vec![
-                Value::from("pcall(function() require('mindforge.lsp.completion').remap() end)"),
+                Value::from(
+                    "pcall(function() require('mindforge.lsp.completion').remap(); require('mindforge.autopairs').setup() end)",
+                ),
                 Value::Array(vec![]),
             ],
         );

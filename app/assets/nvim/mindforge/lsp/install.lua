@@ -163,12 +163,24 @@ function M.install(name, on_done)
   -- spawned directly, and `.cmd`/`.bat` shims must go through `cmd.exe /c`.
   local function exe(name)
     local path = vim.fn.exepath(name)
-    if path == '' and is_windows then
-      for _, ext in ipairs({ '.exe', '.cmd', '.bat' }) do
-        local candidate = vim.fn.exepath(name .. ext)
-        if candidate ~= '' then
-          path = candidate
-          break
+    if is_windows then
+      local lower = path:lower()
+      local has_ext = lower:match('%.exe$') or lower:match('%.cmd$') or lower:match('%.bat$') or lower:match('%.com$')
+      if path ~= '' and not has_ext then
+        for _, ext in ipairs({ '.exe', '.cmd', '.bat', '.com' }) do
+          if vim.uv.fs_stat(path .. ext) then
+            path = path .. ext
+            break
+          end
+        end
+      end
+      if path == '' or not has_ext then
+        for _, ext in ipairs({ '.exe', '.cmd', '.bat', '.com' }) do
+          local candidate = vim.fn.exepath(name .. ext)
+          if candidate ~= '' then
+            path = candidate
+            break
+          end
         end
       end
     end

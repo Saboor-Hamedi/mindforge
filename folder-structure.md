@@ -23,15 +23,16 @@ mindforge/
 │   │   ├── icon_64.rgba (141)
 │   │   └── nvim/
 │   │       └── mindforge/
+│   │           ├── autopairs.lua (149)
 │   │           └── lsp/
 │   │               ├── commands.lua (212)
-│   │               ├── completion.lua (388)
+│   │               ├── completion.lua (389)
 │   │               ├── config.lua (54)
 │   │               ├── emmet.lua (138)
 │   │               ├── format.lua (80)
 │   │               ├── guard.lua (66)
 │   │               ├── init.lua (167)
-│   │               ├── install.lua (277)
+│   │               ├── install.lua (289)
 │   │               ├── notify.lua (9)
 │   │               ├── paths.lua (45)
 │   │               ├── progress.lua (54)
@@ -245,7 +246,7 @@ mindforge/
 │   │   │       └── mod.rs (120)
 │   │   ├── vim/
 │   │   │   ├── backend.rs (981)
-│   │   │   ├── bootstrap.rs (209)
+│   │   │   ├── bootstrap.rs (182)
 │   │   │   ├── client.rs (576)
 │   │   │   ├── editor_backend.rs (183)
 │   │   │   ├── input.rs (288)

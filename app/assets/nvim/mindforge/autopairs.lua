@@ -1,0 +1,149 @@
+-- MindForge auto-pairs: robust insert-mode bracket / quote pairing.
+--
+-- Why a dedicated module (instead of inline mappings):
+--   * Works in every filetype, including SQL where `'` is a string quote.
+--   * Context-aware: skips over an existing closer, never pairs inside words,
+--     respects a preceding backslash, and can be disabled per-buffer.
+--   * `<BS>` deletes both halves of an empty pair, `<CR>` expands an empty pair
+--     into a block, and typing a closing bracket over an auto-inserted one just
+--     moves the cursor instead of duplicating it.
+--   * Re-runnable via `M.setup()` so MindForge can re-assert it after the user's
+--     init.lua is (re)sourced, while still letting the user opt out.
+
+local M = {}
+
+local OPEN = { ['('] = ')', ['['] = ']', ['{'] = '}' }
+local CLOSE = { [')'] = '(', [']'] = '[', ['}'] = '{' }
+local QUOTE = { ['"'] = true, ["'"] = true, ['`'] = true }
+
+local function is_enabled(buf)
+  if vim.g.mindforge_autopair == false then
+    return false
+  end
+  return vim.b[buf].mindforge_autopair ~= false
+end
+
+local function line_at()
+  return vim.api.nvim_get_current_line()
+end
+
+-- Byte index just before the insert cursor, and the byte at it.
+local function char_before()
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  if col < 1 then
+    return ''
+  end
+  return line_at():sub(col, col)
+end
+
+local function char_after()
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local line = line_at()
+  if col + 1 > #line then
+    return ''
+  end
+  return line:sub(col + 1, col + 1)
+end
+
+local function is_word_char(ch)
+  return ch ~= '' and ch:match('[%w_]') ~= nil
+end
+
+-- Insert-mode expr mapping. `replace_keycodes` turns the returned `<Left>` /
+-- `<Right>` tokens into real keys.
+local function imap(lhs, fn)
+  vim.keymap.set('i', lhs, fn, {
+    expr = true,
+    noremap = true,
+    silent = true,
+    replace_keycodes = true,
+    desc = 'MindForge auto-pair',
+  })
+end
+
+local function insert_opener(open, close)
+  imap(open, function()
+    if not is_enabled(0) then
+      return open
+    end
+    -- Already sitting on the closer (e.g. re-typing) -> just step over it.
+    if char_after() == close then
+      return '<Right>'
+    end
+    return open .. close .. '<Left>'
+  end)
+end
+
+local function insert_closer(close)
+  imap(close, function()
+    if not is_enabled(0) then
+      return close
+    end
+    if char_after() == close then
+      return '<Right>'
+    end
+    return close
+  end)
+end
+
+local function insert_quote(quote)
+  imap(quote, function()
+    if not is_enabled(0) then
+      return quote
+    end
+    local prev, next = char_before(), char_after()
+    -- Step over an existing quote.
+    if next == quote then
+      return '<Right>'
+    end
+    -- Escaped quote, or quote adjacent to a word (contraction / identifier).
+    if prev == '\\' or is_word_char(prev) or is_word_char(next) then
+      return quote
+    end
+    return quote .. quote .. '<Left>'
+  end)
+end
+
+function M.setup()
+  for open, close in pairs(OPEN) do
+    insert_opener(open, close)
+  end
+  for close in pairs(CLOSE) do
+    insert_closer(close)
+  end
+  for quote in pairs(QUOTE) do
+    insert_quote(quote)
+  end
+
+  -- Backspace removes both halves of an empty pair.
+  imap('<BS>', function()
+    if not is_enabled(0) then
+      return '<BS>'
+    end
+    local prev, next = char_before(), char_after()
+    if OPEN[prev] == next then
+      return '<Right><BS><BS>'
+    end
+    if QUOTE[prev] and next == prev then
+      return '<Right><BS><BS>'
+    end
+    return '<BS>'
+  end)
+
+  -- Enter between an empty pair opens an indented block.
+  imap('<CR>', function()
+    if not is_enabled(0) then
+      return '<CR>'
+    end
+    local prev, next = char_before(), char_after()
+    if (prev == '{' and next == '}')
+      or (prev == '(' and next == ')')
+      or (prev == '[' and next == ']')
+    then
+      return '<CR><CR><Up>'
+    end
+    return '<CR>'
+  end)
+end
+
+return M

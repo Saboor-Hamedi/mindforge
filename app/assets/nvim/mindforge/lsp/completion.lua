@@ -141,6 +141,9 @@ local function setup_triggers(group)
 end
 
 local function setup_keys()
+  -- Tab: accept the selected completion / advance a snippet, otherwise insert a
+  -- real tab (indent). It never *opens* the completion menu — use Ctrl+Space for
+  -- that — so pressing Tab to indent never pops a symbol list.
   map('i', '<Tab>', function()
     if vim.fn.pumvisible() == 1 then
       feed(pum_selected() >= 0 and '<C-y>' or '<C-n><C-y>')
@@ -149,8 +152,6 @@ local function setup_keys()
     elseif vim.snippet.active() then
       pcall(vim.snippet.stop)
       feed('<Tab>')
-    elseif request_completion() then
-      -- With a completion-capable client, Tab explicitly requests matches.
     else
       feed('<Tab>')
     end
