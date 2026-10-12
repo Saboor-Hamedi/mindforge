@@ -18,7 +18,7 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
         return Some(false);
     }
 
-    // New Note (Ctrl+N)
+    // New Note (Ctrl+N) - opens new tab immediately in the editor
     let ctrl_n = ctx.input(|i| {
         (i.modifiers.ctrl || i.modifiers.command)
             && !i.modifiers.shift
@@ -51,14 +51,6 @@ pub fn handle_tab_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> Opt
     if ctrl_r && !app.command_bar.in_command {
         if app.misc.mode == Mode::Doc {
             app.set_status("Documentation notes cannot be renamed", now);
-            return Some(false);
-        }
-        if app
-            .open_notes
-            .get(app.tabs.active_tab)
-            .is_some_and(|tab| tab.file_path.is_some())
-        {
-            app.set_status("Code file names are managed by the filesystem", now);
             return Some(false);
         }
         if !app.misc.show_welcome

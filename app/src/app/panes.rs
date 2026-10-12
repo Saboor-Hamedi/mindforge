@@ -151,7 +151,8 @@ impl App {
         };
 
         let show_dashboard = self.misc.mode == Mode::Normal
-            && (self.misc.show_welcome || self.open_notes.is_empty());
+            && (self.misc.show_welcome
+                || (self.open_notes.is_empty() && self.workspace.root.is_none()));
 
         let are_tabs_visible = !show_dashboard
             && (self.misc.show_tabs || self.open_notes.len() > 1)
@@ -340,7 +341,8 @@ impl App {
             || self.terminal.dragging_splitter;
 
         let show_dashboard = self.misc.mode == Mode::Normal
-            && (self.misc.show_welcome || self.open_notes.is_empty());
+            && (self.misc.show_welcome
+                || (self.open_notes.is_empty() && self.workspace.root.is_none()));
 
         if (self.misc.mode == Mode::Normal || self.misc.mode == Mode::Doc) && !show_dashboard {
             if self

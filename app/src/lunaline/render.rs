@@ -314,7 +314,79 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         "unavailable" => Some(("×", theme.muted)),
         _ => None,
     };
-    let lsp_pad = if lsp_glyph.is_some() { 16.0 } else { 0.0 };
+
+    // Render MindForge LSP indicator with server name if active
+    let lsp_server_name = if !params.lsp.1.is_empty() {
+        let name = params.lsp.1.trim();
+        if name.contains("ts_ls") || name.contains("tsserver") {
+            "JavaScript language server"
+        } else if name.contains("rust_analyzer") || name.contains("rust-analyzer") {
+            "Rust language server"
+        } else if name.contains("pyright") {
+            "Python language server"
+        } else if name.contains("gopls") {
+            "Go language server"
+        } else if name.contains("clangd") {
+            "C/C++ language server"
+        } else {
+            name
+        }
+    } else {
+        ""
+    };
+
+    if lsp_glyph.is_some() && !lsp_server_name.is_empty() {
+        let lsp_text = format!("MindForge LSP: {}", lsp_server_name);
+        let lsp_text_w = lsp_text.chars().count() as f32 * 7.0 + 28.0;
+        right_x -= lsp_text_w;
+        let lsp_badge_rect =
+            Rect::from_min_size(pos2(right_x, bar_center_y - 11.0), vec2(lsp_text_w, 22.0));
+
+        if matches!(config.style, LunaStyle::Pill | LunaStyle::Floating) {
+            painter.rect(
+                lsp_badge_rect,
+                4.0,
+                theme.surface(),
+                Stroke::new(0.5_f32, theme.border()),
+                egui::StrokeKind::Inside,
+            );
+        }
+
+        if let Some((glyph, color)) = lsp_glyph {
+            painter.text(
+                pos2(lsp_badge_rect.min.x + 6.0, lsp_badge_rect.center().y),
+                Align2::LEFT_CENTER,
+                glyph,
+                font_info.clone(),
+                color,
+            );
+        }
+
+        painter.text(
+            pos2(lsp_badge_rect.min.x + 18.0, lsp_badge_rect.center().y),
+            Align2::LEFT_CENTER,
+            &lsp_text,
+            font_info.clone(),
+            theme.text,
+        );
+
+        let lsp_hovered = ui.rect_contains_pointer(lsp_badge_rect);
+        if lsp_hovered {
+            egui::show_tooltip_text(
+                ui.ctx(),
+                ui.layer_id(),
+                egui::Id::new("mindforge-lsp-badge-tip"),
+                format!("Status: {} ({})", params.lsp.0, params.lsp.1),
+            );
+        }
+        right_x -= 8.0;
+    }
+
+    let lsp_pad = if lsp_glyph.is_some() && lsp_server_name.is_empty() {
+        16.0
+    } else {
+        0.0
+    };
     let language_width = language_label.chars().count() as f32 * 7.4 + 25.0 + lsp_pad;
     right_x -= language_width;
     let language_rect = Rect::from_min_size(
@@ -340,13 +412,15 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         }
     }
     if let Some((glyph, color)) = lsp_glyph {
-        painter.text(
-            pos2(language_rect.min.x + 7.0, language_rect.center().y),
-            Align2::LEFT_CENTER,
-            glyph,
-            font_info.clone(),
-            color,
-        );
+        if lsp_server_name.is_empty() {
+            painter.text(
+                pos2(language_rect.min.x + 7.0, language_rect.center().y),
+                Align2::LEFT_CENTER,
+                glyph,
+                font_info.clone(),
+                color,
+            );
+        }
         if language_hovered && !params.lsp.1.is_empty() {
             egui::show_tooltip_text(
                 ui.ctx(),

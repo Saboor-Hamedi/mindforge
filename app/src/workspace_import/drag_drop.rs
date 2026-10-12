@@ -3,14 +3,11 @@
 use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, Align2, Color32, FontId, Rect, Stroke};
 
-/// Opens the dropped directory, or the containing directory of dropped files, as a workspace.
-pub fn handle_drag_and_drop(
-    ctx: &egui::Context,
-    workspace: &mut crate::workspace::WorkspaceState,
-) -> bool {
+/// Detects dropped directory, or containing directory of dropped files, returning its normalized path.
+pub fn handle_drag_and_drop(ctx: &egui::Context) -> Option<std::path::PathBuf> {
     let dropped = ctx.input(|i| i.raw.dropped_files.clone());
     if dropped.is_empty() {
-        return false;
+        return None;
     }
 
     let mut valid_paths = Vec::new();
@@ -23,7 +20,7 @@ pub fn handle_drag_and_drop(
     }
 
     if valid_paths.is_empty() {
-        return false;
+        return None;
     }
     let candidate = if valid_paths.len() == 1 && valid_paths[0].is_dir() {
         valid_paths[0].clone()
@@ -33,7 +30,11 @@ pub fn handle_drag_and_drop(
             .unwrap_or(&valid_paths[0])
             .to_path_buf()
     };
-    workspace.open(candidate).is_ok()
+    if candidate.is_dir() {
+        Some(crate::workspace::normalized_path(&candidate))
+    } else {
+        None
+    }
 }
 
 /// Renders a sleek floating drop indicator when files are being hovered over the application window.

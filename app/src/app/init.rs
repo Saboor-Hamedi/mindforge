@@ -74,6 +74,7 @@ impl App {
                 delete_just_opened: false,
                 pending_delete_note_id: None,
                 pending_delete_path: None,
+                pending_delete_paths: Vec::new(),
                 help_open: false,
                 help_tab: 0,
                 help_scroll_y: 0.0,
@@ -112,7 +113,15 @@ impl App {
 
         if !is_new_window {
             if let Some(path) = stored_settings.get("workspace_root") {
-                app.open_workspace(std::path::PathBuf::from(path), 0.0);
+                let trimmed = path.trim();
+                if !trimmed.is_empty() {
+                    let dir_path = std::path::PathBuf::from(trimmed);
+                    if dir_path.is_dir() {
+                        app.open_workspace(dir_path, 0.0);
+                    } else {
+                        crate::services::settings_store::save_setting_sync("workspace_root", "");
+                    }
+                }
             }
 
             // Restore active document and open tabs from settings.json
@@ -215,7 +224,12 @@ impl App {
         }
 
         if app.open_notes.is_empty() {
-            app.misc.show_welcome = true;
+            if app.workspace.root.is_some() {
+                app.misc.show_welcome = false;
+                app.sidebar.open = true;
+            } else {
+                app.misc.show_welcome = true;
+            }
         }
 
         app

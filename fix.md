@@ -1,209 +1,50 @@
-# MindForge — Final Deep Cleanup Audit
+## Important Clarification — What I Actually Expect
 
-You have already removed Hybrid mode and the old SQLite architecture.
+Look carefully at my screenshot.
 
-Do NOT repeat the migration blindly.
+I have two tabs named `hellopython.py`, but the Explorer does not show a newly created file corresponding to the new tab. The existing `hellopython.py` entry is not proof that the new creation operation succeeded.
 
-Now perform a FINAL repository-wide cleanup and audit.
+My problem is not simply that the filename appears twice. **The editor and the filesystem Explorer are becoming inconsistent.**
 
-The goal is to find anything that was missed, became dead, duplicated, misleading, or unnecessary after those removals.
+When I press `Ctrl+N` or use the new-file command, I expect MindForge to create a real file inside the currently active workspace, not merely open a new editor tab.
 
-## 1. Search Everything
+For example, if my active project is:
 
-Search the ENTIRE repository, not only `app/src`.
+`D:\Projects\PythonLearning\`
 
-Look for:
+and I create `hellopython.py`, the expected result is:
 
-- db
-- database
-- sqlite
-- rusqlite
-- db_worker
-- Hybrid
-- hybrid
-- editor_mode
-- mode switching
-- legacy editor
-- old editor abstractions
-- migration code
-- compatibility code
-- dead modules
-- unused files
-- TODO/FIXME leftovers
-- commented-out implementations
+`D:\Projects\PythonLearning\hellopython.py`
 
-Do not assume something is obsolete just because its name looks old. Inspect each result and determine whether it is still needed.
+That physical file must exist on disk. The Explorer must display it under the correct project root, and exactly one tab should represent that file.
 
-## 2. Database Cleanup
+If a file with that name already exists, MindForge must handle the conflict safely instead of silently overwriting it or creating another tab that appears to represent the same file.
 
-We no longer use SQLite.
+### Why previous attempts have failed
 
-Find every remaining database-related file, module, name, function, comment, dependency, and abstraction.
+You have already spent hours working on this issue, so do not repeat the same cycle of changing code, running `cargo check`, and declaring success.
 
-If `db_worker` is now only handling `.mindforge/settings.json` or other JSON persistence, it should NOT continue to be called a database worker.
+First, establish what actually happens at runtime:
 
-Refactor/rename it to accurately represent its real responsibility.
+1. Does the creation command execute?
+2. What absolute path does it choose?
+3. Does the filesystem operation create the file successfully?
+4. Does the Explorer represent the same workspace root?
+5. Does the Explorer receive and correctly process the new file?
+6. Why are two tabs being registered with the same filename?
 
-Do not delete valid persistence functionality.
+Use the answers to identify the actual failure point. Do not assume that the duplicate tab and missing Explorer entry share the same cause.
 
-The final architecture must clearly distinguish:
+### Required result
 
-Filesystem → user files/source of truth
+One user action must produce one consistent result across all relevant parts of MindForge:
 
-`.mindforge` → application metadata/settings/session state
+- **Filesystem:** one real file at the correct path.
+- **Workspace:** the file belongs to the active project.
+- **Explorer:** one entry under the correct directory.
+- **Editor:** one tab associated with the same physical file.
+- **Persistence:** the file remains present after restarting MindForge.
 
-No database/document-storage layer.
+If any step fails, report the actual error and do not leave behind a phantom tab or falsely report success.
 
-## 3. Hybrid Cleanup
-
-Hybrid has been removed.
-
-Verify that there are no remaining:
-
-- Hybrid modules
-- Hybrid state
-- editor-mode enums
-- mode switching
-- Hybrid settings
-- Hybrid commands
-- Hybrid UI
-- Hybrid tests
-- Hybrid compatibility code
-- unused abstractions created for supporting two editors
-
-Neovim is now the ONLY editor engine.
-
-## 4. Dead Code
-
-Find and remove:
-
-- unused functions
-- unused structs
-- unused enums
-- unused fields
-- unused modules
-- unused imports
-- unreachable code
-- obsolete helpers
-- obsolete comments
-- stale documentation
-- compatibility wrappers
-- migration leftovers
-
-Actually remove them. Do not merely report them.
-
-## 5. Duplicate Code
-
-Look for duplicate implementations of:
-
-- filesystem operations
-- workspace operations
-- persistence
-- path handling
-- tab management
-- Neovim communication
-- editor state
-- Explorer operations
-- menu handling
-- configuration
-- error handling
-
-If two pieces of code perform essentially the same responsibility, determine the correct implementation and consolidate them.
-
-Do not create unnecessary abstractions just to make code look DRY.
-
-## 6. Misleading Names
-
-Look for names that still describe the old architecture.
-
-Examples:
-
-- `db_worker`
-- `database`
-- `hybrid`
-- `editor_mode`
-- `legacy`
-- `migration`
-- `manager` where a more precise name is appropriate
-
-Rename code when the current name no longer reflects its responsibility.
-
-## 7. God Files
-
-Identify genuinely oversized modules with multiple unrelated responsibilities.
-
-Only split them when there is a clear architectural benefit.
-
-Do not turn one large file into dozens of tiny files.
-
-Each module should have a clear responsibility.
-
-## 8. Dependencies
-
-Inspect `Cargo.toml` and workspace dependencies.
-
-Remove dependencies that are no longer required after:
-
-- SQLite removal
-- Hybrid removal
-- old inline editor removal
-
-Then verify the dependency tree is clean.
-
-## 9. Final Repository Search
-
-After cleanup, run repository-wide searches again for:
-
-`db`
-`database`
-`sqlite`
-`rusqlite`
-`Hybrid`
-`hybrid`
-`editor_mode`
-`legacy`
-`migration`
-
-Review every remaining occurrence.
-
-Some legitimate occurrences may remain, but every one must have a valid reason.
-
-## 10. Verification
-
-Run:
-
-- cargo fmt
-- cargo check --workspace
-- cargo test --workspace
-
-Then launch the actual application.
-
-Verify:
-
-- workspace restoration
-- Explorer
-- file opening
-- Neovim editing
-- undo/redo
-- LSP
-- Markdown
-- tabs
-- menus
-- persistence
-- application shutdown/startup
-
-Do not stop at compilation.
-
-## Important
-
-Do not perform another massive rewrite.
-
-Do not add features.
-
-Do not change working behavior unnecessarily.
-
-This is a forensic cleanup pass:
-
-FIND → INSPECT → REMOVE/REFACTOR → VERIFY.
-
-The final codebase should look like these old systems never existed.
+Do not finish until you have reproduced the original problem, fixed its root cause, and verified the complete workflow in the running application.

@@ -35,31 +35,54 @@ fn render_inline_creation(
                 workspace.dialog_focus_requested = false;
             }
         }
+        if field.changed() {
+            workspace.dialog_error = None;
+        }
 
         let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter))
             || (field.lost_focus() && ui.input(|i| i.key_down(egui::Key::Enter)));
         let escape_pressed = ui.input(|i| i.key_pressed(egui::Key::Escape));
 
+        let try_commit = enter_pressed
+            || (field.lost_focus()
+                && !workspace.dialog_focus_requested
+                && workspace.dialog_error.is_none());
+
         if escape_pressed {
             *action = Some(SidebarAction::WorkspaceCancel);
-        } else if enter_pressed {
-            if !workspace.dialog_name.trim().is_empty() {
-                *action = Some(SidebarAction::WorkspaceCommit);
-            } else {
+        } else if try_commit {
+            let trimmed = workspace.dialog_name.trim();
+            if trimmed.is_empty() {
                 *action = Some(SidebarAction::WorkspaceCancel);
-            }
-        } else if field.lost_focus() && !workspace.dialog_focus_requested {
-            if !workspace.dialog_name.trim().is_empty() {
-                *action = Some(SidebarAction::WorkspaceCommit);
             } else {
-                *action = Some(SidebarAction::WorkspaceCancel);
+                let parent = if workspace.dialog_parent.as_os_str().is_empty()
+                    || !workspace.dialog_parent.exists()
+                {
+                    workspace
+                        .root
+                        .clone()
+                        .unwrap_or_else(crate::workspace::default_workspace_dir)
+                } else {
+                    workspace.dialog_parent.clone()
+                };
+                let target_path = parent.join(trimmed);
+                if target_path.exists() {
+                    workspace.dialog_error = Some(format!(
+                        "A {} named '{}' already exists",
+                        if is_dir { "folder" } else { "file" },
+                        trimmed
+                    ));
+                    workspace.dialog_focus_requested = true;
+                } else {
+                    *action = Some(SidebarAction::WorkspaceCommit);
+                }
             }
         }
     });
 
     if let Some(err) = workspace.dialog_error.as_deref() {
-        ui.horizontal(|ui| {
-            ui.add_space(indent + 26.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.add_space(indent + 16.0);
             ui.label(
                 egui::RichText::new(format!("⚠ {}", err))
                     .color(Color32::from_rgb(248, 113, 113))
@@ -96,31 +119,47 @@ fn render_inline_rename(
                 workspace.dialog_focus_requested = false;
             }
         }
+        if field.changed() {
+            workspace.dialog_error = None;
+        }
 
         let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter))
             || (field.lost_focus() && ui.input(|i| i.key_down(egui::Key::Enter)));
         let escape_pressed = ui.input(|i| i.key_pressed(egui::Key::Escape));
 
+        let try_commit = enter_pressed
+            || (field.lost_focus()
+                && !workspace.dialog_focus_requested
+                && workspace.dialog_error.is_none());
+
         if escape_pressed {
             *action = Some(SidebarAction::WorkspaceCancel);
-        } else if enter_pressed {
-            if !workspace.dialog_name.trim().is_empty() {
-                *action = Some(SidebarAction::WorkspaceCommit);
-            } else {
+        } else if try_commit {
+            let trimmed = workspace.dialog_name.trim();
+            if trimmed.is_empty() {
                 *action = Some(SidebarAction::WorkspaceCancel);
-            }
-        } else if field.lost_focus() && !workspace.dialog_focus_requested {
-            if !workspace.dialog_name.trim().is_empty() {
-                *action = Some(SidebarAction::WorkspaceCommit);
+            } else if let Some(from) = workspace.selected_path.as_ref() {
+                let parent = from.parent().unwrap_or_else(|| std::path::Path::new(""));
+                let target_path = parent.join(trimmed);
+                if target_path != *from && target_path.exists() {
+                    workspace.dialog_error = Some(format!(
+                        "A {} named '{}' already exists",
+                        if is_dir { "folder" } else { "file" },
+                        trimmed
+                    ));
+                    workspace.dialog_focus_requested = true;
+                } else {
+                    *action = Some(SidebarAction::WorkspaceCommit);
+                }
             } else {
-                *action = Some(SidebarAction::WorkspaceCancel);
+                *action = Some(SidebarAction::WorkspaceCommit);
             }
         }
     });
 
     if let Some(err) = workspace.dialog_error.as_deref() {
-        ui.horizontal(|ui| {
-            ui.add_space(indent + 26.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.add_space(indent + 16.0);
             ui.label(
                 egui::RichText::new(format!("⚠ {}", err))
                     .color(Color32::from_rgb(248, 113, 113))
@@ -592,17 +631,18 @@ pub fn render_sidebar_body(
                     render_root_entry(ui, &root, workspace, any_modal_open, theme, &mut action);
 
                     let is_root_expanded = workspace.expanded.contains(&root);
-                    if !is_root_expanded {
-                        return;
-                    }
-
                     let is_creating = matches!(
                         workspace.dialog,
                         Some(WorkspaceDialog::CreateFile | WorkspaceDialog::CreateFolder)
                     );
                     let is_creating_dir =
                         matches!(workspace.dialog, Some(WorkspaceDialog::CreateFolder));
-                    let creating_at_root = crate::workspace::same_path(&workspace.dialog_parent, &root);
+                    let creating_at_root =
+                        crate::workspace::same_path(&workspace.dialog_parent, &root);
+
+                    if !is_root_expanded && !(is_creating && creating_at_root) {
+                        return;
+                    }
                     let mut inline_created_rendered = false;
 
                     // Inline creation row at root level (indented inside root at depth 1)
@@ -711,9 +751,12 @@ pub fn render_sidebar_body(
                         ui.horizontal(|ui| {
                             ui.add_space(20.0);
                             ui.label(
-                                egui::RichText::new(format!("No files matching \"{}\"", filter_query))
-                                    .color(theme.muted)
-                                    .size(11.5),
+                                egui::RichText::new(format!(
+                                    "No files matching \"{}\"",
+                                    filter_query
+                                ))
+                                .color(theme.muted)
+                                .size(11.5),
                             );
                         });
                     }

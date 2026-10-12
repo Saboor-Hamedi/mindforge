@@ -93,9 +93,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 if !target_path.exists() {
                     if let Some(parent) = target_path.parent() {
                         let _ = std::fs::create_dir_all(parent);
-                        app.workspace.expanded.insert(parent.to_path_buf());
+                        app.workspace.reveal(parent);
                     }
                     let _ = std::fs::write(&target_path, "");
+                    app.workspace.reveal(&target_path);
                     let _ = app.workspace.refresh();
                     app.workspace.rebuild_search_index();
                     app.persist_workspace_expansion();
@@ -128,17 +129,43 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 } else {
                     crate::workspace::default_workspace_dir().join(clean)
                 };
-                if !target_path.exists() {
+                if target_path.exists() {
+                    app.set_status(
+                        format!("File '{}' already exists; opening existing file", clean),
+                        now,
+                    );
+                    app.open_file_path(target_path, now);
+                } else {
                     if let Some(parent) = target_path.parent() {
                         let _ = std::fs::create_dir_all(parent);
-                        app.workspace.expanded.insert(parent.to_path_buf());
+                        app.workspace.reveal(parent);
                     }
-                    let _ = std::fs::write(&target_path, "");
+                    if let Err(err) = crate::workspace::create_file(&target_path) {
+                        app.set_status(format!("Failed to create file: {err}"), now);
+                        return true;
+                    }
+                    app.workspace.reveal(&target_path);
                     let _ = app.workspace.refresh();
                     app.workspace.rebuild_search_index();
                     app.persist_workspace_expansion();
+                    app.open_file_path(target_path, now);
+                    app.set_status(format!("Created and opened {}", clean), now);
                 }
-                app.open_file_path(target_path, now);
+            } else if let Some(root) = app.workspace.root.clone() {
+                let parent = if let Some(selected) = &app.workspace.selected_path {
+                    if selected.is_dir() {
+                        selected.clone()
+                    } else {
+                        selected
+                            .parent()
+                            .map(std::path::Path::to_path_buf)
+                            .unwrap_or_else(|| root.clone())
+                    }
+                } else {
+                    root
+                };
+                app.start_workspace_create(parent, crate::workspace::WorkspaceDialog::CreateFile);
+                app.set_status("Enter file name to create in workspace...", now);
             } else {
                 app.create_new_note(now);
             }

@@ -6,6 +6,7 @@ use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TitlebarAction {
     ToggleAccentDropdown,
+    Close,
 }
 
 /// Renders the full-width modern titlebar across the entire window top.
@@ -293,7 +294,7 @@ pub fn render_window_controls(
             egui::StrokeKind::Inside,
         );
         if ui.input(|i| i.pointer.primary_clicked()) {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            action = Some(TitlebarAction::Close);
         }
     }
     let close_stroke_color = if close_hovered {

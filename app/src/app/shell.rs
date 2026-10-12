@@ -100,8 +100,16 @@ impl App {
             (None, Rect::NOTHING)
         };
 
-        if let Some(crate::view_editor::TitlebarAction::ToggleAccentDropdown) = titlebar_action {
-            self.misc.accent_dropdown_open = !self.misc.accent_dropdown_open;
+        if let Some(action) = titlebar_action {
+            match action {
+                crate::view_editor::TitlebarAction::ToggleAccentDropdown => {
+                    self.misc.accent_dropdown_open = !self.misc.accent_dropdown_open;
+                }
+                crate::view_editor::TitlebarAction::Close => {
+                    self.sync_save_session();
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
         }
 
         let pointer_pos = ui.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.interact_pos()));
@@ -477,6 +485,19 @@ impl App {
                     }
                 }
 
+                if !any_modal_open
+                    && self.sidebar.focused
+                    && self.workspace.dialog.is_none()
+                    && ui.input(|i| i.key_pressed(egui::Key::Delete))
+                    && !self.workspace.selected_items.is_empty()
+                {
+                    self.modal.pending_delete_paths =
+                        self.workspace.selected_items.iter().cloned().collect();
+                    self.modal.pending_delete_path = None;
+                    self.modal.delete_confirm_open = true;
+                    self.modal.delete_just_opened = true;
+                }
+
                 if let Some(act) = action {
                     if !any_modal_open {
                         match act {
@@ -492,12 +513,7 @@ impl App {
                                 self.toggle_workspace_folder(&path)
                             }
                             SidebarAction::WorkspaceCreate(parent, kind) => {
-                                self.workspace.dialog_parent = parent;
-                                self.workspace.dialog_name.clear();
-                                self.workspace.dialog_error = None;
-                                self.workspace.dialog_focus_requested = true;
-                                self.workspace.selected_path = None;
-                                self.workspace.dialog = Some(kind);
+                                self.start_workspace_create(parent, kind);
                             }
                             SidebarAction::WorkspaceRename(path) => {
                                 self.workspace.dialog_name = path
@@ -516,7 +532,16 @@ impl App {
                                     Some(crate::workspace::WorkspaceDialog::Rename);
                             }
                             SidebarAction::WorkspaceDelete(path) => {
-                                self.modal.pending_delete_path = Some(path);
+                                if self.workspace.selected_items.contains(&path)
+                                    && self.workspace.selected_items.len() > 1
+                                {
+                                    self.modal.pending_delete_paths =
+                                        self.workspace.selected_items.iter().cloned().collect();
+                                    self.modal.pending_delete_path = None;
+                                } else {
+                                    self.modal.pending_delete_paths = vec![path.clone()];
+                                    self.modal.pending_delete_path = Some(path);
+                                }
                                 self.modal.delete_confirm_open = true;
                                 self.modal.delete_just_opened = true;
                             }

@@ -457,7 +457,22 @@ impl App {
         // 4. Delete Confirmation Modal
         if self.modal.delete_confirm_open {
             let (target_title, is_folder) =
-                if let Some(path) = self.modal.pending_delete_path.as_ref() {
+                if !self.modal.pending_delete_paths.is_empty() {
+                    if self.modal.pending_delete_paths.len() == 1 {
+                        let path = &self.modal.pending_delete_paths[0];
+                        let name = path
+                            .file_name()
+                            .unwrap_or(path.as_os_str())
+                            .to_string_lossy()
+                            .into_owned();
+                        (name, path.is_dir())
+                    } else {
+                        (
+                            format!("{} selected items", self.modal.pending_delete_paths.len()),
+                            false,
+                        )
+                    }
+                } else if let Some(path) = self.modal.pending_delete_path.as_ref() {
                     let name = path
                         .file_name()
                         .unwrap_or(path.as_os_str())
@@ -488,7 +503,11 @@ impl App {
                     (self.notes.active_note_title.clone(), false)
                 };
 
-            let title = if is_folder {
+            let title = if !self.modal.pending_delete_paths.is_empty()
+                && self.modal.pending_delete_paths.len() > 1
+            {
+                "Delete Items"
+            } else if is_folder {
                 "Delete Folder"
             } else {
                 "Delete File"
@@ -511,38 +530,46 @@ impl App {
             self.modal.delete_just_opened = false;
             if act.confirmed {
                 self.modal.delete_confirm_open = false;
-                if let Some(path) = self.modal.pending_delete_path.take() {
-                    let to_close: Vec<usize> = self
-                        .open_notes
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(idx, t)| {
-                            if t.file_path.as_ref().is_some_and(|p| p.starts_with(&path)) {
-                                Some(idx)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-                    for idx in to_close.into_iter().rev() {
-                        self.close_tab(idx, now);
+                let paths_to_delete = if !self.modal.pending_delete_paths.is_empty() {
+                    std::mem::take(&mut self.modal.pending_delete_paths)
+                } else if let Some(path) = self.modal.pending_delete_path.take() {
+                    vec![path]
+                } else {
+                    Vec::new()
+                };
+
+                if !paths_to_delete.is_empty() {
+                    let mut deleted_count = 0;
+                    for path in &paths_to_delete {
+                        let to_close: Vec<usize> = self
+                            .open_notes
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, t)| {
+                                if t.file_path.as_ref().is_some_and(|p| p.starts_with(path)) {
+                                    Some(idx)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        for idx in to_close.into_iter().rev() {
+                            self.close_tab(idx, now);
+                        }
+                        if crate::workspace::delete_path(path).is_ok() {
+                            deleted_count += 1;
+                            self.workspace.selected_items.remove(path);
+                        }
                     }
-                    let file_name_disp = path
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .into_owned();
-                    match crate::workspace::delete_path(&path) {
-                        Ok(()) => {
-                            let _ = self.workspace.refresh();
-                            self.set_status(format!("Deleted {}", file_name_disp), now);
-                        }
-                        Err(e) => {
-                            self.set_status(
-                                format!("Failed to delete {}: {}", file_name_disp, e),
-                                now,
-                            );
-                        }
+                    let _ = self.workspace.refresh();
+                    if deleted_count == 1 {
+                        let name = paths_to_delete[0]
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy();
+                        self.set_status(format!("Deleted {}", name), now);
+                    } else {
+                        self.set_status(format!("Deleted {} items", deleted_count), now);
                     }
                 } else if let Some(del_id) = self.modal.pending_delete_note_id.take() {
                     self.notes.notes_list.retain(|n| n.id != del_id);

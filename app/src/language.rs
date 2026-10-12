@@ -107,6 +107,25 @@ impl FileLanguage {
             Self::PlainText => "text",
         }
     }
+
+    pub fn default_extension(self) -> &'static str {
+        match self {
+            Self::Markdown => "md",
+            Self::JavaScript => "js",
+            Self::Jsx => "jsx",
+            Self::TypeScript => "ts",
+            Self::Tsx => "tsx",
+            Self::Python => "py",
+            Self::Rust => "rs",
+            Self::Php => "php",
+            Self::Html => "html",
+            Self::Css => "css",
+            Self::Json => "json",
+            Self::Yaml => "yaml",
+            Self::Sql => "sql",
+            Self::PlainText => "txt",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

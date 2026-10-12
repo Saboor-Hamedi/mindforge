@@ -431,6 +431,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    static SETTINGS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]
     fn test_close_last_tab_reveals_welcome_dashboard() {
@@ -646,6 +647,241 @@ mod tests {
 
         assert!(app.open_notes.is_empty());
         assert!(app.misc.show_welcome);
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_duplicate_file_creation_blocked_and_reported() {
+        let _lock = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let mut app = App::new();
+        app.open_notes.clear();
+        let dir = std::env::temp_dir().join(format!("mindforge_dup_test_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let existing_file = dir.join("hello.py");
+        std::fs::write(&existing_file, "print('hello')").unwrap();
+
+        app.open_workspace(dir.clone(), 1.0);
+        let initial_tab_count = app.open_notes.len();
+
+        // Attempt to create duplicate hello.py via workspace dialog
+        app.workspace.dialog = Some(crate::workspace::WorkspaceDialog::CreateFile);
+        app.workspace.dialog_parent = dir.clone();
+        app.workspace.dialog_name = "hello.py".to_string();
+
+        app.perform_workspace_dialog(2.0);
+
+        // Verify: Not created, no new tab opened, status message set
+        assert_eq!(app.open_notes.len(), initial_tab_count);
+        assert_eq!(
+            app.misc.status_msg,
+            "File 'hello.py' already exists and cannot be created"
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_workspace_persistence_and_restart_restoration() {
+        let _lock = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir =
+            std::env::temp_dir().join(format!("mindforge_restore_test_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+
+        let mut app1 = App::new();
+        app1.open_workspace(dir.clone(), 1.0);
+        assert_eq!(
+            app1.workspace.root.as_ref(),
+            Some(&crate::workspace::normalized_path(&dir))
+        );
+        assert!(app1.sidebar.open);
+        assert!(!app1.misc.show_welcome);
+
+        // Session shutdown saves workspace root to settings.json
+        app1.sync_save_session();
+
+        let stored_root = crate::services::settings_store::get_stored_setting("workspace_root");
+        assert!(
+            stored_root.is_some(),
+            "workspace_root must be saved in settings.json"
+        );
+        let stored_path = std::path::PathBuf::from(stored_root.unwrap());
+        assert_eq!(
+            crate::workspace::normalized_path(&stored_path),
+            crate::workspace::normalized_path(&dir)
+        );
+
+        // App 2 starts up and restores the workspace automatically
+        let app2 = App::new();
+        assert_eq!(
+            app2.workspace.root.as_ref(),
+            Some(&crate::workspace::normalized_path(&dir)),
+            "App must restore workspace root on startup"
+        );
+        assert!(
+            app2.sidebar.open,
+            "Sidebar must remain open for restored workspace"
+        );
+        assert!(
+            !app2.misc.show_welcome,
+            "Welcome must not hide active workspace"
+        );
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_workspace_file_creation_workflow_one_file_one_tab_persisted() {
+        let _lock = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("mindforge_create_wf_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+
+        let mut app1 = App::new();
+        app1.open_notes.clear();
+        app1.open_workspace(dir.clone(), 1.0);
+
+        // 1. User initiates new file in workspace (Ctrl+N or header button)
+        app1.start_workspace_create(dir.clone(), crate::workspace::WorkspaceDialog::CreateFile);
+        assert_eq!(
+            app1.workspace.dialog,
+            Some(crate::workspace::WorkspaceDialog::CreateFile)
+        );
+        assert_eq!(app1.workspace.dialog_parent, dir);
+
+        // 2. User types "helloworld.py" and commits
+        app1.workspace.dialog_name = "helloworld.py".to_string();
+        app1.perform_workspace_dialog(2.0);
+
+        // Verify: Physical file created on disk
+        let expected_file = dir.join("helloworld.py");
+        assert!(expected_file.exists(), "Physical file must exist on disk");
+
+        // Verify: Explorer contains the entry
+        assert!(
+            app1.workspace
+                .entries
+                .iter()
+                .any(|e| crate::workspace::same_path(&e.path, &expected_file)),
+            "Explorer must show helloworld.py entry"
+        );
+
+        // Verify: Exactly one tab opened for helloworld.py
+        let hw_tabs: Vec<_> = app1
+            .open_notes
+            .iter()
+            .filter(|t| {
+                t.file_path
+                    .as_ref()
+                    .is_some_and(|p| crate::workspace::same_path(p, &expected_file))
+            })
+            .collect();
+        assert_eq!(hw_tabs.len(), 1, "Exactly one tab must represent the file");
+        assert_eq!(
+            app1.open_notes.len(),
+            1,
+            "Total open tabs must be 1 (no phantom tabs)"
+        );
+
+        // 3. User closes app
+        app1.sync_save_session();
+
+        // 4. App 2 starts up (persisted state restored)
+        let app2 = App::new();
+        assert_eq!(
+            app2.workspace.root.as_ref(),
+            Some(&crate::workspace::normalized_path(&dir))
+        );
+        let hw_tabs2: Vec<_> = app2
+            .open_notes
+            .iter()
+            .filter(|t| {
+                t.file_path
+                    .as_ref()
+                    .is_some_and(|p| crate::workspace::same_path(p, &expected_file))
+            })
+            .collect();
+        assert_eq!(
+            hw_tabs2.len(),
+            1,
+            "Exactly one tab restored for the file after restart"
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_new_command_existing_file_conflict_no_duplicate_tab() {
+        let _lock = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir =
+            std::env::temp_dir().join(format!("mindforge_cmd_conflict_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let file_path = dir.join("helloworld.py");
+        std::fs::write(&file_path, "print('original')").unwrap();
+
+        let mut app = App::new();
+        app.open_notes.clear();
+        app.open_workspace(dir.clone(), 1.0);
+
+        // First open the existing file
+        app.open_file_path(file_path.clone(), 2.0);
+        assert_eq!(app.open_notes.len(), 1);
+
+        // Execute :new helloworld.py (which already exists)
+        crate::command::dispatch::file_ops::handle(
+            &mut app,
+            "new",
+            "helloworld.py",
+            ":new helloworld.py",
+            3.0,
+        );
+
+        // Must report file already exists and NOT create a second tab!
+        assert_eq!(
+            app.open_notes.len(),
+            1,
+            "No duplicate tab should be created for existing file"
+        );
+        assert!(app.misc.status_msg.contains("already exists"));
+
+        // Content of file on disk must NOT be overwritten
+        let disk_content = std::fs::read_to_string(&file_path).unwrap();
+        assert_eq!(
+            disk_content, "print('original')",
+            "File must not be overwritten"
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_nested_subfolder_creation_ancestor_expansion() {
+        let _lock = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir =
+            std::env::temp_dir().join(format!("mindforge_subfolder_test_{}", std::process::id()));
+        let sub = dir.join("sub").join("nested");
+        let _ = std::fs::create_dir_all(&sub);
+
+        let mut app = App::new();
+        app.open_notes.clear();
+        app.open_workspace(dir.clone(), 1.0);
+
+        // Start creation inside nested subfolder
+        app.start_workspace_create(sub.clone(), crate::workspace::WorkspaceDialog::CreateFile);
+        assert!(app.workspace.expanded.contains(&sub));
+        assert!(app.workspace.expanded.contains(&dir.join("sub")));
+
+        app.workspace.dialog_name = "test.py".to_string();
+        app.perform_workspace_dialog(2.0);
+
+        let target_file = sub.join("test.py");
+        assert!(target_file.exists());
+        assert!(app
+            .workspace
+            .entries
+            .iter()
+            .any(|e| crate::workspace::same_path(&e.path, &target_file)));
+        assert_eq!(app.open_notes.len(), 1);
 
         let _ = std::fs::remove_dir_all(dir);
     }

@@ -49,10 +49,25 @@ struct ActivityDay {
     notes_edited: u32,
 }
 
+use std::sync::Mutex;
+
+static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
+
 fn storage_dir() -> PathBuf {
     let dir = crate::workspace::default_workspace_dir().join(".mindforge");
     let _ = std::fs::create_dir_all(&dir);
     dir
+}
+
+fn write_settings_file_atomic(path: &std::path::Path, map: &HashMap<String, String>) -> std::io::Result<()> {
+    let json = serde_json::to_string_pretty(map).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, &json)?;
+    if std::fs::rename(&tmp, path).is_err() {
+        let _ = std::fs::remove_file(path);
+        let _ = std::fs::rename(&tmp, path);
+    }
+    Ok(())
 }
 
 /// Spawns the background filesystem settings and metadata storage worker thread.
@@ -63,26 +78,28 @@ pub fn spawn_settings_store() -> Sender<StorageMsg> {
         let settings_file = dir.join("settings.json");
         let activity_file = dir.join("activity.json");
 
-        // Load existing settings into memory
-        let mut settings_map: HashMap<String, String> = std::fs::read_to_string(&settings_file)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
-
         while let Ok(msg) = rx.recv() {
             match msg {
                 StorageMsg::SaveSetting { key, val } => {
-                    settings_map.insert(key, val);
-                    if let Ok(json) = serde_json::to_string_pretty(&settings_map) {
-                        let _ = std::fs::write(&settings_file, json);
-                    }
+                    let _lock = SETTINGS_LOCK.lock().unwrap();
+                    let mut current_map: HashMap<String, String> =
+                        std::fs::read_to_string(&settings_file)
+                            .ok()
+                            .and_then(|s| serde_json::from_str(&s).ok())
+                            .unwrap_or_default();
+                    current_map.insert(key, val);
+                    let _ = write_settings_file_atomic(&settings_file, &current_map);
                 }
                 StorageMsg::SaveFocus { t1, t2 } => {
-                    settings_map.insert("focus_topic1".into(), t1);
-                    settings_map.insert("focus_topic2".into(), t2);
-                    if let Ok(json) = serde_json::to_string_pretty(&settings_map) {
-                        let _ = std::fs::write(&settings_file, json);
-                    }
+                    let _lock = SETTINGS_LOCK.lock().unwrap();
+                    let mut current_map: HashMap<String, String> =
+                        std::fs::read_to_string(&settings_file)
+                            .ok()
+                            .and_then(|s| serde_json::from_str(&s).ok())
+                            .unwrap_or_default();
+                    current_map.insert("focus_topic1".into(), t1);
+                    current_map.insert("focus_topic2".into(), t2);
+                    let _ = write_settings_file_atomic(&settings_file, &current_map);
                 }
                 StorageMsg::FlushActivity {
                     date,
@@ -119,6 +136,7 @@ pub use spawn_settings_store as spawn_db_worker;
 
 /// Reads a setting directly from `settings.json`.
 pub fn get_stored_setting(key: &str) -> Option<String> {
+    let _lock = SETTINGS_LOCK.lock().unwrap();
     let path = storage_dir().join("settings.json");
     let content = std::fs::read_to_string(path).ok()?;
     let map: HashMap<String, String> = serde_json::from_str(&content).ok()?;
@@ -127,6 +145,7 @@ pub fn get_stored_setting(key: &str) -> Option<String> {
 
 /// Reads all settings from `settings.json`.
 pub fn get_all_stored_settings() -> HashMap<String, String> {
+    let _lock = SETTINGS_LOCK.lock().unwrap();
     let path = storage_dir().join("settings.json");
     std::fs::read_to_string(path)
         .ok()
@@ -136,6 +155,7 @@ pub fn get_all_stored_settings() -> HashMap<String, String> {
 
 /// Synchronously saves a single setting directly to `settings.json`.
 pub fn save_setting_sync(key: &str, val: &str) {
+    let _lock = SETTINGS_LOCK.lock().unwrap();
     let dir = storage_dir();
     let settings_file = dir.join("settings.json");
     let mut map: HashMap<String, String> = std::fs::read_to_string(&settings_file)
@@ -143,13 +163,12 @@ pub fn save_setting_sync(key: &str, val: &str) {
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default();
     map.insert(key.to_string(), val.to_string());
-    if let Ok(json) = serde_json::to_string_pretty(&map) {
-        let _ = std::fs::write(&settings_file, json);
-    }
+    let _ = write_settings_file_atomic(&settings_file, &map);
 }
 
 /// Synchronously saves multiple settings atomically directly to `settings.json`.
 pub fn save_settings_batch_sync(entries: &[(&str, String)]) {
+    let _lock = SETTINGS_LOCK.lock().unwrap();
     let dir = storage_dir();
     let settings_file = dir.join("settings.json");
     let mut map: HashMap<String, String> = std::fs::read_to_string(&settings_file)
@@ -159,9 +178,7 @@ pub fn save_settings_batch_sync(entries: &[(&str, String)]) {
     for (k, v) in entries {
         map.insert((*k).to_string(), v.clone());
     }
-    if let Ok(json) = serde_json::to_string_pretty(&map) {
-        let _ = std::fs::write(&settings_file, json);
-    }
+    let _ = write_settings_file_atomic(&settings_file, &map);
 }
 
 /// Reads recent activity history from `activity.json`.

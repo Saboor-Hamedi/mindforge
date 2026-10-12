@@ -26,8 +26,10 @@ pub fn render_sidebar_header(
         |ui| {
             // Row 1: Search input (borderless, sleek, VS Code style)
             let search_row_h = 26.0;
-            let (search_rect, _) =
-                ui.allocate_exact_size(vec2(ui.available_width(), search_row_h), egui::Sense::hover());
+            let (search_rect, _) = ui.allocate_exact_size(
+                vec2(ui.available_width(), search_row_h),
+                egui::Sense::hover(),
+            );
 
             // Subtle dark background for input container
             let input_bg = if theme.is_light() {
@@ -42,11 +44,7 @@ pub fn render_sidebar_header(
                     .max_rect(search_rect.shrink2(vec2(6.0, 2.0)))
                     .layout(egui::Layout::left_to_right(egui::Align::Center)),
                 |ui| {
-                    ui.label(
-                        egui::RichText::new("🔍")
-                            .size(11.0)
-                            .color(theme.muted),
-                    );
+                    ui.label(egui::RichText::new("🔍").size(11.0).color(theme.muted));
 
                     let clear_btn_w = if !filter_query.is_empty() { 18.0 } else { 0.0 };
                     let available_input_w = (ui.available_width() - clear_btn_w - 4.0).max(40.0);
@@ -57,7 +55,11 @@ pub fn render_sidebar_header(
                         .font(FontId::proportional(12.0))
                         .text_color(theme.text)
                         .frame(false)
-                        .hint_text(egui::RichText::new("Search files (Ctrl+F)...").color(theme.muted).size(11.5));
+                        .hint_text(
+                            egui::RichText::new("Search files (Ctrl+F)...")
+                                .color(theme.muted)
+                                .size(11.5),
+                        );
 
                     let edit_resp = ui.add(edit);
 
@@ -77,9 +79,7 @@ pub fn render_sidebar_header(
                     if !filter_query.is_empty() {
                         let clear_btn = ui.add(
                             egui::Button::new(
-                                egui::RichText::new("✕")
-                                    .size(10.5)
-                                    .color(theme.muted),
+                                egui::RichText::new("✕").size(10.5).color(theme.muted),
                             )
                             .frame(false),
                         );
@@ -97,16 +97,22 @@ pub fn render_sidebar_header(
                 // LEFT: 📊 Stats toggle
                 let is_stats_active = active_mode_idx == 1;
                 let stats_btn = ui.add(
-                    egui::Button::new(
-                        egui::RichText::new("📊 Stats")
-                            .size(11.5)
-                            .color(if is_stats_active { theme.accent } else { theme.muted }),
-                    )
+                    egui::Button::new(egui::RichText::new("📊 Stats").size(11.5).color(
+                        if is_stats_active {
+                            theme.accent
+                        } else {
+                            theme.muted
+                        },
+                    ))
                     .frame(false),
                 );
 
                 if stats_btn.clicked() && !any_modal_open {
-                    action = Some(SidebarAction::SwitchMode(if is_stats_active { 0 } else { 1 }));
+                    action = Some(SidebarAction::SwitchMode(if is_stats_active {
+                        0
+                    } else {
+                        1
+                    }));
                 }
 
                 // RIGHT: Flex action buttons for workspace files and folders
@@ -142,12 +148,17 @@ pub fn render_sidebar_header(
                         .clicked()
                         && !any_modal_open
                     {
-                        let default_dir = root_opt.clone().unwrap_or_else(crate::workspace::default_workspace_dir);
+                        let default_dir = root_opt
+                            .clone()
+                            .unwrap_or_else(crate::workspace::default_workspace_dir);
                         let parent = if let Some(selected) = &workspace.selected_path {
                             if selected.is_dir() {
                                 selected.clone()
                             } else {
-                                selected.parent().map(std::path::Path::to_path_buf).unwrap_or(default_dir)
+                                selected
+                                    .parent()
+                                    .map(std::path::Path::to_path_buf)
+                                    .unwrap_or(default_dir)
                             }
                         } else {
                             default_dir
@@ -165,12 +176,16 @@ pub fn render_sidebar_header(
                         .clicked()
                         && !any_modal_open
                     {
-                        let default_dir = root_opt.unwrap_or_else(crate::workspace::default_workspace_dir);
+                        let default_dir =
+                            root_opt.unwrap_or_else(crate::workspace::default_workspace_dir);
                         let parent = if let Some(selected) = &workspace.selected_path {
                             if selected.is_dir() {
                                 selected.clone()
                             } else {
-                                selected.parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| default_dir.clone())
+                                selected
+                                    .parent()
+                                    .map(std::path::Path::to_path_buf)
+                                    .unwrap_or_else(|| default_dir.clone())
                             }
                         } else {
                             default_dir

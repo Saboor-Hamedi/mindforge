@@ -156,7 +156,7 @@ impl App {
         self.save_open_tabs();
     }
 
-    fn remap_workspace_prefix(&mut self, old: &std::path::Path, new: &std::path::Path) {
+    pub fn remap_workspace_prefix(&mut self, old: &std::path::Path, new: &std::path::Path) {
         let expanded: Vec<_> = self.workspace.expanded.iter().cloned().collect();
         for path in expanded {
             if path.starts_with(old) {
@@ -219,6 +219,7 @@ impl App {
                     }
                     let root_str = root.to_string_lossy().into_owned();
                     crate::services::settings_store::save_setting_sync("workspace_root", &root_str);
+                    crate::services::settings_store::save_setting_sync("sidebar", "true");
                     self.sidebar.open = true;
                     self.misc.show_welcome = false;
 
@@ -249,6 +250,27 @@ impl App {
             }
             Err(e) => self.set_status(format!("Could not open workspace: {e}"), now),
         }
+    }
+
+    /// Starts inline workspace file or folder creation, opening the sidebar and revealing all parent directories.
+    pub fn start_workspace_create(
+        &mut self,
+        parent: std::path::PathBuf,
+        kind: crate::workspace::WorkspaceDialog,
+    ) {
+        self.sidebar.open = true;
+        self.workspace.dialog_parent = parent.clone();
+        self.workspace.reveal(&parent);
+        if let Some(root) = self.workspace.root.clone() {
+            self.workspace.reveal(&root);
+        }
+        let _ = self.workspace.refresh();
+        self.workspace.dialog_name.clear();
+        self.workspace.dialog_error = None;
+        self.workspace.dialog_focus_requested = true;
+        self.workspace.selected_path = None;
+        self.workspace.dialog = Some(kind);
+        self.persist_workspace_expansion();
     }
 
     /// Closes the active workspace and returns to the welcome page when no tabs are open.
@@ -540,6 +562,38 @@ impl App {
             self.sidebar.focused = false;
             return;
         }
+
+        let title_str = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("Untitled");
+
+        // If an untitled scratch tab exists with matching filename or blank "Untitled Note",
+        // replace it rather than creating duplicate tabs for the same file!
+        let reuse_scratch_idx = self.open_notes.iter().position(|tab| {
+            tab.file_path.is_none()
+                && tab.id == 0
+                && (tab.title.eq_ignore_ascii_case(title_str)
+                    || (tab.title == "Untitled Note"
+                        && !tab.is_dirty
+                        && tab.editor.text().trim().is_empty()))
+        });
+        if let Some(idx) = reuse_scratch_idx {
+            if !self.open_notes[idx].is_dirty
+                || self.open_notes[idx].editor.text().trim().is_empty()
+            {
+                self.open_notes.remove(idx);
+                if self.tabs.active_tab >= self.open_notes.len() && !self.open_notes.is_empty() {
+                    self.tabs.active_tab = self.open_notes.len() - 1;
+                }
+            }
+        }
+
+        let reuse_pristine_tab = self.open_notes.len() == 1
+            && self.open_notes[0].file_path.is_none()
+            && self.open_notes[0].id == 0
+            && !self.open_notes[0].is_dirty
+            && self.open_notes[0].editor.text().trim().is_empty();
         if let Ok(meta) = std::fs::metadata(&path) {
             if meta.len() > 30 * 1024 * 1024 {
                 self.set_status(
@@ -591,7 +645,7 @@ impl App {
         self.editor.is_dirty = false;
         self.misc.show_welcome = false;
         self.misc.mode = Mode::Normal;
-        self.open_notes.push(OpenNote {
+        let new_tab = OpenNote {
             id: 0,
             title: title.clone(),
             editor,
@@ -599,8 +653,14 @@ impl App {
             is_dirty: false,
             file_path: Some(path.clone()),
             language_override: None,
-        });
-        self.tabs.active_tab = self.open_notes.len() - 1;
+        };
+        if reuse_pristine_tab {
+            self.open_notes[0] = new_tab;
+            self.tabs.active_tab = 0;
+        } else {
+            self.open_notes.push(new_tab);
+            self.tabs.active_tab = self.open_notes.len() - 1;
+        }
         self.tabs.last_active_tab = self.tabs.active_tab;
         self.sidebar.focused = false;
         self.misc.caret.gliding = false;
@@ -627,6 +687,39 @@ impl App {
             }
         }
         let created_name = self.workspace.dialog_name.trim().to_string();
+        if matches!(
+            kind,
+            Some(
+                crate::workspace::WorkspaceDialog::CreateFile
+                    | crate::workspace::WorkspaceDialog::CreateFolder
+            )
+        ) {
+            let actual_parent = if dialog_parent.as_os_str().is_empty() || !dialog_parent.exists() {
+                self.workspace
+                    .root
+                    .clone()
+                    .unwrap_or_else(crate::workspace::default_workspace_dir)
+            } else {
+                dialog_parent.clone()
+            };
+            let target_path = actual_parent.join(&created_name);
+            let is_duplicate = target_path.exists();
+            if is_duplicate {
+                let item_type = if kind == Some(crate::workspace::WorkspaceDialog::CreateFolder) {
+                    "Folder"
+                } else {
+                    "File"
+                };
+                let err_msg =
+                    format!("{item_type} '{created_name}' already exists and cannot be created");
+                self.workspace.dialog = kind;
+                self.workspace.dialog_name = created_name;
+                self.workspace.dialog_error = Some(err_msg.clone());
+                self.workspace.dialog_focus_requested = true;
+                self.set_status(err_msg, now);
+                return;
+            }
+        }
         let new = if kind == Some(crate::workspace::WorkspaceDialog::Rename) {
             old.as_ref()
                 .map(|p| p.with_file_name(self.workspace.dialog_name.trim()))
@@ -642,22 +735,27 @@ impl App {
                             | crate::workspace::WorkspaceDialog::CreateFolder
                     )
                 ) {
-                    let actual_parent = if dialog_parent.as_os_str().is_empty() || !dialog_parent.exists() {
-                        self.workspace.root.clone().unwrap_or_else(crate::workspace::default_workspace_dir)
-                    } else {
-                        dialog_parent.clone()
-                    };
-                    self.workspace.expanded.insert(actual_parent.clone());
+                    let actual_parent =
+                        if dialog_parent.as_os_str().is_empty() || !dialog_parent.exists() {
+                            self.workspace
+                                .root
+                                .clone()
+                                .unwrap_or_else(crate::workspace::default_workspace_dir)
+                        } else {
+                            dialog_parent.clone()
+                        };
+                    self.workspace.reveal(&actual_parent);
                     if let Some(root) = self.workspace.root.clone() {
-                        self.workspace.expanded.insert(root);
+                        self.workspace.reveal(&root);
                     }
+                    let created_target = actual_parent.join(&created_name);
+                    self.workspace.reveal(&created_target);
                     let _ = self.workspace.refresh();
                     self.workspace.rebuild_search_index();
                     self.persist_workspace_expansion();
                     if kind == Some(crate::workspace::WorkspaceDialog::CreateFile) {
-                        let created_file = actual_parent.join(&created_name);
-                        if created_file.is_file() {
-                            self.open_file_path(created_file, now);
+                        if created_target.is_file() {
+                            self.open_file_path(created_target, now);
                         }
                     }
                 }
@@ -703,8 +801,16 @@ impl App {
                 self.set_status("Workspace updated", now);
             }
             Err(e) => {
-                self.workspace.dialog_error = Some(e.to_string());
-                self.set_status(format!("Filesystem operation failed: {e}"), now);
+                let err_msg = if e.kind() == std::io::ErrorKind::AlreadyExists {
+                    format!("A file or folder named '{}' already exists", created_name)
+                } else {
+                    format!("{e}")
+                };
+                self.workspace.dialog = kind;
+                self.workspace.dialog_name = created_name;
+                self.workspace.dialog_error = Some(err_msg.clone());
+                self.workspace.dialog_focus_requested = true;
+                self.set_status(format!("Filesystem operation failed: {err_msg}"), now);
             }
         }
     }
@@ -913,10 +1019,13 @@ impl eframe::App for App {
         }
 
         // Open dropped folders and files as filesystem workspaces
-        if crate::workspace_import::handle_drag_and_drop(ctx, &mut self.workspace) {
-            if let Some(root) = self.workspace.root.clone() {
-                self.open_workspace(root, now);
-            }
+        if let Some(root) = crate::workspace_import::handle_drag_and_drop(ctx) {
+            self.open_workspace(root, now);
+            self.sync_save_session();
+        }
+
+        if ctx.input(|i| i.viewport().close_requested()) {
+            self.sync_save_session();
         }
 
         window_shortcuts(ctx);

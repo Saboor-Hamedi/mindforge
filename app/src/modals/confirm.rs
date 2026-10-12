@@ -23,8 +23,26 @@ pub fn render_confirm_modal(
     let backdrop_alpha = if theme.is_light() { 90 } else { 160 };
     painter.rect_filled(bounds, 0.0, Color32::from_black_alpha(backdrop_alpha));
 
+    let wrap_w = 412.0;
+    let text_job = {
+        let mut job = egui::text::LayoutJob::default();
+        job.wrap.max_width = wrap_w;
+        job.append(
+            message,
+            0.0,
+            egui::text::TextFormat {
+                font_id: FontId::monospace(12.5),
+                color: theme.text,
+                ..Default::default()
+            },
+        );
+        job
+    };
+    let galley = ui.fonts(|f| f.layout_job(text_job));
+    let message_h = galley.size().y;
+
     let modal_w = 460.0;
-    let modal_h = 175.0;
+    let modal_h = (120.0 + message_h).max(175.0);
     let modal_rect = Rect::from_center_size(bounds.center(), vec2(modal_w, modal_h));
 
     painter.rect(
@@ -45,13 +63,7 @@ pub fn render_confirm_modal(
         theme.highlight,
     );
 
-    painter.text(
-        m_origin + vec2(0.0, 28.0),
-        Align2::LEFT_TOP,
-        message,
-        FontId::monospace(12.5),
-        theme.text,
-    );
+    painter.galley(m_origin + vec2(0.0, 28.0), galley, theme.text);
 
     let btn_h = 36.0;
     let btn_y = modal_rect.max.y - btn_h - 18.0;

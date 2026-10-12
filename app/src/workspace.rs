@@ -69,6 +69,11 @@ impl WorkspaceState {
                 list_dir(&root, 0, &self.expanded, &mut self.entries)?;
             }
         }
+        let mut seen = HashSet::new();
+        self.entries.retain(|e| {
+            let norm = normalized_path(&e.path);
+            seen.insert(norm)
+        });
         self.snapshot = snapshot(self.root.as_deref(), &self.expanded);
         self.selected_items.retain(|path| path.exists());
         if self
@@ -178,12 +183,17 @@ impl WorkspaceState {
             };
             current = parent;
         }
-        if self.selected_items.len() != 1 || !self.selected_items.iter().any(|p| same_path(p, path)) {
+        if self.selected_items.len() != 1 || !self.selected_items.iter().any(|p| same_path(p, path))
+        {
             self.selected_items.clear();
             self.selected_items.insert(path.to_path_buf());
             changed = true;
         }
-        if self.selection_anchor.as_deref().map_or(true, |p| !same_path(p, path)) {
+        if self
+            .selection_anchor
+            .as_deref()
+            .map_or(true, |p| !same_path(p, path))
+        {
             self.selection_anchor = Some(path.to_path_buf());
             changed = true;
         }
@@ -205,7 +215,14 @@ impl WorkspaceState {
                     } else {
                         self.dialog_parent.clone()
                     };
-                create_file(&parent.join(name))?;
+                let target = parent.join(name);
+                if target.exists() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::AlreadyExists,
+                        format!("A file named '{}' already exists", name),
+                    ));
+                }
+                create_file(&target)?;
             }
             WorkspaceDialog::CreateFolder => {
                 validate_name(name)?;
@@ -215,7 +232,14 @@ impl WorkspaceState {
                     } else {
                         self.dialog_parent.clone()
                     };
-                create_dir(&parent.join(name))?;
+                let target = parent.join(name);
+                if target.exists() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::AlreadyExists,
+                        format!("A folder named '{}' already exists", name),
+                    ));
+                }
+                create_dir(&target)?;
             }
             WorkspaceDialog::Rename => {
                 validate_name(name)?;
@@ -673,6 +697,167 @@ mod tests {
         assert!(root.join("hello.python").is_file());
         assert!(ws.entries.iter().any(|e| e.path.ends_with("hello.python")));
         assert!(ws.reveal(&root.join("hello.python")));
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn create_helloworld_once_and_no_duplicates_across_refreshes() {
+        let root = fixture();
+        let mut ws = WorkspaceState::default();
+        ws.open(root.clone()).unwrap();
+
+        ws.dialog = Some(WorkspaceDialog::CreateFile);
+        ws.dialog_parent = root.clone();
+        ws.dialog_name = "helloworld.py".to_string();
+        ws.perform().unwrap();
+
+        let physical_path = root.join("helloworld.py");
+        assert!(physical_path.is_file(), "Physical file must exist");
+
+        // Verify count of physical files with that name in the directory
+        let matching_files = fs::read_dir(&root)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name() == "helloworld.py")
+            .count();
+        assert_eq!(
+            matching_files, 1,
+            "Exactly one physical file must exist on disk"
+        );
+
+        // Verify Explorer contains exactly one entry for that file
+        let matching_entries = ws
+            .entries
+            .iter()
+            .filter(|e| e.path.file_name().and_then(|n| n.to_str()) == Some("helloworld.py"))
+            .count();
+        assert_eq!(matching_entries, 1, "Explorer must have exactly one entry");
+
+        // Refresh Explorer repeatedly without creating duplicates
+        for _ in 0..5 {
+            ws.refresh().unwrap();
+            let count = ws
+                .entries
+                .iter()
+                .filter(|e| e.path.file_name().and_then(|n| n.to_str()) == Some("helloworld.py"))
+                .count();
+            assert_eq!(count, 1, "Repeated refresh must never duplicate entries");
+        }
+
+        // Duplicate creation attempt must fail and not duplicate
+        ws.dialog = Some(WorkspaceDialog::CreateFile);
+        ws.dialog_parent = root.clone();
+        ws.dialog_name = "helloworld.py".to_string();
+        let res = ws.perform();
+        assert!(res.is_err(), "Duplicate file creation must be rejected");
+        assert_eq!(res.unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn similar_named_files_in_different_directories_are_distinct() {
+        let root = fixture();
+        let dir1 = root.join("dir1");
+        let dir2 = root.join("dir2");
+        fs::create_dir_all(&dir1).unwrap();
+        fs::create_dir_all(&dir2).unwrap();
+
+        let mut ws = WorkspaceState::default();
+        ws.open(root.clone()).unwrap();
+        ws.toggle(&dir1);
+        ws.toggle(&dir2);
+
+        // Create helloworld.py in dir1
+        ws.dialog = Some(WorkspaceDialog::CreateFile);
+        ws.dialog_parent = dir1.clone();
+        ws.dialog_name = "helloworld.py".to_string();
+        ws.perform().unwrap();
+
+        // Create helloworld.py in dir2
+        ws.dialog = Some(WorkspaceDialog::CreateFile);
+        ws.dialog_parent = dir2.clone();
+        ws.dialog_name = "helloworld.py".to_string();
+        ws.perform().unwrap();
+
+        assert!(dir1.join("helloworld.py").is_file());
+        assert!(dir2.join("helloworld.py").is_file());
+
+        let count = ws
+            .entries
+            .iter()
+            .filter(|e| e.path.file_name().and_then(|n| n.to_str()) == Some("helloworld.py"))
+            .count();
+        assert_eq!(count, 2, "Both distinct files must appear in explorer");
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn external_watcher_poll_does_not_duplicate_files() {
+        let root = fixture();
+        let mut ws = WorkspaceState::default();
+        ws.open(root.clone()).unwrap();
+
+        let external_file = root.join("external.txt");
+        fs::write(&external_file, "watcher test").unwrap();
+
+        ws.poll_at = 0.0;
+        let changed = ws.poll_external(1.0);
+        assert!(changed, "Watcher should detect external change");
+
+        let count = ws
+            .entries
+            .iter()
+            .filter(|e| e.path.file_name().and_then(|n| n.to_str()) == Some("external.txt"))
+            .count();
+        assert_eq!(count, 1, "External watcher must add exactly one entry");
+
+        // Polling again without changes must not add entries
+        ws.poll_at = 0.0;
+        let changed2 = ws.poll_external(2.0);
+        assert!(!changed2);
+        let count2 = ws
+            .entries
+            .iter()
+            .filter(|e| e.path.file_name().and_then(|n| n.to_str()) == Some("external.txt"))
+            .count();
+        assert_eq!(count2, 1);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn workspace_open_and_restore_arbitrary_directory() {
+        let root = fixture();
+        let mut ws = WorkspaceState::default();
+        assert!(ws.open(root.clone()).is_ok());
+        assert_eq!(ws.root.as_ref(), Some(&normalized_path(&root)));
+
+        // Non-existent directory returns error
+        let bad = root.join("non_existent_subdir_123");
+        let mut ws_bad = WorkspaceState::default();
+        assert!(ws_bad.open(bad).is_err());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn failed_operation_does_not_corrupt_workspace_state() {
+        let root = fixture();
+        let mut ws = WorkspaceState::default();
+        ws.open(root.clone()).unwrap();
+
+        // Attempt creation with invalid name
+        ws.dialog = Some(WorkspaceDialog::CreateFile);
+        ws.dialog_parent = root.clone();
+        ws.dialog_name = "invalid/name/with/slashes".to_string();
+        let err = ws.perform();
+        assert!(err.is_err());
+
+        // State remains valid
+        assert_eq!(ws.entries.len(), 0);
+        assert!(ws.open(root.clone()).is_ok());
+
         fs::remove_dir_all(root).unwrap();
     }
 }

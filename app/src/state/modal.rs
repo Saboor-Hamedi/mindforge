@@ -38,6 +38,7 @@ pub struct ModalState {
     pub delete_just_opened: bool,
     pub pending_delete_note_id: Option<i64>,
     pub pending_delete_path: Option<std::path::PathBuf>,
+    pub pending_delete_paths: Vec<std::path::PathBuf>,
 
     // Help panel (:help or F1)
     pub help_open: bool,
@@ -70,6 +71,7 @@ impl Default for ModalState {
             delete_just_opened: false,
             pending_delete_note_id: None,
             pending_delete_path: None,
+            pending_delete_paths: Vec::new(),
             help_open: false,
             help_tab: 0,
             help_scroll_y: 0.0,
@@ -105,6 +107,7 @@ impl ModalState {
         self.delete_just_opened = false;
         self.pending_delete_note_id = None;
         self.pending_delete_path = None;
+        self.pending_delete_paths.clear();
         self.help_open = false;
     }
 }
