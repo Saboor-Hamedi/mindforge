@@ -45,14 +45,33 @@ impl VimBackend {
         let str_fg = if is_light { "#16a34a" } else { "#98c379" };
         let url_fg = if is_light { "#0284c7" } else { "#56b6c2" };
         let type_fg = if is_light { "#ea580c" } else { "#e5c07b" };
+        let border_hex = crate::accent::hex_from_color(theme.border());
 
         let lua_code = format!(
             r##"
             vim.opt.termguicolors = true
             vim.opt.background = "{bg_mode}"
+            -- Opaque floating windows / popups: no see-through overlay.
+            vim.opt.winblend = 0
+            vim.opt.pumblend = 0
             local hls = {{
                 Normal = {{ fg = "{text}", bg = "{bg}" }},
                 NormalNC = {{ fg = "{text}", bg = "{bg}" }},
+                NormalFloat = {{ fg = "{text}", bg = "{surface}" }},
+                FloatBorder = {{ fg = "{border}", bg = "{surface}" }},
+                FloatTitle = {{ fg = "{accent}", bg = "{surface}", bold = true }},
+                FloatShadow = {{ bg = "{bg}" }},
+                Pmenu = {{ fg = "{text}", bg = "{surface}" }},
+                PmenuSel = {{ fg = "{bg}", bg = "{accent}" }},
+                PmenuKind = {{ fg = "{muted}", bg = "{surface}" }},
+                PmenuExtra = {{ fg = "{muted}", bg = "{surface}" }},
+                PmenuSbar = {{ bg = "{surface}" }},
+                PmenuThumb = {{ bg = "{muted}" }},
+                LineNr = {{ fg = "{muted}" }},
+                CursorLineNr = {{ fg = "{accent}", bold = true }},
+                SignColumn = {{ bg = "{bg}" }},
+                FoldColumn = {{ fg = "{muted}", bg = "{bg}" }},
+                WinSeparator = {{ fg = "{border}", bg = "{bg}" }},
                 CursorLine = {{ bg = "{surface}" }},
                 Visual = {{ bg = "{hl}" }},
                 Search = {{ fg = "{bg}", bg = "{accent}" }},
@@ -158,6 +177,7 @@ impl VimBackend {
             str_fg = str_fg,
             url_fg = url_fg,
             type_fg = type_fg,
+            border = border_hex,
         );
         let _ = self.client.notify(
             "nvim_exec_lua",

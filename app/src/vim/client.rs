@@ -365,6 +365,30 @@ impl NeovimClient {
     }
 
     /// Reload MindForge's lightweight init.lua after it is saved on disk.
+    /// Re-sources the user's `init.lua` (if present) so their settings and
+    /// keymaps win over MindForge's built-in defaults.
+    ///
+    /// Neovim loads `-u <init.lua>` *before* MindForge applies its defaults, so
+    /// without this the user's `vim.opt`/`vim.keymap.set` calls would be
+    /// overridden. Called once at startup, after the defaults are installed.
+    pub fn apply_user_config(&mut self) -> Result<bool, String> {
+        let Some(path) = self.config_path.as_ref() else {
+            return Ok(false);
+        };
+        if !path.is_file() {
+            return Ok(false);
+        }
+        let path_string = path.to_string_lossy().into_owned();
+        self.notify(
+            "nvim_exec_lua",
+            vec![
+                Value::from("dofile(...)"),
+                Value::Array(vec![Value::from(path_string)]),
+            ],
+        )?;
+        Ok(true)
+    }
+
     pub fn reload_config_if_changed(&mut self) -> Result<bool, String> {
         if self.last_config_check.elapsed() < std::time::Duration::from_millis(400) {
             return Ok(false);

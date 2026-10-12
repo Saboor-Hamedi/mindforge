@@ -114,6 +114,10 @@ impl VimBackend {
             vec![Value::from(LSP_BOOT), Value::Array(vec![modules])],
         );
 
+        // Re-run the user's init.lua after our defaults so their options and
+        // keymaps take precedence (Neovim loaded it before our defaults via -u).
+        let _ = client.apply_user_config();
+
         let _ = client.request(
             "nvim_buf_set_name",
             vec![Value::from(0), Value::from(file_name.to_owned())],

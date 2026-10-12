@@ -75,6 +75,18 @@ function M.resolve(spec)
   if vim.uv.fs_stat(managed) then
     return managed
   end
+  -- Common user-scope install locations (cargo / go / scoop shims / pipx) that
+  -- may not be on the PATH inherited by the embedded Neovim process.
+  local home = vim.uv.os_homedir() or vim.env.USERPROFILE or vim.env.HOME or ''
+  local suffixes = is_windows and { '.exe', '.cmd', '.bat', '' } or { '' }
+  for _, dir in ipairs({ '/.cargo/bin', '/go/bin', '/scoop/shims', '/.local/bin' }) do
+    for _, suffix in ipairs(suffixes) do
+      local candidate = home .. dir .. '/' .. spec.bin .. suffix
+      if vim.uv.fs_stat(candidate) then
+        return candidate
+      end
+    end
+  end
   local found = vim.fn.exepath(spec.bin)
   return found ~= '' and found or nil
 end
@@ -146,27 +158,56 @@ function M.install(name, on_done)
     return say(name .. ' is already installing')
   end
 
-  local cmd, cwd
-  if spec.rustup then
-    local rustup = vim.fn.exepath('rustup')
-    if rustup == '' then
-      return say('rustup is required to install ' .. name .. ' (https://rustup.rs)')
-    end
-    cmd = { rustup, 'component', 'add', spec.rustup }
-  elseif not spec.npm then
-    -- Server is provided by the operating system / a package manager.
-    return say(name .. ' is not managed by MindForge — install it with your package manager (e.g. scoop, winget, brew, apt)')
-  else
+  local function have(exe)
+    return vim.fn.exepath(exe) ~= ''
+  end
+
+  -- Pick the first install method whose tooling is actually available. npm is
+  -- preferred because it installs into MindForge's own prefix and needs no
+  -- external package manager; then rustup / cargo / go / scoop / winget.
+  local cmd, cwd, method
+  if spec.npm then
     local prefix, problem = prepare_prefix()
     if not prefix then
       return say(problem)
     end
     local args = { 'install', '--prefix', prefix, '--no-audit', '--no-fund', '--loglevel=error' }
-    cmd = npm_command(vim.list_extend(args, spec.npm))
-    if not cmd then
-      return say('Node.js / npm is required to install ' .. name .. ' (https://nodejs.org)')
+    local npm_cmd = npm_command(vim.list_extend(args, spec.npm))
+    if npm_cmd then
+      cmd, cwd, method = npm_cmd, prefix, 'npm'
     end
-    cwd = prefix
+  end
+  if not cmd and spec.rustup and have('rustup') then
+    cmd, method = { vim.fn.exepath('rustup'), 'component', 'add', spec.rustup }, 'rustup'
+  end
+  if not cmd and spec.cargo and have('cargo') then
+    cmd, method = { vim.fn.exepath('cargo'), 'install', spec.cargo }, 'cargo'
+  end
+  if not cmd and spec.go and have('go') then
+    cmd, method = { vim.fn.exepath('go'), 'install', spec.go }, 'go'
+  end
+  if not cmd and spec.scoop and have('scoop') then
+    local pkgs = type(spec.scoop) == 'table' and spec.scoop or { spec.scoop }
+    cmd, method = vim.list_extend({ vim.fn.exepath('scoop'), 'install' }, pkgs), 'scoop'
+  end
+  if not cmd and spec.winget and have('winget') then
+    cmd, method = {
+      vim.fn.exepath('winget'), 'install', '--id', spec.winget, '-e', '--silent',
+      '--accept-source-agreements', '--accept-package-agreements',
+    }, 'winget'
+  end
+  if not cmd then
+    local need = spec.npm and 'Node.js / npm'
+      or spec.rustup and 'rustup'
+      or spec.cargo and 'cargo (Rust)'
+      or spec.go and 'Go'
+      or spec.scoop and 'scoop'
+      or spec.winget and 'winget'
+      or 'a package manager'
+    return say('cannot install ' .. name .. ' automatically — ' .. need .. ' is required')
+  end
+  if method then
+    say('installing ' .. name .. ' via ' .. method .. ' ...')
   end
 
   installing[name] = true

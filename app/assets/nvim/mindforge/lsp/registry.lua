@@ -165,6 +165,8 @@ M.servers = {
   clangd = {
     desc = 'C / C++ / Objective-C (clangd)',
     bin = 'clangd',
+    scoop = 'llvm',
+    winget = 'LLVM.LLVM',
     config = {
       cmd_args = { '--background-index', '--clang-tidy', '--header-insertion=iwyu' },
       filetypes = { 'c', 'cpp', 'objc', 'objcpp', 'cuda' },
@@ -174,6 +176,8 @@ M.servers = {
   lua_ls = {
     desc = 'Lua (lua-language-server)',
     bin = 'lua-language-server',
+    scoop = 'lua-language-server',
+    winget = 'LuaLS.lua-language-server',
     config = {
       filetypes = { 'lua' },
       root_markers = { '.luarc.json', '.luarc.jsonc', '.stylua.toml', '.git' },
@@ -182,6 +186,8 @@ M.servers = {
   gopls = {
     desc = 'Go (gopls)',
     bin = 'gopls',
+    go = 'golang.org/x/tools/gopls@latest',
+    scoop = 'gopls',
     config = {
       filetypes = { 'go', 'gomod', 'gowork', 'gotmpl' },
       root_markers = { 'go.work', 'go.mod', '.git' },
@@ -198,17 +204,22 @@ M.servers = {
   },
   taplo = {
     desc = 'TOML (taplo)',
+    npm = { '@taplo/cli' },
     bin = 'taplo',
     config = { cmd_args = { 'lsp', 'stdio' }, filetypes = { 'toml' } },
   },
   marksman = {
     desc = 'Markdown (marksman)',
     bin = 'marksman',
+    scoop = 'marksman',
+    winget = 'Artempyanykh.Marksman',
     config = { cmd_args = { 'server' }, filetypes = { 'markdown', 'md' } },
   },
   texlab = {
     desc = 'LaTeX / BibTeX (texlab)',
     bin = 'texlab',
+    cargo = 'texlab',
+    scoop = 'texlab',
     config = {
       filetypes = { 'tex', 'plaintex', 'bib' },
       root_markers = { '.latexmkrc', 'latexmkrc', '.git' },
