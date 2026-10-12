@@ -152,10 +152,13 @@ impl VimBackend {
         }
 
         let nvim_row_height = row_height.max(1.0);
-        let total_lines = self.lines.len().max(1);
-        let digits = total_lines.to_string().len().max(2);
+        // Fixed gutter width matching Neovim's `numberwidth=4`. Deriving it from
+        // the live buffer line count made the gutter grow/shrink while a file was
+        // still loading (and when switching between files of different sizes),
+        // which shifted the text left/right. A constant width keeps it rock-solid.
+        const NUMBER_WIDTH: usize = 4;
         let gutter_w = if show_line_numbers {
-            (digits as f32 * (font_size * 0.55) + 14.0).max(28.0)
+            (NUMBER_WIDTH as f32 * (font_size * 0.55) + 14.0).max(28.0)
         } else {
             0.0
         };
@@ -168,7 +171,7 @@ impl VimBackend {
         let text_left = rect.min.x + effective_gutter_w + pad_x;
 
         let number_columns = if show_line_numbers && effective_gutter_w > 0.0 {
-            4
+            NUMBER_WIDTH
         } else {
             0
         };
@@ -848,18 +851,26 @@ impl VimBackend {
                 }
             });
             if delta != 0.0 {
-                let steps = ((delta.abs() / nvim_row_height).ceil() as usize).clamp(1, 8);
-                let action = if delta > 0.0 { "up" } else { "down" };
-                let (mouse_row, mouse_col) =
-                    ui.input(|i| i.pointer.hover_pos()).map_or((0, 0), |pos| {
-                        let r = ((pos.y - origin.y) / nvim_row_height).floor().max(0.0) as usize;
-                        let c = ((pos.x - origin.x) / cell_width).floor().max(0.0) as usize;
-                        (r, c)
-                    });
-                for _ in 0..steps {
-                    let _ = self
-                        .client
-                        .input_mouse("wheel", action, "", 0, mouse_row, mouse_col);
+                // Consume the wheel so the delta cannot also move the tab strip,
+                // terminal, or any other surface underneath the pointer.
+                ui.input_mut(|i| {
+                    i.raw_scroll_delta = egui::Vec2::ZERO;
+                    i.smooth_scroll_delta = egui::Vec2::ZERO;
+                });
+                // Only scroll when the buffer is taller than the visible grid.
+                // Otherwise a short file (e.g. 15 lines) would let the viewport
+                // slide past the content, making "the whole editor move" for no
+                // reason. `height` is the number of visible grid rows.
+                if self.lines.len() > height {
+                    let steps = ((delta.abs() / nvim_row_height).ceil() as usize).clamp(1, 8);
+                    // Scroll the *viewport* instead of synthesizing a mouse-wheel
+                    // event. `<C-Y>`/`<C-E>` move the window while keeping the
+                    // cursor on its current line, whereas a wheel event drags the
+                    // cursor line-by-line and, in Visual mode, extends the
+                    // selection across the whole file. This gives normal-editor
+                    // scrolling: content moves, the caret stays put.
+                    let key = if delta > 0.0 { "<C-y>" } else { "<C-e>" };
+                    let _ = self.client.input(&key.repeat(steps));
                 }
             }
         }

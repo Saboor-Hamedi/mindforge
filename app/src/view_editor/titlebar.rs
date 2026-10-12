@@ -55,20 +55,11 @@ pub fn render_full_titlebar(
         theme.accent,
     );
 
-    // 4. Subtle separator derived from theme
-    painter.text(
-        pos2(titlebar_rect.min.x + 122.0, center_y),
-        Align2::LEFT_CENTER,
-        "│",
-        FontId::monospace(12.0),
-        theme.border(),
-    );
-
     // Total width consumed by the 5 right buttons (36px * 5 = 180px)
     let btn_w = 36.0;
     let right_controls_start = titlebar_rect.max.x - btn_w * 5.0;
     let gap_from_controls = 48.0; // Clean, generous breathing room between title and right icons
-    let title_start_x = titlebar_rect.min.x + 136.0;
+    let title_start_x = titlebar_rect.min.x + 132.0;
 
     // 5. Active Document / Section Title — fully styled using theme.text
     let max_avail_w = (right_controls_start - gap_from_controls - title_start_x).max(40.0);

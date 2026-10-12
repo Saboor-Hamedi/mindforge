@@ -30,6 +30,8 @@ pub struct TerminalPane {
     pub sessions_sidebar_w: f32,
     pub is_dragging_sessions_splitter: bool,
     pub sessions_scroll_y: f32,
+    /// Fractional wheel-scroll accumulator for terminal scrollback.
+    pub(crate) scroll_pixels: f32,
     /// Directory new sessions should start in (the workspace root when open).
     pub working_dir: Option<std::path::PathBuf>,
     pub(crate) last_theme_kind: Option<ThemeKind>,
@@ -56,6 +58,7 @@ impl TerminalPane {
             sessions_sidebar_w: 160.0,
             is_dragging_sessions_splitter: false,
             sessions_scroll_y: 0.0,
+            scroll_pixels: 0.0,
             working_dir,
             last_theme_kind: Some(theme.kind),
             cached_theme: Some(term_theme),

@@ -78,7 +78,19 @@ impl App {
                         .unwrap_or("Documentation");
                     (format!("📖 {}", doc_title), false)
                 }
-                Mode::Normal => ("MindForge".to_string(), self.editor.is_dirty),
+                Mode::Normal => {
+                    // Show the workspace root folder name (the project name).
+                    // The open file name is already conveyed by the tab strip,
+                    // so the titlebar stays stable and project-scoped.
+                    let project = self
+                        .workspace
+                        .root
+                        .as_ref()
+                        .and_then(|p| p.file_name())
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    (project, false)
+                }
                 Mode::Help => ("✦ Quick Start Guide".to_string(), false),
                 Mode::Stats => ("📊 Daily Story & Statistics".to_string(), false),
                 Mode::ScanReport | Mode::ScanHistory => ("🌐 Security Scanner".to_string(), false),

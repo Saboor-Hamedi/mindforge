@@ -6,7 +6,7 @@
 
 use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Painter, Rect, Stroke, Ui};
-use egui_term::{ColorPalette, TerminalTheme, TerminalView};
+use egui_term::{BackendCommand, ColorPalette, TerminalTheme, TerminalView};
 
 use super::state::TerminalState;
 use super::terminal::{TerminalAction, TerminalPane};
@@ -194,6 +194,41 @@ impl TerminalPane {
             let palette = build_terminal_palette(theme);
             self.cached_theme = Some(TerminalTheme::new(Box::new(palette)));
             self.last_theme_kind = Some(theme.kind);
+        }
+
+        // Mouse-wheel scrollback. egui_term only scrolls while its widget holds
+        // focus, but we deliberately withhold focus (to avoid duplicate keyboard
+        // input), so we forward wheel events to the PTY ourselves whenever the
+        // pointer is over the terminal body. This lets users scroll up to read
+        // earlier output (e.g. a long `python script.py` run).
+        if ui.rect_contains_pointer(term_body_rect) {
+            let wheel: f32 = ui.input(|i| {
+                i.events
+                    .iter()
+                    .filter_map(|event| match event {
+                        egui::Event::MouseWheel { delta, .. } => Some(delta.y),
+                        _ => None,
+                    })
+                    .sum()
+            });
+            if wheel != 0.0 {
+                const TERM_CELL_H: f32 = 16.0;
+                self.scroll_pixels += wheel;
+                let lines = (self.scroll_pixels / TERM_CELL_H).trunc();
+                if lines != 0.0 {
+                    self.scroll_pixels -= lines * TERM_CELL_H;
+                    if let Some(active) = self.sessions.get_mut(self.active_session_idx) {
+                        active
+                            .backend
+                            .process_command(BackendCommand::Scroll(lines as i32));
+                    }
+                }
+                // Consume the wheel so it does not also scroll the editor behind.
+                ui.input_mut(|i| {
+                    i.raw_scroll_delta = egui::Vec2::ZERO;
+                    i.smooth_scroll_delta = egui::Vec2::ZERO;
+                });
+            }
         }
 
         // Render active session embedded terminal widget with breathing room

@@ -53,12 +53,13 @@ mindforge/
 │   │   │   ├── panes.rs (693)
 │   │   │   ├── right_pane.rs (218)
 │   │   │   ├── scan_view.rs (61)
-│   │   │   ├── shell.rs (1012)
+│   │   │   ├── shell.rs (1024)
 │   │   │   └── stats_view.rs (27)
 │   │   ├── bin/
 │   │   │   └── publish.rs (251)
-│   │   ├── caret.rs (520)
 │   │   ├── caret/
+│   │   │   ├── mod.rs (37)
+│   │   │   ├── caret.rs (495)
 │   │   │   ├── beam.rs (25)
 │   │   │   ├── candle.rs (68)
 │   │   │   ├── effects.rs (128)
@@ -171,13 +172,13 @@ mindforge/
 │   │   │   └── tabs.rs (130)
 │   │   ├── terminal/
 │   │   │   ├── mod.rs (24)
-│   │   │   ├── terminal.rs (64)
+│   │   │   ├── terminal.rs (67)
 │   │   │   ├── state.rs (79)
-│   │   │   ├── process.rs (253)
+│   │   │   ├── process.rs (236)
 │   │   │   ├── session.rs (54)
 │   │   │   ├── events.rs (33)
 │   │   │   ├── input.rs (115)
-│   │   │   └── render.rs (656)
+│   │   │   └── render.rs (691)
 │   │   ├── statusbar.rs (318)
 │   │   ├── types/
 │   │   │   ├── mod.rs (5)
@@ -205,7 +206,7 @@ mindforge/
 │   │   │   ├── ligatures.rs (193)
 │   │   │   ├── mod.rs (11)
 │   │   │   ├── tabs.rs (291)
-│   │   │   ├── titlebar.rs (323)
+│   │   │   ├── titlebar.rs (314)
 │   │   │   ├── inline/
 │   │   │   │   ├── mod.rs (1)
 │   │   │   │   └── elements/
@@ -249,7 +250,7 @@ mindforge/
 │   │   │   ├── input.rs (217)
 │   │   │   ├── lsp_panel.rs (245)
 │   │   │   ├── mod.rs (15)
-│   │   │   ├── render.rs (870)
+│   │   │   ├── render.rs (881)
 │   │   │   ├── runtime.rs (273)
 │   │   │   ├── state.rs (65)
 │   │   │   └── theme.rs (171)

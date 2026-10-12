@@ -1,36 +1,11 @@
-//! Caret state, animated styles, particle physics, and coordinate container.
+//! Caret coordinator: state, animated styles, and particle physics.
+//!
+//! Each caret effect lives in its own sibling module (see `beam`, `candle`,
+//! `fire`, `water`, `snow`, `neon`, `rainbow`, `effects`); this file owns the
+//! `Caret` state machine and dispatches to those effect renderers.
 
-pub mod beam;
-pub mod candle;
-pub mod effects;
-pub mod fire;
-pub mod neon;
-pub mod particles;
-pub mod rainbow;
-pub mod snow;
-pub mod water;
-
-// Aliases matching user naming patterns
-#[allow(unused_imports)]
-pub use beam as beamcaret;
-#[allow(unused_imports)]
-pub use candle as candlecaret;
-#[allow(unused_imports)]
-pub use effects as effectscaret;
-#[allow(unused_imports)]
-pub use fire as firecaret;
-#[allow(unused_imports)]
-pub use neon as neoncaret;
-#[allow(unused_imports)]
-pub use particles as particlescaret;
-#[allow(unused_imports)]
-pub use rainbow as rainbowcaret;
-#[allow(unused_imports)]
-pub use snow as snowcaret;
-#[allow(unused_imports)]
-pub use water as watercaret;
-
-pub use particles::{Bolt, Particle, Ripple};
+use super::particles::{Bolt, Particle, Ripple};
+use super::{beam, candle, effects, fire, neon, rainbow, snow, water};
 
 use eframe::egui::{Color32, Painter, Pos2};
 use std::collections::VecDeque;

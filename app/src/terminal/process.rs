@@ -33,120 +33,103 @@ pub fn get_shell_candidates() -> Vec<ShellCandidate> {
     }
 
     if cfg!(windows) {
-        // 1. Check PATH for bash.exe directly
+        let push_bash = |candidates: &mut Vec<ShellCandidate>, path: String| {
+            if std::path::Path::new(&path).exists() {
+                candidates.push(ShellCandidate {
+                    path,
+                    args: vec!["--login".into()],
+                    name: "bash".into(),
+                });
+            }
+        };
+
+        // 1 + 2. Single pass over PATH: find bash.exe directly, and discover the
+        // bash sibling of any git.exe on PATH (e.g. D:\Custom\Git\cmd\git.exe →
+        // D:\Custom\Git\bin\bash.exe). One pass keeps terminal startup fast.
         if let Ok(path_var) = std::env::var("PATH") {
             for dir in std::env::split_paths(&path_var) {
                 let bash_exe = dir.join("bash.exe");
                 let dir_str = dir.to_string_lossy().to_lowercase();
-                if bash_exe.exists() && !dir_str.contains("system32") {
-                    candidates.push(ShellCandidate {
-                        path: bash_exe.to_string_lossy().to_string(),
-                        args: vec!["--login".into()],
-                        name: "bash".into(),
-                    });
+                if !dir_str.contains("system32") && bash_exe.exists() {
+                    push_bash(
+                        &mut candidates,
+                        bash_exe.to_string_lossy().to_string(),
+                    );
                 }
-            }
-        }
-
-        // 2. Check PATH for git.exe -> find sister bash.exe in sibling dirs
-        // If git is in PATH (e.g. D:\Custom\Git\cmd\git.exe or E:\Tools\Git\bin\git.exe),
-        // we can automatically discover its bin/bash.exe or usr/bin/bash.exe!
-        if let Ok(path_var) = std::env::var("PATH") {
-            for dir in std::env::split_paths(&path_var) {
-                let git_exe = dir.join("git.exe");
-                if git_exe.exists() {
+                if dir.join("git.exe").exists() {
                     if let Some(parent) = dir.parent() {
-                        let bash1 = parent.join("bin").join("bash.exe");
-                        if bash1.exists() {
-                            candidates.push(ShellCandidate {
-                                path: bash1.to_string_lossy().to_string(),
-                                args: vec!["--login".into()],
-                                name: "bash".into(),
-                            });
-                        }
-                        let bash2 = parent.join("usr").join("bin").join("bash.exe");
-                        if bash2.exists() {
-                            candidates.push(ShellCandidate {
-                                path: bash2.to_string_lossy().to_string(),
-                                args: vec!["--login".into()],
-                                name: "bash".into(),
-                            });
-                        }
+                        push_bash(
+                            &mut candidates,
+                            parent.join("bin").join("bash.exe").to_string_lossy().to_string(),
+                        );
+                        push_bash(
+                            &mut candidates,
+                            parent
+                                .join("usr")
+                                .join("bin")
+                                .join("bash.exe")
+                                .to_string_lossy()
+                                .to_string(),
+                        );
                     }
                 }
             }
         }
 
-        // 3. Scan common drives (C:, D:, E:, F:) for custom installations
-        for drive in ['C', 'D', 'E', 'F'] {
-            let prefixes = [
-                format!("{}:\\Program Files\\Git\\bin\\bash.exe", drive),
-                format!("{}:\\Program Files\\Git\\usr\\bin\\bash.exe", drive),
-                format!("{}:\\Program Files (x86)\\Git\\bin\\bash.exe", drive),
-                format!("{}:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe", drive),
-                format!("{}:\\Git\\bin\\bash.exe", drive),
-                format!("{}:\\Git\\usr\\bin\\bash.exe", drive),
-                format!("{}:\\Tools\\Git\\bin\\bash.exe", drive),
-                format!("{}:\\msys64\\usr\\bin\\bash.exe", drive),
-                format!("{}:\\cygwin64\\bin\\bash.exe", drive),
-            ];
-            for p in prefixes {
-                if std::path::Path::new(&p).exists() {
-                    candidates.push(ShellCandidate {
-                        path: p,
-                        args: vec!["--login".into()],
-                        name: "bash".into(),
-                    });
+        // 3 + 4. Only probe fixed install locations, package managers, and common
+        // drives when PATH did not already yield a bash. Scanning non-existent
+        // drives/prefixes is the slowest part, so we skip it in the common case
+        // and fall straight through to the guaranteed PowerShell / cmd fallbacks.
+        if candidates.is_empty() {
+            // Common drives (C:–F:), skipped entirely when the drive is absent.
+            for drive in ['C', 'D', 'E', 'F'] {
+                if !std::path::Path::new(&format!("{}:\\", drive)).exists() {
+                    continue;
+                }
+                let prefixes = [
+                    format!("{}:\\Program Files\\Git\\bin\\bash.exe", drive),
+                    format!("{}:\\Program Files\\Git\\usr\\bin\\bash.exe", drive),
+                    format!("{}:\\Program Files (x86)\\Git\\bin\\bash.exe", drive),
+                    format!("{}:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe", drive),
+                    format!("{}:\\Git\\bin\\bash.exe", drive),
+                    format!("{}:\\Git\\usr\\bin\\bash.exe", drive),
+                    format!("{}:\\Tools\\Git\\bin\\bash.exe", drive),
+                    format!("{}:\\msys64\\usr\\bin\\bash.exe", drive),
+                    format!("{}:\\cygwin64\\bin\\bash.exe", drive),
+                ];
+                for p in prefixes {
+                    push_bash(&mut candidates, p);
                 }
             }
-        }
 
-        // 4. User profile & package managers (AppData, Scoop, Chocolatey)
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            let paths = [
-                format!("{}\\Programs\\Git\\bin\\bash.exe", local),
-                format!("{}\\Programs\\Git\\usr\\bin\\bash.exe", local),
-            ];
-            for p in paths {
-                if std::path::Path::new(&p).exists() {
-                    candidates.push(ShellCandidate {
-                        path: p,
-                        args: vec!["--login".into()],
-                        name: "bash".into(),
-                    });
-                }
+            // User profile & package managers (AppData, Scoop, Chocolatey)
+            if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                push_bash(
+                    &mut candidates,
+                    format!("{}\\Programs\\Git\\bin\\bash.exe", local),
+                );
+                push_bash(
+                    &mut candidates,
+                    format!("{}\\Programs\\Git\\usr\\bin\\bash.exe", local),
+                );
             }
-        }
-
-        if let Ok(userprofile) = std::env::var("USERPROFILE") {
-            let scoop_bash = format!("{}\\scoop\\apps\\git\\current\\bin\\bash.exe", userprofile);
-            if std::path::Path::new(&scoop_bash).exists() {
-                candidates.push(ShellCandidate {
-                    path: scoop_bash,
-                    args: vec!["--login".into()],
-                    name: "bash".into(),
-                });
+            if let Ok(userprofile) = std::env::var("USERPROFILE") {
+                push_bash(
+                    &mut candidates,
+                    format!("{}\\scoop\\apps\\git\\current\\bin\\bash.exe", userprofile),
+                );
+                push_bash(
+                    &mut candidates,
+                    format!("{}\\scoop\\shims\\bash.exe", userprofile),
+                );
             }
-            let scoop_shim = format!("{}\\scoop\\shims\\bash.exe", userprofile);
-            if std::path::Path::new(&scoop_shim).exists() {
-                candidates.push(ShellCandidate {
-                    path: scoop_shim,
-                    args: vec!["--login".into()],
-                    name: "bash".into(),
-                });
-            }
+            push_bash(
+                &mut candidates,
+                "C:\\tools\\git\\bin\\bash.exe".to_string(),
+            );
         }
 
-        let choco_bash = "C:\\tools\\git\\bin\\bash.exe";
-        if std::path::Path::new(choco_bash).exists() {
-            candidates.push(ShellCandidate {
-                path: choco_bash.to_string(),
-                args: vec!["--login".into()],
-                name: "bash".into(),
-            });
-        }
-
-        // 5. WSL (Windows Subsystem for Linux)
+        // WSL (Windows Subsystem for Linux) — a cheap existence check.
         let wsl_path = "C:\\Windows\\System32\\wsl.exe";
         if std::path::Path::new(wsl_path).exists() {
             candidates.push(ShellCandidate {
@@ -156,7 +139,7 @@ pub fn get_shell_candidates() -> Vec<ShellCandidate> {
             });
         }
 
-        // 6. PowerShell Core (pwsh.exe) and Windows PowerShell
+        // PowerShell Core (pwsh.exe) and Windows PowerShell
         candidates.push(ShellCandidate {
             path: "pwsh.exe".into(),
             args: vec!["-NoLogo".into()],
@@ -168,7 +151,7 @@ pub fn get_shell_candidates() -> Vec<ShellCandidate> {
             name: "powershell".into(),
         });
 
-        // 7. Command Prompt (Ultimate fallback, always present on Windows)
+        // Command Prompt (Ultimate fallback, always present on Windows)
         let comspec =
             std::env::var("COMSPEC").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".into());
         candidates.push(ShellCandidate {
