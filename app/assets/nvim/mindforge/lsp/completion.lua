@@ -245,7 +245,7 @@ local function setup_keys()
       snippet[#snippet + 1] = string.format('%5d  %s', i, lines[i] or '')
     end
     local ft = vim.filetype.match({ filename = filename })
-    local buf = vim.lsp.util.open_floating_preview(snippet, ft, {
+    local buf, win = vim.lsp.util.open_floating_preview(snippet, ft, {
       border = 'rounded',
       focusable = true,
       focus = true,
@@ -253,6 +253,11 @@ local function setup_keys()
     })
     if buf then
       vim.bo[buf].modifiable = false
+      -- Make sure the preview owns the keyboard so its close keys fire, and
+      -- bind q / Esc / Ctrl+C to dismiss it (Esc also works globally).
+      if win and vim.api.nvim_win_is_valid(win) then
+        pcall(vim.api.nvim_set_current_win, win)
+      end
       for _, lhs in ipairs({ 'q', '<Esc>', '<C-c>' }) do
         vim.keymap.set('n', lhs, close_floating_windows, { buffer = buf, silent = true, nowait = true })
       end

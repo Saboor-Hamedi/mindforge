@@ -25,7 +25,7 @@ mindforge/
 │   │       └── mindforge/
 │   │           └── lsp/
 │   │               ├── commands.lua (212)
-│   │               ├── completion.lua (374)
+│   │               ├── completion.lua (379)
 │   │               ├── config.lua (54)
 │   │               ├── emmet.lua (138)
 │   │               ├── format.lua (80)
