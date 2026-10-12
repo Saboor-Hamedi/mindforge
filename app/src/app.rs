@@ -8,7 +8,6 @@ pub mod right_pane;
 pub mod scan_view;
 pub mod shell;
 pub mod stats_view;
-pub mod terminal_drawer;
 
 #[allow(unused_imports)]
 pub use init::default_backup_dir;
@@ -91,7 +90,7 @@ pub struct App {
     pub scan: crate::state::scan::ScanState,
 
     // Embedded Terminal (:term) docked session state
-    pub terminal: crate::state::terminal::TerminalState,
+    pub terminal: crate::terminal::TerminalState,
 
     // Right side pane (Preview and AI Agent tabs)
     pub right_pane: crate::state::right_pane::RightPaneState,

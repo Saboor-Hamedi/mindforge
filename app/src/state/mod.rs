@@ -14,4 +14,3 @@ pub mod scan;
 pub mod services;
 pub mod sidebar;
 pub mod tabs;
-pub mod terminal;

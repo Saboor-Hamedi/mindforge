@@ -629,14 +629,20 @@ impl App {
                 }
 
                 // Render Bottom-Docked Embedded Terminal Drawer
-                self.render_terminal_drawer(
+                let drawer_action = crate::terminal::render::render_terminal_drawer(
+                    &mut self.terminal,
                     ui,
                     painter,
                     editor_panel_rect,
                     bottom_terminal_rect,
                     term_splitter_rect_opt,
-                    now,
+                    &self.misc.theme,
+                    self.misc.font_size,
+                    self.misc.opacity,
                 );
+                if drawer_action == crate::terminal::render::TerminalDrawerAction::Closed {
+                    self.set_status("Terminal closed", now);
+                }
             }
             Mode::Help => {
                 let action = crate::ui::help_panel::render_help_tab_view(
@@ -661,8 +667,7 @@ impl App {
             Mode::Terminal => {
                 if self.terminal.pane.is_none() {
                     self.terminal.pane =
-                        crate::ui::terminal_pane::TerminalPane::spawn(ui.ctx(), &self.misc.theme)
-                            .ok();
+                        crate::terminal::TerminalPane::spawn(ui.ctx(), &self.misc.theme).ok();
                 }
                 if let Some(ref mut pane) = self.terminal.pane {
                     let action = pane.ui(
@@ -673,7 +678,7 @@ impl App {
                         true,
                         self.misc.opacity,
                     );
-                    if action == crate::ui::terminal_pane::TerminalAction::Close {
+                    if action == crate::terminal::TerminalAction::Close {
                         self.misc.mode = self.terminal.prev_mode_before_term;
                         self.set_status("Exited terminal", now);
                         ui.ctx().request_repaint();

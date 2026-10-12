@@ -1,65 +1,21 @@
-//! Embedded terminal integration using `egui_term` and `alacritty_terminal`.
+//! Terminal UI rendering: the embedded pane surface and the docked drawer splitter.
 //!
-//! Provides ultra-lightweight, zero-lag interactive PTY sessions with:
-//! - Multi-session management with a right sidebar for switching
-//! - Universal dynamic shell detection (Git Bash, Scoop, Chocolatey, Winget,
-//!   MSYS2, WSL, PowerShell, CMD) with automatic `~/.bashrc` sourcing
-//! - State persistence across dock toggling
-//! - Hacker-grade cyber styling with theme-aware color palettes
-//! - Full keyboard input forwarding (Ctrl+C, Ctrl+V, arrows, etc.)
-//!
-//! The terminal runs as a real PTY process — not an emulator — ensuring
-//! full compatibility with CLI tools, TUI apps, and shell scripts.
+//! The terminal is rendered directly through egui (never through a terminal
+//! emulator widget besides `egui_term`'s own `TerminalView`), with a
+//! theme-aware color palette rebuilt only when the application theme changes.
 
 use crate::ui::theme::Theme;
-use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Key, Modifiers, Rect, Stroke};
-use egui_term::{
-    BackendCommand, BackendSettings, ColorPalette, PtyEvent, TerminalBackend, TerminalTheme,
-    TerminalView,
-};
-use std::sync::mpsc;
+use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Painter, Rect, Stroke, Ui};
+use egui_term::{ColorPalette, TerminalTheme, TerminalView};
 
-/// Actions that can be triggered from the terminal pane UI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminalAction {
-    None,
-    Close,
-    RequestFocus,
-}
-
-/// A shell candidate with executable path, startup arguments, and user-facing name.
-#[derive(Clone, Debug)]
-pub struct ShellCandidate {
-    pub path: String,
-    pub args: Vec<String>,
-    pub name: String,
-}
-
-/// An individual terminal session with its own PTY process, title, and event channel.
-pub struct TerminalSession {
-    pub id: u64,
-    pub title: String,
-    pub shell_type: String,
-    pub backend: TerminalBackend,
-    pub event_rx: mpsc::Receiver<(u64, PtyEvent)>,
-}
-
-pub struct TerminalPane {
-    pub sessions: Vec<TerminalSession>,
-    pub active_session_idx: usize,
-    pub next_session_id: u64,
-    pub sessions_sidebar_w: f32,
-    pub is_dragging_sessions_splitter: bool,
-    pub sessions_scroll_y: f32,
-    last_theme_kind: Option<crate::ui::theme::ThemeKind>,
-    cached_theme: Option<TerminalTheme>,
-}
+use super::state::TerminalState;
+use super::terminal::{TerminalAction, TerminalPane};
 
 fn to_hex(c: Color32) -> String {
     format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())
 }
 
-fn build_terminal_palette(theme: &Theme) -> ColorPalette {
+pub(crate) fn build_terminal_palette(theme: &Theme) -> ColorPalette {
     let mut palette = ColorPalette::default();
     let bg_hex = to_hex(theme.bg);
     let fg_hex = to_hex(theme.text);
@@ -83,341 +39,7 @@ fn build_terminal_palette(theme: &Theme) -> ColorPalette {
     palette
 }
 
-/// Universal Dynamic Shell Discovery:
-/// Finds Bash wherever the user installed it (standard paths, custom directories,
-/// PATH, Scoop, Chocolatey, Winget, MSYS2, WSL) and cascades to PowerShell or CMD.
-/// Never panics, never fails to spawn.
-pub fn get_shell_candidates() -> Vec<ShellCandidate> {
-    let mut candidates = Vec::new();
-
-    // Ensure HOME is mapped to USERPROFILE on Windows so Git Bash sources ~/.bashrc and ~/.bash_profile
-    if cfg!(windows) && std::env::var("HOME").is_err() {
-        if let Ok(user_profile) = std::env::var("USERPROFILE") {
-            std::env::set_var("HOME", &user_profile);
-        }
-    }
-
-    if cfg!(windows) {
-        // 1. Check PATH for bash.exe directly
-        if let Ok(path_var) = std::env::var("PATH") {
-            for dir in std::env::split_paths(&path_var) {
-                let bash_exe = dir.join("bash.exe");
-                let dir_str = dir.to_string_lossy().to_lowercase();
-                if bash_exe.exists() && !dir_str.contains("system32") {
-                    candidates.push(ShellCandidate {
-                        path: bash_exe.to_string_lossy().to_string(),
-                        args: vec!["--login".into()],
-                        name: "bash".into(),
-                    });
-                }
-            }
-        }
-
-        // 2. Check PATH for git.exe -> find sister bash.exe in sibling dirs
-        // If git is in PATH (e.g. D:\Custom\Git\cmd\git.exe or E:\Tools\Git\bin\git.exe),
-        // we can automatically discover its bin/bash.exe or usr/bin/bash.exe!
-        if let Ok(path_var) = std::env::var("PATH") {
-            for dir in std::env::split_paths(&path_var) {
-                let git_exe = dir.join("git.exe");
-                if git_exe.exists() {
-                    if let Some(parent) = dir.parent() {
-                        let bash1 = parent.join("bin").join("bash.exe");
-                        if bash1.exists() {
-                            candidates.push(ShellCandidate {
-                                path: bash1.to_string_lossy().to_string(),
-                                args: vec!["--login".into()],
-                                name: "bash".into(),
-                            });
-                        }
-                        let bash2 = parent.join("usr").join("bin").join("bash.exe");
-                        if bash2.exists() {
-                            candidates.push(ShellCandidate {
-                                path: bash2.to_string_lossy().to_string(),
-                                args: vec!["--login".into()],
-                                name: "bash".into(),
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Scan common drives (C:, D:, E:, F:) for custom installations
-        for drive in ['C', 'D', 'E', 'F'] {
-            let prefixes = [
-                format!("{}:\\Program Files\\Git\\bin\\bash.exe", drive),
-                format!("{}:\\Program Files\\Git\\usr\\bin\\bash.exe", drive),
-                format!("{}:\\Program Files (x86)\\Git\\bin\\bash.exe", drive),
-                format!("{}:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe", drive),
-                format!("{}:\\Git\\bin\\bash.exe", drive),
-                format!("{}:\\Git\\usr\\bin\\bash.exe", drive),
-                format!("{}:\\Tools\\Git\\bin\\bash.exe", drive),
-                format!("{}:\\msys64\\usr\\bin\\bash.exe", drive),
-                format!("{}:\\cygwin64\\bin\\bash.exe", drive),
-            ];
-            for p in prefixes {
-                if std::path::Path::new(&p).exists() {
-                    candidates.push(ShellCandidate {
-                        path: p,
-                        args: vec!["--login".into()],
-                        name: "bash".into(),
-                    });
-                }
-            }
-        }
-
-        // 4. User profile & package managers (AppData, Scoop, Chocolatey)
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            let paths = [
-                format!("{}\\Programs\\Git\\bin\\bash.exe", local),
-                format!("{}\\Programs\\Git\\usr\\bin\\bash.exe", local),
-            ];
-            for p in paths {
-                if std::path::Path::new(&p).exists() {
-                    candidates.push(ShellCandidate {
-                        path: p,
-                        args: vec!["--login".into()],
-                        name: "bash".into(),
-                    });
-                }
-            }
-        }
-
-        if let Ok(userprofile) = std::env::var("USERPROFILE") {
-            let scoop_bash = format!("{}\\scoop\\apps\\git\\current\\bin\\bash.exe", userprofile);
-            if std::path::Path::new(&scoop_bash).exists() {
-                candidates.push(ShellCandidate {
-                    path: scoop_bash,
-                    args: vec!["--login".into()],
-                    name: "bash".into(),
-                });
-            }
-            let scoop_shim = format!("{}\\scoop\\shims\\bash.exe", userprofile);
-            if std::path::Path::new(&scoop_shim).exists() {
-                candidates.push(ShellCandidate {
-                    path: scoop_shim,
-                    args: vec!["--login".into()],
-                    name: "bash".into(),
-                });
-            }
-        }
-
-        let choco_bash = "C:\\tools\\git\\bin\\bash.exe";
-        if std::path::Path::new(choco_bash).exists() {
-            candidates.push(ShellCandidate {
-                path: choco_bash.to_string(),
-                args: vec!["--login".into()],
-                name: "bash".into(),
-            });
-        }
-
-        // 5. WSL (Windows Subsystem for Linux)
-        let wsl_path = "C:\\Windows\\System32\\wsl.exe";
-        if std::path::Path::new(wsl_path).exists() {
-            candidates.push(ShellCandidate {
-                path: wsl_path.to_string(),
-                args: vec!["-e".into(), "bash".into()],
-                name: "wsl".into(),
-            });
-        }
-
-        // 6. PowerShell Core (pwsh.exe) and Windows PowerShell
-        candidates.push(ShellCandidate {
-            path: "pwsh.exe".into(),
-            args: vec!["-NoLogo".into()],
-            name: "pwsh".into(),
-        });
-        candidates.push(ShellCandidate {
-            path: "powershell.exe".into(),
-            args: vec!["-NoLogo".into()],
-            name: "powershell".into(),
-        });
-
-        // 7. Command Prompt (Ultimate fallback, always present on Windows)
-        let comspec =
-            std::env::var("COMSPEC").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".into());
-        candidates.push(ShellCandidate {
-            path: comspec,
-            args: vec![],
-            name: "cmd".into(),
-        });
-    } else {
-        // Unix (Linux, macOS)
-        if let Ok(shell) = std::env::var("SHELL") {
-            let is_bash = shell.ends_with("bash");
-            candidates.push(ShellCandidate {
-                path: shell,
-                args: if is_bash {
-                    vec!["--login".into()]
-                } else {
-                    vec![]
-                },
-                name: "bash".into(),
-            });
-        }
-        candidates.push(ShellCandidate {
-            path: "/bin/bash".into(),
-            args: vec!["--login".into()],
-            name: "bash".into(),
-        });
-        candidates.push(ShellCandidate {
-            path: "/bin/zsh".into(),
-            args: vec!["-l".into(), "-i".into()],
-            name: "zsh".into(),
-        });
-        candidates.push(ShellCandidate {
-            path: "/bin/sh".into(),
-            args: vec![],
-            name: "sh".into(),
-        });
-    }
-
-    // Deduplicate candidates
-    let mut seen = std::collections::HashSet::new();
-    candidates.retain(|c| seen.insert(c.path.clone()));
-
-    candidates
-}
-
-/// Spawns a backend session by attempting candidates in cascade order until one succeeds.
-fn spawn_backend_session(
-    id: u64,
-    ctx: &egui::Context,
-    session_num: usize,
-) -> anyhow::Result<TerminalSession> {
-    let candidates = get_shell_candidates();
-    let (tx, rx) = mpsc::channel();
-
-    for candidate in candidates {
-        let mut settings = BackendSettings::default();
-        settings.shell = candidate.path.clone();
-        settings.args = candidate.args.clone();
-        settings.working_directory = std::env::current_dir().ok();
-
-        match TerminalBackend::new(id, ctx.clone(), tx.clone(), settings) {
-            Ok(backend) => {
-                let title = format!("{} {}", candidate.name, session_num);
-                return Ok(TerminalSession {
-                    id,
-                    title,
-                    shell_type: candidate.name,
-                    backend,
-                    event_rx: rx,
-                });
-            }
-            Err(_) => continue, // Try next candidate in the cascade
-        }
-    }
-
-    anyhow::bail!("Failed to spawn any valid shell candidate.")
-}
-
 impl TerminalPane {
-    pub fn spawn(ctx: &egui::Context, theme: &Theme) -> anyhow::Result<Self> {
-        let first_session = spawn_backend_session(1, ctx, 1)?;
-        let palette = build_terminal_palette(theme);
-        let term_theme = TerminalTheme::new(Box::new(palette));
-
-        Ok(Self {
-            sessions: vec![first_session],
-            active_session_idx: 0,
-            next_session_id: 2,
-            sessions_sidebar_w: 160.0,
-            is_dragging_sessions_splitter: false,
-            sessions_scroll_y: 0.0,
-            last_theme_kind: Some(theme.kind),
-            cached_theme: Some(term_theme),
-        })
-    }
-
-    /// Spawns a new session and sets it as the active session.
-    pub fn new_session(&mut self, ctx: &egui::Context) -> bool {
-        let session_num = self.sessions.len() + 1;
-        let id = self.next_session_id;
-        self.next_session_id += 1;
-
-        match spawn_backend_session(id, ctx, session_num) {
-            Ok(session) => {
-                self.sessions.push(session);
-                self.active_session_idx = self.sessions.len() - 1;
-                true
-            }
-            Err(_) => false,
-        }
-    }
-
-    /// Closes the session at the specified index.
-    /// Returns true if all sessions were closed and the terminal dock should collapse.
-    pub fn close_session(&mut self, idx: usize) -> bool {
-        if idx < self.sessions.len() {
-            self.sessions.remove(idx);
-            if self.sessions.is_empty() {
-                return true;
-            }
-            if self.active_session_idx >= self.sessions.len() {
-                self.active_session_idx = self.sessions.len() - 1;
-            }
-        }
-        false
-    }
-
-    /// Process pending PTY events across all sessions.
-    /// If an individual session exits (e.g. user typed 'exit'), remove only that session.
-    /// Returns true only if all sessions have exited.
-    pub fn pump(&mut self) -> bool {
-        let mut exited_ids = Vec::new();
-        for session in &mut self.sessions {
-            while let Ok((_id, event)) = session.event_rx.try_recv() {
-                if let PtyEvent::Exit = event {
-                    exited_ids.push(session.id);
-                }
-            }
-        }
-        for id in exited_ids {
-            if let Some(pos) = self.sessions.iter().position(|s| s.id == id) {
-                self.sessions.remove(pos);
-            }
-        }
-        if self.sessions.is_empty() {
-            return true;
-        }
-        if self.active_session_idx >= self.sessions.len() {
-            self.active_session_idx = self.sessions.len() - 1;
-        }
-        false
-    }
-
-    /// Feed an egui event directly to the active session's PTY backend with zero latency.
-    pub fn feed_event(&mut self, event: &egui::Event, modifiers: Modifiers) {
-        if let Some(active) = self.sessions.get_mut(self.active_session_idx) {
-            match event {
-                egui::Event::Text(text) => {
-                    if !modifiers.ctrl && !modifiers.command && !modifiers.alt {
-                        active
-                            .backend
-                            .process_command(BackendCommand::Write(text.as_bytes().to_vec()));
-                    }
-                }
-                egui::Event::Paste(text) => {
-                    active
-                        .backend
-                        .process_command(BackendCommand::Write(text.as_bytes().to_vec()));
-                }
-                egui::Event::Key {
-                    key,
-                    pressed: true,
-                    modifiers,
-                    ..
-                } => {
-                    if let Some(bytes) = map_key_to_terminal_bytes(*key, *modifiers) {
-                        active.backend.process_command(BackendCommand::Write(bytes));
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
     /// Renders the docked terminal pane with:
     /// 1. Cyber-styled header showing status pill, active session badge, and close button.
     /// 2. Active `TerminalView` on the left.
@@ -887,73 +509,135 @@ impl TerminalPane {
     }
 }
 
-/// Translates keys and Ctrl combinations into standard Linux/Bash ANSI sequences.
-fn map_key_to_terminal_bytes(key: Key, modifiers: Modifiers) -> Option<Vec<u8>> {
-    // Word jumping with Ctrl+Left / Ctrl+Right
-    if (modifiers.ctrl || modifiers.command) && key == Key::ArrowLeft {
-        return Some(b"\x1b[1;5D".to_vec());
-    }
-    if (modifiers.ctrl || modifiers.command) && key == Key::ArrowRight {
-        return Some(b"\x1b[1;5C".to_vec());
-    }
+/// Result of rendering the docked terminal drawer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalDrawerAction {
+    /// Nothing happened; keep the terminal as-is.
+    None,
+    /// The terminal was closed by the user.
+    Closed,
+}
 
-    // Standard Ctrl combinations in Bash/Linux
-    if modifiers.ctrl || modifiers.command {
-        return match key {
-            Key::A => Some(vec![0x01]), // Line start
-            Key::B => Some(vec![0x02]), // Back char
-            Key::C => Some(vec![0x03]), // SIGINT / Break
-            Key::D => Some(vec![0x04]), // EOF / Exit
-            Key::E => Some(vec![0x05]), // Line end
-            Key::F => Some(vec![0x06]), // Forward char
-            Key::G => Some(vec![0x07]), // Bell
-            Key::H => Some(vec![0x08]), // Backspace
-            Key::I => Some(vec![0x09]), // Tab
-            Key::J => Some(vec![0x0a]), // Linefeed
-            Key::K => Some(vec![0x0b]), // Kill to end
-            Key::L => Some(vec![0x0c]), // Clear screen
-            Key::N => Some(vec![0x0e]), // Next line
-            Key::P => Some(vec![0x10]), // Prev line
-            Key::R => Some(vec![0x12]), // Reverse search
-            Key::T => Some(vec![0x14]), // Transpose chars
-            Key::U => Some(vec![0x15]), // Delete to start
-            Key::V => Some(vec![0x16]), // Literal next / paste
-            Key::W => Some(vec![0x17]), // Delete word
-            Key::Z => Some(vec![0x1a]), // SIGTSTP / Suspend
-            Key::ArrowUp => Some(b"\x1b[1;5A".to_vec()),
-            Key::ArrowDown => Some(b"\x1b[1;5B".to_vec()),
-            _ => None,
+/// Renders the bottom-docked terminal drawer, handling interactive splitter resizing.
+///
+/// This is a free function (rather than an `App` method) so the whole terminal
+/// subsystem stays inside this module. The caller applies any resulting status
+/// message once the borrow of `terminal` has ended.
+#[allow(clippy::too_many_arguments)]
+pub fn render_terminal_drawer(
+    terminal: &mut TerminalState,
+    ui: &mut Ui,
+    painter: &Painter,
+    editor_panel_rect: Rect,
+    bottom_terminal_rect: Option<Rect>,
+    term_splitter_rect_opt: Option<Rect>,
+    theme: &Theme,
+    font_size: f32,
+    opacity: f32,
+) -> TerminalDrawerAction {
+    let mut action = TerminalDrawerAction::None;
+    if let (Some(term_rect), Some(divider_rect)) = (bottom_terminal_rect, term_splitter_rect_opt) {
+        let divider_h = 10.0;
+        let available_h = (editor_panel_rect.height() - divider_h).max(140.0);
+        let mid_y = divider_rect.center().y;
+        let panel_left = divider_rect.min.x;
+        let panel_right = divider_rect.max.x;
+        let knob_mid = pos2((panel_left + panel_right) * 0.5, mid_y);
+        let is_dragging = terminal.dragging_splitter;
+        let knob_w = 36.0;
+        let knob_h = if is_dragging { 6.0 } else { 4.0 };
+        let knob_rect = Rect::from_center_size(knob_mid, vec2(knob_w, knob_h));
+        let knob_hit_rect = Rect::from_center_size(knob_mid, vec2(44.0, 16.0));
+
+        let is_knob_hovered = ui.rect_contains_pointer(knob_hit_rect);
+        let primary_down = ui.input(|i| i.pointer.primary_down());
+        let primary_pressed = ui.input(|i| {
+            i.pointer.primary_clicked() || i.pointer.button_pressed(egui::PointerButton::Primary)
+        });
+
+        if is_knob_hovered && primary_pressed {
+            terminal.dragging_splitter = true;
+        }
+
+        if terminal.dragging_splitter {
+            if primary_down {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeRow);
+                if let Some(pos) =
+                    ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
+                {
+                    let term_pixel_h = editor_panel_rect.max.y - pos.y;
+                    let raw_ratio = term_pixel_h / available_h;
+                    terminal.split_ratio = raw_ratio.clamp(0.12, 0.85);
+                    ui.ctx().request_repaint();
+                }
+            } else {
+                terminal.dragging_splitter = false;
+            }
+        } else if is_knob_hovered {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeRow);
+        }
+
+        let is_active = is_knob_hovered || terminal.dragging_splitter;
+
+        // Render tactile knob only — no harsh full-width line
+        let active_knob_rect = if is_active {
+            Rect::from_center_size(knob_mid, vec2(38.0, 6.0))
+        } else {
+            knob_rect
         };
-    }
+        painter.rect_filled(
+            active_knob_rect,
+            2.5,
+            if is_active {
+                theme.accent
+            } else {
+                Color32::from_rgba_unmultiplied(
+                    theme.muted.r(),
+                    theme.muted.g(),
+                    theme.muted.b(),
+                    100,
+                )
+            },
+        );
 
-    // Standard navigation and control keys
-    match key {
-        Key::Enter => Some(vec![b'\r']),
-        Key::Backspace => Some(vec![0x7f]),
-        Key::Tab => Some(vec![b'\t']),
-        Key::Escape => Some(vec![0x1b]),
-        Key::ArrowUp => Some(b"\x1b[A".to_vec()),
-        Key::ArrowDown => Some(b"\x1b[B".to_vec()),
-        Key::ArrowRight => Some(b"\x1b[C".to_vec()),
-        Key::ArrowLeft => Some(b"\x1b[D".to_vec()),
-        Key::Home => Some(b"\x1b[H".to_vec()),
-        Key::End => Some(b"\x1b[F".to_vec()),
-        Key::Delete => Some(b"\x1b[3~".to_vec()),
-        Key::Insert => Some(b"\x1b[2~".to_vec()),
-        Key::PageUp => Some(b"\x1b[5~".to_vec()),
-        Key::PageDown => Some(b"\x1b[6~".to_vec()),
-        Key::F1 => Some(b"\x1bOP".to_vec()),
-        Key::F2 => Some(b"\x1bOQ".to_vec()),
-        Key::F3 => Some(b"\x1bOR".to_vec()),
-        Key::F4 => Some(b"\x1bOS".to_vec()),
-        Key::F5 => Some(b"\x1b[15~".to_vec()),
-        Key::F6 => Some(b"\x1b[17~".to_vec()),
-        Key::F7 => Some(b"\x1b[18~".to_vec()),
-        Key::F8 => Some(b"\x1b[19~".to_vec()),
-        Key::F9 => Some(b"\x1b[20~".to_vec()),
-        Key::F10 => Some(b"\x1b[21~".to_vec()),
-        Key::F11 => Some(b"\x1b[23~".to_vec()),
-        Key::F12 => Some(b"\x1b[24~".to_vec()),
-        _ => None,
+        let grip_color = theme.bg;
+        for dx in [-5.0, 0.0, 5.0] {
+            painter.line_segment(
+                [
+                    pos2(knob_mid.x + dx, knob_mid.y - 1.2),
+                    pos2(knob_mid.x + dx, knob_mid.y + 1.2),
+                ],
+                Stroke::new(1.0_f32, grip_color),
+            );
+        }
+
+        if terminal.pane.is_none() {
+            terminal.pane = TerminalPane::spawn(ui.ctx(), theme).ok();
+        }
+        if let Some(ref mut pane) = terminal.pane {
+            let pane_action = pane.ui(
+                ui,
+                term_rect,
+                theme,
+                font_size,
+                terminal.focused,
+                opacity,
+            );
+            match pane_action {
+                TerminalAction::Close => {
+                    terminal.open = false;
+                    terminal.focused = false;
+                    action = TerminalDrawerAction::Closed;
+                    ui.ctx().request_repaint();
+                }
+                TerminalAction::RequestFocus => {
+                    terminal.focused = true;
+                }
+                TerminalAction::None => {}
+            }
+        }
+    } else {
+        terminal.dragging_splitter = false;
     }
+    action
 }

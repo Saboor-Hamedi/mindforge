@@ -17,7 +17,7 @@ pub struct TerminalState {
     /// Whether the terminal has keyboard focus
     pub focused: bool,
     /// The terminal pane with PTY sessions (None when closed)
-    pub pane: Option<crate::ui::terminal_pane::TerminalPane>,
+    pub pane: Option<super::terminal::TerminalPane>,
     /// Mode to restore when the terminal is closed
     pub prev_mode_before_term: crate::mode::Mode,
 }

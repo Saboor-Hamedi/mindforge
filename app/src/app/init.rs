@@ -100,7 +100,7 @@ impl App {
             doc_sidebar_focused: true,
             doc_selected_idx: 0,
             scan: crate::state::scan::ScanState::new(),
-            terminal: crate::state::terminal::TerminalState::new(),
+            terminal: crate::terminal::TerminalState::new(),
             right_pane: crate::state::right_pane::RightPaneState::new(),
             font_dirty: false,
             last_editor_rect: None,

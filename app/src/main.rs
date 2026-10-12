@@ -17,6 +17,7 @@ pub mod services;
 pub mod setting;
 pub mod state;
 mod statusbar;
+pub mod terminal;
 mod types;
 pub mod ui;
 pub mod ui_components;
