@@ -25,13 +25,13 @@ mindforge/
 │   │       └── mindforge/
 │   │           └── lsp/
 │   │               ├── commands.lua (212)
-│   │               ├── completion.lua (379)
+│   │               ├── completion.lua (388)
 │   │               ├── config.lua (54)
 │   │               ├── emmet.lua (138)
 │   │               ├── format.lua (80)
 │   │               ├── guard.lua (66)
 │   │               ├── init.lua (167)
-│   │               ├── install.lua (252)
+│   │               ├── install.lua (277)
 │   │               ├── notify.lua (9)
 │   │               ├── paths.lua (45)
 │   │               ├── progress.lua (54)
@@ -246,7 +246,7 @@ mindforge/
 │   │   ├── vim/
 │   │   │   ├── backend.rs (981)
 │   │   │   ├── bootstrap.rs (209)
-│   │   │   ├── client.rs (561)
+│   │   │   ├── client.rs (576)
 │   │   │   ├── editor_backend.rs (183)
 │   │   │   ├── input.rs (288)
 │   │   │   ├── lsp_panel.rs (329)

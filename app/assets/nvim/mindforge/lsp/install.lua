@@ -158,8 +158,28 @@ function M.install(name, on_done)
     return say(name .. ' is already installing')
   end
 
-  local function have(exe)
-    return vim.fn.exepath(exe) ~= ''
+  -- Resolve a tool to a *spawnable* command prefix. On Windows, `exepath` often
+  -- returns an extension-less shim (e.g. scoop's `shims\scoop`) that cannot be
+  -- spawned directly, and `.cmd`/`.bat` shims must go through `cmd.exe /c`.
+  local function exe(name)
+    local path = vim.fn.exepath(name)
+    if path == '' and is_windows then
+      for _, ext in ipairs({ '.exe', '.cmd', '.bat' }) do
+        local candidate = vim.fn.exepath(name .. ext)
+        if candidate ~= '' then
+          path = candidate
+          break
+        end
+      end
+    end
+    if path == '' then
+      return nil
+    end
+    local lower = path:lower()
+    if is_windows and (lower:match('%.cmd$') or lower:match('%.bat$')) then
+      return { 'cmd.exe', '/c', path }
+    end
+    return { path }
   end
 
   -- Pick the first install method whose tooling is actually available. npm is
@@ -177,24 +197,29 @@ function M.install(name, on_done)
       cmd, cwd, method = npm_cmd, prefix, 'npm'
     end
   end
-  if not cmd and spec.rustup and have('rustup') then
-    cmd, method = { vim.fn.exepath('rustup'), 'component', 'add', spec.rustup }, 'rustup'
+  local rustup = exe('rustup')
+  if not cmd and spec.rustup and rustup then
+    cmd, method = vim.list_extend(vim.deepcopy(rustup), { 'component', 'add', spec.rustup }), 'rustup'
   end
-  if not cmd and spec.cargo and have('cargo') then
-    cmd, method = { vim.fn.exepath('cargo'), 'install', spec.cargo }, 'cargo'
+  local cargo = exe('cargo')
+  if not cmd and spec.cargo and cargo then
+    cmd, method = vim.list_extend(vim.deepcopy(cargo), { 'install', spec.cargo }), 'cargo'
   end
-  if not cmd and spec.go and have('go') then
-    cmd, method = { vim.fn.exepath('go'), 'install', spec.go }, 'go'
+  local go = exe('go')
+  if not cmd and spec.go and go then
+    cmd, method = vim.list_extend(vim.deepcopy(go), { 'install', spec.go }), 'go'
   end
-  if not cmd and spec.scoop and have('scoop') then
+  local scoop = exe('scoop')
+  if not cmd and spec.scoop and scoop then
     local pkgs = type(spec.scoop) == 'table' and spec.scoop or { spec.scoop }
-    cmd, method = vim.list_extend({ vim.fn.exepath('scoop'), 'install' }, pkgs), 'scoop'
+    cmd, method = vim.list_extend(vim.deepcopy(scoop), vim.list_extend({ 'install' }, pkgs)), 'scoop'
   end
-  if not cmd and spec.winget and have('winget') then
-    cmd, method = {
-      vim.fn.exepath('winget'), 'install', '--id', spec.winget, '-e', '--silent',
+  local winget = exe('winget')
+  if not cmd and spec.winget and winget then
+    cmd, method = vim.list_extend(vim.deepcopy(winget), {
+      'install', '--id', spec.winget, '-e', '--silent',
       '--accept-source-agreements', '--accept-package-agreements',
-    }, 'winget'
+    }), 'winget'
   end
   if not cmd then
     local need = spec.npm and 'Node.js / npm'

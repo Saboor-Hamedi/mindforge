@@ -347,6 +347,15 @@ local function setup_keys()
   map('n', ']d', vim.diagnostic.goto_next)
 end
 
+--- Re-asserts MindForge's language-intelligence keymaps. Called after the
+--- user's init.lua is (re)sourced so their `vim.opt` settings win while the
+--- LSP keymaps (K, gd, gr, <leader>f, ...) keep working.
+function M.remap()
+  if setup_keys then
+    setup_keys()
+  end
+end
+
 --- `group` is the shared augroup; `on_filetype(buf)` runs for every FileType.
 function M.setup(group, on_filetype)
   setup_options()

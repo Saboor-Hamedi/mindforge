@@ -386,7 +386,21 @@ impl NeovimClient {
                 Value::Array(vec![Value::from(path_string)]),
             ],
         )?;
+        self.remap_lsp_keys();
         Ok(true)
+    }
+
+    /// Re-applies MindForge's language-intelligence keymaps after the user's
+    /// config is (re)sourced, so K/gd/gr/<leader>f keep working even when the
+    /// user's init.lua defines its own mappings or options.
+    fn remap_lsp_keys(&self) {
+        let _ = self.notify(
+            "nvim_exec_lua",
+            vec![
+                Value::from("pcall(function() require('mindforge.lsp.completion').remap() end)"),
+                Value::Array(vec![]),
+            ],
+        );
     }
 
     pub fn reload_config_if_changed(&mut self) -> Result<bool, String> {
@@ -416,6 +430,7 @@ impl NeovimClient {
             "nvim_command",
             vec![Value::from("set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler")],
         )?;
+        self.remap_lsp_keys();
         self.config_modified = modified;
         Ok(true)
     }
