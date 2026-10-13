@@ -1,50 +1,21 @@
-## Important Clarification — What I Actually Expect
+I’m experiencing two issues with the Neovim editor in MindForge.
 
-Look carefully at my screenshot.
+**1. Mousepad scrolling behavior**
 
-I have two tabs named `hellopython.py`, but the Explorer does not show a newly created file corresponding to the new tab. The existing `hellopython.py` entry is not proof that the new creation operation succeeded.
+When I place my fingers on the laptop touchpad and scroll up or down, the caret eventually reaches the top or bottom boundary of the editor and seems to get stuck there instead of behaving naturally within the viewport.
 
-My problem is not simply that the filename appears twice. **The editor and the filesystem Explorer are becoming inconsistent.**
+There is another related issue in Neovim Visual mode. When I press `V` to enter Visual Line mode and then scroll up or down using the touchpad, the editor starts selecting text as I scroll. I want to understand why this happens and whether mouse-wheel events, Neovim input handling, or egui's scrolling behavior are interacting incorrectly.
 
-When I press `Ctrl+N` or use the new-file command, I expect MindForge to create a real file inside the currently active workspace, not merely open a new editor tab.
+**2. Editor initialization and layout instability**
 
-For example, if my active project is:
+When I open a note, the editor does not appear fully stable immediately.
 
-`D:\Projects\PythonLearning\`
+- The document's text takes a noticeable amount of time to appear.
+- The line-number gutter initially becomes narrower than its normal width.
+- After approximately one or two seconds, the gutter returns to its normal width.
 
-and I create `hellopython.py`, the expected result is:
+The editor eventually looks correct, but the initial transition feels unstable and unpolished.
 
-`D:\Projects\PythonLearning\hellopython.py`
+Since MindForge uses Neovim as its editor engine, I want to understand what happens between opening a note, loading its contents into Neovim, receiving redraw events, and laying out the editor in egui.
 
-That physical file must exist on disk. The Explorer must display it under the correct project root, and exactly one tab should represent that file.
-
-If a file with that name already exists, MindForge must handle the conflict safely instead of silently overwriting it or creating another tab that appears to represent the same file.
-
-### Why previous attempts have failed
-
-You have already spent hours working on this issue, so do not repeat the same cycle of changing code, running `cargo check`, and declaring success.
-
-First, establish what actually happens at runtime:
-
-1. Does the creation command execute?
-2. What absolute path does it choose?
-3. Does the filesystem operation create the file successfully?
-4. Does the Explorer represent the same workspace root?
-5. Does the Explorer receive and correctly process the new file?
-6. Why are two tabs being registered with the same filename?
-
-Use the answers to identify the actual failure point. Do not assume that the duplicate tab and missing Explorer entry share the same cause.
-
-### Required result
-
-One user action must produce one consistent result across all relevant parts of MindForge:
-
-- **Filesystem:** one real file at the correct path.
-- **Workspace:** the file belongs to the active project.
-- **Explorer:** one entry under the correct directory.
-- **Editor:** one tab associated with the same physical file.
-- **Persistence:** the file remains present after restarting MindForge.
-
-If any step fails, report the actual error and do not leave behind a phantom tab or falsely report success.
-
-Do not finish until you have reproduced the original problem, fixed its root cause, and verified the complete workflow in the running application.
+These are observations, not confirmed diagnoses. Please help me understand the underlying causes before proposing changes. I want to investigate the actual event flow, rendering lifecycle, and layout calculations rather than applying superficial fixes.
