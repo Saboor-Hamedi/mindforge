@@ -755,7 +755,7 @@ if m:find('^[vV\22]') then vim.cmd('normal! >gv') else vim.cmd('normal! >>') end
                 vim.api.nvim_buf_set_name(0, name)
             end)
         "#;
-        let _ = self.client.request(
+        let _ = self.client.notify(
             "nvim_exec_lua",
             vec![
                 Value::from(set_name_lua),
@@ -793,6 +793,15 @@ if m:find('^[vV\22]') then vim.cmd('normal! >gv') else vim.cmd('normal! >>') end
         self.last_buffer_change = None;
         self.dirty = false;
         self.row_layouts.clear();
+        for row in &mut self.grid.cells {
+            for cell in row {
+                cell.text = " ".into();
+                cell.highlight = 0;
+            }
+        }
+        for rev in &mut self.grid.row_revision {
+            *rev = rev.wrapping_add(1);
+        }
         Ok(())
     }
 

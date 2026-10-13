@@ -662,6 +662,25 @@ impl App {
         self.tabs.last_active_tab = self.tabs.active_tab;
         self.sidebar.focused = false;
         self.misc.caret.gliding = false;
+
+        // Immediately sync opened file into Vim backend for instant display
+        let file_name = self.active_buffer_name();
+        let language = self.active_language();
+        let (active_row, active_col) = self.editor.ed.row_col();
+        let active_text = self.editor.ed.text();
+        if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+            let _ = backend.set_document_for_language(
+                &active_text,
+                active_row,
+                active_col,
+                &file_name,
+                language,
+            );
+            self.services.vim_runtime.note_id = self.notes.active_note_id;
+            self.services.vim_runtime.tab_index = Some(self.tabs.active_tab);
+            self.services.vim_runtime.language = Some(language);
+            self.services.vim_runtime.buffer_name = Some(file_name);
+        }
         self.save_active_note_id();
         self.save_open_tabs();
         self.set_status(format!("Opened {}", self.display_file_path(&path)), now);

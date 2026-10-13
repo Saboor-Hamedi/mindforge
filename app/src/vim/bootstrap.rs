@@ -92,6 +92,8 @@ pub const INIT_LUA: &str = r#"
         hi Cursor NONE
         hi TermCursor NONE
     ]])
+    local nvim_dir = (vim.g.mindforge_home or (vim.fn.stdpath('data') .. '/mindforge')) .. '/nvim'
+    pcall(function() vim.opt.runtimepath:prepend(nvim_dir) end)
     vim.g.mapleader = ' '
     local opts = { noremap = true, silent = true, expr = true }
     vim.keymap.set("n", "j", "v:count == 0 ? 'gj' : 'j'", opts)

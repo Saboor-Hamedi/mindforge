@@ -61,6 +61,26 @@ impl App {
         self.save_active_note_id();
         self.save_open_tabs();
         self.misc.mode = Mode::Normal;
+
+        // Immediately sync target note into Vim backend so switching is instantaneous on frame 0
+        let file_name = self.active_buffer_name();
+        let language = self.active_language();
+        let (active_row, active_col) = self.editor.ed.row_col();
+        let active_text = self.editor.ed.text();
+        if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+            let _ = backend.set_document_for_language(
+                &active_text,
+                active_row,
+                active_col,
+                &file_name,
+                language,
+            );
+            self.services.vim_runtime.note_id = self.notes.active_note_id;
+            self.services.vim_runtime.tab_index = Some(self.tabs.active_tab);
+            self.services.vim_runtime.language = Some(language);
+            self.services.vim_runtime.buffer_name = Some(file_name);
+        }
+
         let msg = format!("Switched to {}", self.notes.active_note_title);
         self.set_status(&msg, now);
     }
@@ -238,6 +258,25 @@ impl App {
         } else {
             self.open_notes.push(new_tab);
             self.tabs.active_tab = self.open_notes.len() - 1;
+        }
+
+        // Immediately sync loaded note into Vim backend for instant display
+        let file_name = self.active_buffer_name();
+        let language = self.active_language();
+        let (active_row, active_col) = self.editor.ed.row_col();
+        let active_text = self.editor.ed.text();
+        if let Some(backend) = self.services.vim_runtime.backend.as_mut() {
+            let _ = backend.set_document_for_language(
+                &active_text,
+                active_row,
+                active_col,
+                &file_name,
+                language,
+            );
+            self.services.vim_runtime.note_id = self.notes.active_note_id;
+            self.services.vim_runtime.tab_index = Some(self.tabs.active_tab);
+            self.services.vim_runtime.language = Some(language);
+            self.services.vim_runtime.buffer_name = Some(file_name);
         }
 
         self.save_open_tabs();

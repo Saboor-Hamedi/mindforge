@@ -135,6 +135,36 @@ function M.setup(refresh)
     vim.cmd('edit ' .. vim.fn.fnameescape(paths.user_config()))
   end, { desc = 'Open your MindForge LSP configuration' })
 
+  cmd('FormatConfig', function()
+    local path = paths.formatters_config()
+    paths.ensure(paths.nvim_dir())
+    if not vim.uv.fs_stat(path) then
+      local template = [[-- MindForge Custom Formatters (this file is yours; MindForge never overwrites it).
+--
+-- Configure custom formatters for any filetype or override built-in ones.
+-- You can specify:
+--   1. An executable and arguments:  { 'sql-formatter', '--config', '{"keywordCase": "upper"}' }
+--   2. Multiple fallback commands:   { { 'sql-formatter' }, { 'sqlfluff', 'format', '-' } }
+--   3. A Lua function:               function(text, bufnr) return formatted_text end
+--
+return {
+  -- Custom SQL formatter:
+  -- sql = { 'sql-formatter', '--config', '{"keywordCase": "upper", "tabWidth": 2}' },
+
+  -- Custom Python formatter:
+  -- python = { 'black', '--quiet', '-' },
+
+  -- Custom Lua function:
+  -- markdown = function(text)
+  --   return text:gsub('\t', '  ')
+  -- end,
+}
+]]
+      pcall(vim.fn.writefile, vim.split(template, '\n'), path)
+    end
+    vim.cmd('edit ' .. vim.fn.fnameescape(path))
+  end, { desc = 'Open your MindForge custom formatters configuration' })
+
   --- True when any attached client advertises `method`.
   local function supports(method)
     for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do

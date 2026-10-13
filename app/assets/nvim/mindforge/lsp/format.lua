@@ -34,7 +34,6 @@ local FORMATTERS = {
     { 'pg_format' },
     { 'sleek' },
     { 'sqlfmt', '-' },
-    { 'prettier', '--stdin-filepath', 'query.sql' },
   },
 }
 
@@ -83,6 +82,67 @@ local function run_filter(command, text)
   return result.stdout
 end
 
+local user_formatters = {}
+
+--- Registers an in-memory formatter for a filetype.
+--- `target` can be:
+--- - a command table: { 'sql-formatter', '--config', '{"keywordCase": "upper"}' }
+--- - a list of candidate command tables: { { 'sql-formatter' }, { 'sqlfluff', 'format', '-' } }
+--- - a Lua function: function(text, bufnr) return formatted_text end
+--- - a command string: 'sql-formatter --language postgresql'
+function M.register(filetype, target)
+  user_formatters[filetype] = target
+end
+
+M.formatters = FORMATTERS
+
+--- Discovers user-defined formatters for `ft`.
+--- Checks in order:
+--- 1. in-memory M.register()
+--- 2. <home>/nvim/formatters/<filetype>.lua (e.g. nvim/formatters/sql.lua)
+--- 3. <home>/nvim/formatters.lua (table returning { sql = ... })
+--- 4. vim.g.mindforge_formatters
+--- 5. <home>/nvim/lsp.lua (config.load().formatters)
+local function get_user_formatter(ft)
+  if user_formatters[ft] then
+    return user_formatters[ft]
+  end
+
+  local ok, paths = pcall(require, 'mindforge.lsp.paths')
+  if ok and paths and paths.nvim_dir then
+    local ft_file = paths.nvim_dir() .. '/formatters/' .. ft .. '.lua'
+    if vim.uv.fs_stat(ft_file) then
+      local ok_load, res = pcall(dofile, ft_file)
+      if ok_load and res ~= nil then
+        return res
+      end
+    end
+
+    local main_file = paths.formatters_config and paths.formatters_config() or (paths.nvim_dir() .. '/formatters.lua')
+    if vim.uv.fs_stat(main_file) then
+      local ok_load, res = pcall(dofile, main_file)
+      if ok_load and type(res) == 'table' and res[ft] then
+        return res[ft]
+      end
+    end
+  end
+
+  if type(vim.g.mindforge_formatters) == 'table' and vim.g.mindforge_formatters[ft] then
+    return vim.g.mindforge_formatters[ft]
+  end
+
+  local ok_cfg, config = pcall(require, 'mindforge.lsp.config')
+  if ok_cfg and config and config.load then
+    local cfg = config.load()
+    local custom = cfg.formatters or cfg.format
+    if type(custom) == 'table' and custom[ft] then
+      return custom[ft]
+    end
+  end
+
+  return nil
+end
+
 local function format_sql_builtin(text)
   local TOP_CLAUSES = {
     ['SELECT'] = true, ['FROM'] = true, ['WHERE'] = true,
@@ -112,7 +172,7 @@ local function format_sql_builtin(text)
     'FUNCTION', 'BEGIN', 'COMMIT', 'ROLLBACK', 'CASE', 'WHEN', 'THEN', 'ELSE',
     'END', 'DISTINCT', 'ALL', 'ANY', 'SOME', 'ASC', 'DESC', 'COUNT', 'SUM',
     'AVG', 'MIN', 'MAX', 'COALESCE', 'CAST', 'OVER', 'PARTITION BY', 'WINDOW',
-    'RETURNING', 'CONFLICT', 'DO NOTHING', 'DO UPDATE', 'TABLE', 'INTO'
+    'RETURNING', 'CONFLICT', 'DO NOTHING', 'DO UPDATE', 'TABLE', 'INTO', 'BY'
   }
 
   table.sort(ALL_KEYWORDS, function(a, b) return #a > #b end)
@@ -159,13 +219,16 @@ local function format_sql_builtin(text)
       end
       table.insert(tokens, { type = 'space', val = ' ' })
       i = j
-    elseif c:match('[%a_]') then
+    elseif c:match('[%w_]') then
       local j = i + 1
       while j <= len and text:sub(j, j):match('[%w_]') do
         j = j + 1
       end
       table.insert(tokens, { type = 'word', val = text:sub(i, j - 1) })
       i = j
+    elseif c2 == '>=' or c2 == '<=' or c2 == '!=' or c2 == '<>' then
+      table.insert(tokens, { type = 'op', val = c2 })
+      i = i + 2
     else
       table.insert(tokens, { type = 'punct', val = c })
       i = i + 1
@@ -224,44 +287,56 @@ local function format_sql_builtin(text)
     current_line = ''
   end
 
+  local in_select = false
   for _, tok in ipairs(normalized) do
     if tok.type == 'keyword' then
       if TOP_CLAUSES[tok.val] then
         push_line()
         current_line = tok.val
+        in_select = (tok.val == 'SELECT')
       elseif SUB_CLAUSES[tok.val] then
         push_line()
         current_line = '  ' .. tok.val
+        if tok.val ~= 'AND' and tok.val ~= 'OR' and tok.val ~= 'ON' then
+          in_select = false
+        end
       else
         if #current_line > 0 and not current_line:match('%s$') and not current_line:match('%($') then
           current_line = current_line .. ' '
         end
         current_line = current_line .. tok.val
       end
+    elseif tok.type == 'op' then
+      current_line = current_line:gsub('%s*$', '') .. ' ' .. tok.val .. ' '
     elseif tok.type == 'punct' then
       if tok.val == ';' then
-        current_line = current_line .. ';'
+        current_line = current_line:gsub('%s*$', '') .. ';'
         push_line()
+        in_select = false
       elseif tok.val == ',' then
-        current_line = current_line .. ','
-        if current_line:match('^SELECT') or current_line:match('^%s%s') then
+        current_line = current_line:gsub('%s*$', '') .. ','
+        if in_select then
           push_line()
           current_line = '  '
         else
           current_line = current_line .. ' '
         end
+      elseif tok.val == '(' then
+        current_line = current_line .. '('
+      elseif tok.val == ')' then
+        current_line = current_line:gsub('%s*$', '') .. ')'
+      elseif tok.val == '=' or tok.val == '<' or tok.val == '>' then
+        current_line = current_line:gsub('%s*$', '') .. ' ' .. tok.val .. ' '
+      elseif tok.val == '.' then
+        current_line = current_line:gsub('%s*$', '') .. '.'
       else
-        if tok.val == '(' or tok.val == ')' then
-          current_line = current_line .. tok.val
-        else
-          current_line = current_line .. ' ' .. tok.val .. ' '
-        end
+        current_line = current_line .. tok.val
       end
     elseif tok.type == 'comment' then
       push_line()
       table.insert(lines, tok.val)
     elseif tok.type == 'space' then
-      if #current_line > 0 and not current_line:match('%s$') and not current_line:match('%($') then
+      if #current_line > 0 and not current_line:match('%s$') and not current_line:match('%($') and not current_line:match('%.$') then
         current_line = current_line .. ' '
       end
     else
@@ -286,30 +361,60 @@ function M.format()
     end
   end
 
-  -- 2. Fall back to a command-line formatter for this filetype.
   local ft = vim.bo[buf].filetype
-  local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n') .. '\n'
+  local raw_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local text = table.concat(raw_lines, '\n') .. '\n'
+
+  local function apply_output(output)
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    local lines = vim.split(output:gsub('\n$', ''), '\n', { plain = true })
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    local row = math.min(cursor[1], math.max(1, #lines))
+    pcall(vim.api.nvim_win_set_cursor, 0, { row, cursor[2] })
+  end
+
+  -- 2. Check user-defined formatters from <home>/nvim/formatters.lua, lsp.lua, etc.
+  local user_fmt = get_user_formatter(ft)
+  if user_fmt then
+    if type(user_fmt) == 'function' then
+      local ok, output = pcall(user_fmt, text, buf)
+      if ok and type(output) == 'string' and output ~= '' then
+        apply_output(output)
+        return 'custom formatter'
+      end
+    elseif type(user_fmt) == 'table' then
+      local candidates = type(user_fmt[1]) == 'table' and user_fmt or { user_fmt }
+      for _, cmd in ipairs(candidates) do
+        local output = run_filter(cmd, text)
+        if output and output ~= '' then
+          apply_output(output)
+          return cmd[1]
+        end
+      end
+    elseif type(user_fmt) == 'string' then
+      local cmd = vim.split(user_fmt, '%s+')
+      local output = run_filter(cmd, text)
+      if output and output ~= '' then
+        apply_output(output)
+        return cmd[1]
+      end
+    end
+  end
+
+  -- 3. Fall back to built-in candidate command-line formatters.
   for _, command in ipairs(FORMATTERS[ft] or {}) do
     local output = run_filter(command, text)
     if output and output ~= '' then
-      local cursor = vim.api.nvim_win_get_cursor(0)
-      local lines = vim.split(output:gsub('\n$', ''), '\n', { plain = true })
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-      local row = math.min(cursor[1], math.max(1, #lines))
-      pcall(vim.api.nvim_win_set_cursor, 0, { row, cursor[2] })
+      apply_output(output)
       return command[1]
     end
   end
 
-  -- 3. Built-in SQL formatting fallback if no external tool is installed.
+  -- 4. Built-in SQL formatting fallback if no external tool is installed.
   if ft == 'sql' then
     local output = format_sql_builtin(text)
     if output and output ~= '' and output ~= text then
-      local cursor = vim.api.nvim_win_get_cursor(0)
-      local lines = vim.split(output:gsub('\n$', ''), '\n', { plain = true })
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-      local row = math.min(cursor[1], math.max(1, #lines))
-      pcall(vim.api.nvim_win_set_cursor, 0, { row, cursor[2] })
+      apply_output(output)
       return 'built-in SQL formatter'
     elseif output and output == text then
       return 'already formatted'

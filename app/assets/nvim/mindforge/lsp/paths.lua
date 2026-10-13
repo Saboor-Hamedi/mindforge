@@ -26,6 +26,10 @@ function M.user_config()
   return M.nvim_dir() .. '/lsp.lua'
 end
 
+function M.formatters_config()
+  return M.nvim_dir() .. '/formatters.lua'
+end
+
 function M.native_dir()
   return M.nvim_dir() .. '/lsp'
 end
