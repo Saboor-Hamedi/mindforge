@@ -138,7 +138,7 @@ pub fn render_search_modal(
     );
 
     // Keyboard navigation: ArrowUp/Down and vim-style Ctrl+K/J before TextEdit consumes them
-    let (nav_up, nav_down, nav_enter, nav_esc, switch_to_cmd, switch_to_notes) =
+    let (nav_up, nav_down, nav_enter, nav_esc, switch_to_cmd, switch_to_notes, has_text_input) =
         ui.input_mut(|i| {
             let ctrl_shift_p = (i.modifiers.ctrl || i.modifiers.command)
                 && i.modifiers.shift
@@ -159,6 +159,8 @@ pub fn render_search_modal(
             let down = i.key_pressed(egui::Key::ArrowDown) || ctrl_j;
             let enter = i.key_pressed(egui::Key::Enter);
             let esc = i.key_pressed(egui::Key::Escape);
+
+            let has_text_input = i.events.iter().any(|e| matches!(e, egui::Event::Text(_)));
 
             if i.key_pressed(egui::Key::ArrowUp) {
                 i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp);
@@ -184,7 +186,7 @@ pub fn render_search_modal(
                 i.consume_key(egui::Modifiers::COMMAND, egui::Key::P);
             }
 
-            (up, down, enter, esc, ctrl_shift_p, ctrl_p)
+            (up, down, enter, esc, ctrl_shift_p, ctrl_p, has_text_input)
         });
 
     if switch_to_cmd {
@@ -211,7 +213,7 @@ pub fn render_search_modal(
             *selected_idx = 0;
         }
     }
-    if nav_enter {
+    if nav_enter && !has_text_input {
         if let Some(item) = results.get(*selected_idx) {
             match &item.action {
                 crate::services::fuzzy::PaletteAction::OpenThemePicker => {

@@ -50,6 +50,18 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
             {
                 app.sidebar.selected_idx += 1;
                 app.sidebar.needs_scroll = true;
+            } else if !app.workspace.entries.is_empty() {
+                let current = app.workspace.selected_path.clone();
+                let next = app.workspace.entries.iter().find(|e| {
+                    match &current {
+                        Some(c) => e.path > *c,
+                        None => true,
+                    }
+                });
+                if let Some(entry) = next {
+                    app.workspace.selected_path = Some(entry.path.clone());
+                    app.sidebar.needs_scroll = true;
+                }
             }
             return Some(false);
         }
@@ -58,6 +70,18 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
             if app.sidebar.selected_idx > 0 {
                 app.sidebar.selected_idx -= 1;
                 app.sidebar.needs_scroll = true;
+            } else if !app.workspace.entries.is_empty() {
+                let current = app.workspace.selected_path.clone();
+                let prev = app.workspace.entries.iter().rev().find(|e| {
+                    match &current {
+                        Some(c) => e.path < *c,
+                        None => false,
+                    }
+                });
+                if let Some(entry) = prev {
+                    app.workspace.selected_path = Some(entry.path.clone());
+                    app.sidebar.needs_scroll = true;
+                }
             }
             return Some(false);
         }
@@ -67,6 +91,14 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
                 app.load_note(note.id, note.topic, note.body, now);
                 app.sidebar.focused = true;
                 app.set_status("Loaded note (sidebar active — use j/k to move)", now);
+            } else if let Some(entry) = app.workspace.selected_path.clone() {
+                if entry.is_dir() {
+                    app.workspace.toggle(&entry);
+                    app.persist_workspace_expansion();
+                } else {
+                    app.open_file_path(entry, now);
+                    app.sidebar.focused = false;
+                }
             }
             return Some(false);
         }

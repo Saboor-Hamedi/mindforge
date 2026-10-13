@@ -210,6 +210,30 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
         return Some(false);
     }
 
+    // Focus Sidebar Files: Ctrl+H — always select the file that's open on the
+    // active tab so the user sees where they are in the tree.
+    let ctrl_h = ctx.input(|i| {
+        i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::H)
+    });
+    if ctrl_h && !app.command_bar.in_command {
+        if app.misc.mode == Mode::Doc {
+            app.tabs.doc_sidebar_focused = true;
+            app.set_status("Doc sidebar focused (Ctrl+L for reader)", now);
+        } else if app.sidebar.open {
+            app.sidebar.focused = true;
+            if let Some(tab) = app.open_notes.get(app.tabs.active_tab) {
+                if let Some(path) = &tab.file_path {
+                    app.workspace.selected_path = Some(path.clone());
+                    app.workspace.reveal(path);
+                    app.persist_workspace_expansion();
+                    app.sidebar.needs_scroll = true;
+                }
+            }
+            app.set_status("Sidebar focused (Ctrl+L for editor)", now);
+        }
+        return Some(false);
+    }
+
     // Panel Navigation: Ctrl+L (Focus Editor / Right Pane)
     let ctrl_l = ctx.input(|i| {
         i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::L)
