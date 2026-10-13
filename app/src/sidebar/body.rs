@@ -180,9 +180,15 @@ fn render_tree_entry(
     any_modal_open: bool,
     theme: &Theme,
     action: &mut Option<SidebarAction>,
+    sidebar_needs_scroll: bool,
+    sidebar_focused: bool,
 ) {
     let indent = entry_depth as f32 * 14.0;
-    let selected = workspace.selected_items.contains(entry_path);
+    let selected = workspace.selected_items.contains(entry_path)
+        || workspace
+            .selected_path
+            .as_deref()
+            .map_or(false, |p| crate::workspace::same_path(p, entry_path));
     let active = active_file.is_some_and(|path| crate::workspace::same_path(path, entry_path));
     let expanded = workspace.expanded.contains(entry_path);
     let (caret, glyph) = super::icons::get_explorer_icon(entry_path, entry_is_directory, expanded);
@@ -200,9 +206,22 @@ fn render_tree_entry(
     );
     let hovered = !any_modal_open && response.hovered();
 
+    if selected && sidebar_needs_scroll {
+        response.scroll_to_me(Some(egui::Align::Center));
+    }
+
     // 1. Background highlighting
     if active || selected || hovered {
-        if active {
+        if selected && active {
+            let bg_alpha = if sidebar_focused { 0.25 } else { 0.16 };
+            ui.painter()
+                .rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(bg_alpha));
+            let bar = Rect::from_min_size(
+                pos2(row_rect.min.x + 1.0, row_rect.min.y + 3.0),
+                vec2(3.0, row_h - 6.0),
+            );
+            ui.painter().rect_filled(bar, 1.5, theme.accent);
+        } else if active {
             ui.painter()
                 .rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(0.18));
             // Thin left-edge accent indicator
@@ -212,8 +231,19 @@ fn render_tree_entry(
             );
             ui.painter().rect_filled(bar, 1.25, theme.accent);
         } else if selected {
+            let bg_alpha = if sidebar_focused { 0.18 } else { 0.10 };
+            let bar_color = if sidebar_focused {
+                theme.accent
+            } else {
+                theme.muted
+            };
             ui.painter()
-                .rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(0.10));
+                .rect_filled(row_rect, 3.0, theme.accent.gamma_multiply(bg_alpha));
+            let bar = Rect::from_min_size(
+                pos2(row_rect.min.x + 1.0, row_rect.min.y + 3.0),
+                vec2(2.5, row_h - 6.0),
+            );
+            ui.painter().rect_filled(bar, 1.25, bar_color);
         } else if hovered {
             let hover_bg = if theme.is_light() {
                 Color32::from_rgba_unmultiplied(0, 0, 0, 10)
@@ -292,6 +322,7 @@ fn render_tree_entry(
         } else {
             workspace.selected_items.clear();
             workspace.selected_items.insert(entry_path.to_path_buf());
+            workspace.selected_path = Some(entry_path.to_path_buf());
             workspace.selection_anchor = Some(entry_path.to_path_buf());
             if entry_is_directory {
                 *action = Some(SidebarAction::ToggleWorkspaceFolder(
@@ -521,8 +552,8 @@ pub fn render_sidebar_body(
     _is_dirty: bool,
     theme: &Theme,
     _sidebar_selected_idx: usize,
-    _sidebar_focused: bool,
-    _sidebar_needs_scroll: bool,
+    sidebar_focused: bool,
+    sidebar_needs_scroll: bool,
     any_modal_open: bool,
     workspace: &mut WorkspaceState,
     active_file: Option<&std::path::Path>,
@@ -714,6 +745,8 @@ pub fn render_sidebar_body(
                                 any_modal_open,
                                 theme,
                                 &mut action,
+                                sidebar_needs_scroll,
+                                sidebar_focused,
                             );
                         }
 

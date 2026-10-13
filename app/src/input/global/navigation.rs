@@ -9,25 +9,33 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
     // 1. Sidebar Keyboard Navigation
     // Guarded by !app.command_bar.in_command so typing ':' is never consumed by the sidebar.
     if app.sidebar.open && app.sidebar.focused && !app.command_bar.in_command {
-        let (sb_up, sb_down, sb_enter, sb_esc, sb_edit, sb_to_editor, sb_tab) = ctx.input(|i| {
-            (
-                (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K))
-                    || i.key_pressed(egui::Key::ArrowUp),
-                (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J))
-                    || i.key_pressed(egui::Key::ArrowDown),
-                !i.modifiers.ctrl && !i.modifiers.command && i.key_pressed(egui::Key::Enter),
-                i.key_pressed(egui::Key::Escape),
-                !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::I),
-                (!i.modifiers.alt
-                    && (i.key_pressed(egui::Key::L) || i.key_pressed(egui::Key::ArrowRight))),
-                !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::Tab),
-            )
-        });
+        let (sb_up, sb_down, sb_left, sb_right, sb_enter, sb_esc, sb_edit, sb_to_editor, sb_tab) =
+            ctx.input(|i| {
+                (
+                    (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::K))
+                        || i.key_pressed(egui::Key::ArrowUp),
+                    (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::J))
+                        || i.key_pressed(egui::Key::ArrowDown),
+                    !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::ArrowLeft),
+                    !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::ArrowRight),
+                    !i.modifiers.ctrl
+                        && !i.modifiers.command
+                        && i.key_pressed(egui::Key::Enter),
+                    i.key_pressed(egui::Key::Escape),
+                    !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::I),
+                    (i.modifiers.ctrl
+                        && !i.modifiers.shift
+                        && !i.modifiers.alt
+                        && i.key_pressed(egui::Key::L))
+                        || (!i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::L)),
+                    !i.modifiers.ctrl && !i.modifiers.alt && i.key_pressed(egui::Key::Tab),
+                )
+            });
 
         if sb_esc || sb_to_editor || sb_tab {
             app.sidebar.focused = false;
             app.misc.caret.gliding = false;
-            app.set_status("Editor active (Ctrl+B toggles the Sidebar)", now);
+            app.set_status("Editor focused (Ctrl+H for sidebar)", now);
             return Some(false);
         }
 
@@ -45,21 +53,47 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
         }
 
         if sb_down {
-            if !app.notes.notes_list.is_empty()
-                && app.sidebar.selected_idx + 1 < app.notes.notes_list.len()
-            {
-                app.sidebar.selected_idx += 1;
-                app.sidebar.needs_scroll = true;
-            } else if !app.workspace.entries.is_empty() {
-                let current = app.workspace.selected_path.clone();
-                let next = app.workspace.entries.iter().find(|e| {
-                    match &current {
-                        Some(c) => e.path > *c,
-                        None => true,
-                    }
-                });
-                if let Some(entry) = next {
-                    app.workspace.selected_path = Some(entry.path.clone());
+            if app.workspace.root.is_some() && !app.workspace.entries.is_empty() {
+                let query_lower = app.sidebar.filter_query.trim().to_lowercase();
+                let visible_indices: Vec<usize> = app
+                    .workspace
+                    .entries
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, e)| {
+                        if query_lower.is_empty() {
+                            true
+                        } else {
+                            e.path
+                                .file_name()
+                                .map(|f| f.to_string_lossy().to_lowercase().contains(&query_lower))
+                                .unwrap_or(false)
+                        }
+                    })
+                    .map(|(i, _)| i)
+                    .collect();
+
+                if !visible_indices.is_empty() {
+                    let current_pos = app.workspace.selected_path.as_ref().and_then(|cur| {
+                        visible_indices.iter().position(|&idx| {
+                            crate::workspace::same_path(&app.workspace.entries[idx].path, cur)
+                        })
+                    });
+                    let new_pos = match current_pos {
+                        Some(pos) => (pos + 1).min(visible_indices.len() - 1),
+                        None => 0,
+                    };
+                    let entry_idx = visible_indices[new_pos];
+                    let path = app.workspace.entries[entry_idx].path.clone();
+                    app.workspace.selected_path = Some(path.clone());
+                    app.workspace.selected_items.clear();
+                    app.workspace.selected_items.insert(path.clone());
+                    app.workspace.selection_anchor = Some(path);
+                    app.sidebar.needs_scroll = true;
+                }
+            } else if !app.notes.notes_list.is_empty() {
+                if app.sidebar.selected_idx + 1 < app.notes.notes_list.len() {
+                    app.sidebar.selected_idx += 1;
                     app.sidebar.needs_scroll = true;
                 }
             }
@@ -67,38 +101,120 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
         }
 
         if sb_up {
-            if app.sidebar.selected_idx > 0 {
-                app.sidebar.selected_idx -= 1;
-                app.sidebar.needs_scroll = true;
-            } else if !app.workspace.entries.is_empty() {
-                let current = app.workspace.selected_path.clone();
-                let prev = app.workspace.entries.iter().rev().find(|e| {
-                    match &current {
-                        Some(c) => e.path < *c,
-                        None => false,
-                    }
-                });
-                if let Some(entry) = prev {
-                    app.workspace.selected_path = Some(entry.path.clone());
+            if app.workspace.root.is_some() && !app.workspace.entries.is_empty() {
+                let query_lower = app.sidebar.filter_query.trim().to_lowercase();
+                let visible_indices: Vec<usize> = app
+                    .workspace
+                    .entries
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, e)| {
+                        if query_lower.is_empty() {
+                            true
+                        } else {
+                            e.path
+                                .file_name()
+                                .map(|f| f.to_string_lossy().to_lowercase().contains(&query_lower))
+                                .unwrap_or(false)
+                        }
+                    })
+                    .map(|(i, _)| i)
+                    .collect();
+
+                if !visible_indices.is_empty() {
+                    let current_pos = app.workspace.selected_path.as_ref().and_then(|cur| {
+                        visible_indices.iter().position(|&idx| {
+                            crate::workspace::same_path(&app.workspace.entries[idx].path, cur)
+                        })
+                    });
+                    let new_pos = match current_pos {
+                        Some(pos) => pos.saturating_sub(1),
+                        None => visible_indices.len().saturating_sub(1),
+                    };
+                    let entry_idx = visible_indices[new_pos];
+                    let path = app.workspace.entries[entry_idx].path.clone();
+                    app.workspace.selected_path = Some(path.clone());
+                    app.workspace.selected_items.clear();
+                    app.workspace.selected_items.insert(path.clone());
+                    app.workspace.selection_anchor = Some(path);
+                    app.sidebar.needs_scroll = true;
+                }
+            } else if !app.notes.notes_list.is_empty() {
+                if app.sidebar.selected_idx > 0 {
+                    app.sidebar.selected_idx -= 1;
                     app.sidebar.needs_scroll = true;
                 }
             }
             return Some(false);
         }
 
-        if sb_enter {
-            if let Some(note) = app.notes.notes_list.get(app.sidebar.selected_idx).cloned() {
-                app.load_note(note.id, note.topic, note.body, now);
-                app.sidebar.focused = true;
-                app.set_status("Loaded note (sidebar active — use j/k to move)", now);
-            } else if let Some(entry) = app.workspace.selected_path.clone() {
-                if entry.is_dir() {
-                    app.workspace.toggle(&entry);
+        if sb_left && app.workspace.root.is_some() {
+            if let Some(entry_path) = app.workspace.selected_path.clone() {
+                if app.workspace.expanded.contains(&entry_path) {
+                    app.workspace.toggle(&entry_path);
                     app.persist_workspace_expansion();
-                } else {
-                    app.open_file_path(entry, now);
-                    app.sidebar.focused = false;
+                    app.sidebar.needs_scroll = true;
+                } else if let Some(parent) = entry_path.parent() {
+                    if app
+                        .workspace
+                        .entries
+                        .iter()
+                        .any(|e| crate::workspace::same_path(&e.path, parent))
+                    {
+                        let parent_path = parent.to_path_buf();
+                        app.workspace.selected_path = Some(parent_path.clone());
+                        app.workspace.selected_items.clear();
+                        app.workspace.selected_items.insert(parent_path.clone());
+                        app.workspace.selection_anchor = Some(parent_path);
+                        app.sidebar.needs_scroll = true;
+                    }
                 }
+            }
+            return Some(false);
+        }
+
+        if sb_right && app.workspace.root.is_some() {
+            if let Some(entry_path) = app.workspace.selected_path.clone() {
+                let is_dir = app
+                    .workspace
+                    .entries
+                    .iter()
+                    .find(|e| crate::workspace::same_path(&e.path, &entry_path))
+                    .map(|e| e.directory)
+                    .unwrap_or_else(|| entry_path.is_dir());
+                if is_dir && !app.workspace.expanded.contains(&entry_path) {
+                    app.workspace.toggle(&entry_path);
+                    app.persist_workspace_expansion();
+                    app.sidebar.needs_scroll = true;
+                    return Some(false);
+                }
+            }
+        }
+
+        if sb_enter {
+            if app.workspace.root.is_some() {
+                if let Some(entry_path) = app.workspace.selected_path.clone() {
+                    let is_dir = app
+                        .workspace
+                        .entries
+                        .iter()
+                        .find(|e| crate::workspace::same_path(&e.path, &entry_path))
+                        .map(|e| e.directory)
+                        .unwrap_or_else(|| entry_path.is_dir());
+                    if is_dir {
+                        app.workspace.toggle(&entry_path);
+                        app.persist_workspace_expansion();
+                        app.sidebar.needs_scroll = true;
+                    } else {
+                        app.open_file_path(entry_path, now);
+                        app.sidebar.focused = false;
+                        app.set_status("Opened file (Ctrl+H: sidebar)", now);
+                    }
+                }
+            } else if let Some(note) = app.notes.notes_list.get(app.sidebar.selected_idx).cloned() {
+                app.load_note(note.id, note.topic, note.body, now);
+                app.sidebar.focused = false;
+                app.set_status("Loaded note (Ctrl+H: sidebar)", now);
             }
             return Some(false);
         }
@@ -243,4 +359,153 @@ pub fn handle_navigation_shortcuts(app: &mut App, ctx: &egui::Context, now: f64)
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_sidebar_jk_and_arrows_navigate_workspace_files() {
+        let mut app = App::new();
+        app.sidebar.open = true;
+        app.sidebar.focused = true;
+        app.workspace.root = Some(PathBuf::from("/workspace"));
+        app.workspace.entries = vec![
+            crate::workspace::Entry {
+                path: PathBuf::from("/workspace/a.rs"),
+                depth: 1,
+                directory: false,
+            },
+            crate::workspace::Entry {
+                path: PathBuf::from("/workspace/b.rs"),
+                depth: 1,
+                directory: false,
+            },
+            crate::workspace::Entry {
+                path: PathBuf::from("/workspace/c.rs"),
+                depth: 1,
+                directory: false,
+            },
+        ];
+        app.workspace.selected_path = Some(PathBuf::from("/workspace/a.rs"));
+
+        let ctx = egui::Context::default();
+
+        // 1. Press 'j' -> moves selection to b.rs
+        let raw_j = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::J,
+                physical_key: Some(egui::Key::J),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        let _ = ctx.run(raw_j, |ctx| {
+            handle_navigation_shortcuts(&mut app, ctx, 1.0);
+        });
+        assert_eq!(
+            app.workspace.selected_path.as_deref(),
+            Some(std::path::Path::new("/workspace/b.rs"))
+        );
+        assert!(app
+            .workspace
+            .selected_items
+            .contains(std::path::Path::new("/workspace/b.rs")));
+
+        // 2. Press ArrowDown -> moves selection to c.rs
+        let raw_down = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::ArrowDown,
+                physical_key: Some(egui::Key::ArrowDown),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        let _ = ctx.run(raw_down, |ctx| {
+            handle_navigation_shortcuts(&mut app, ctx, 1.0);
+        });
+        assert_eq!(
+            app.workspace.selected_path.as_deref(),
+            Some(std::path::Path::new("/workspace/c.rs"))
+        );
+
+        // 3. Press 'k' -> moves selection back to b.rs
+        let raw_k = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::K,
+                physical_key: Some(egui::Key::K),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        let _ = ctx.run(raw_k, |ctx| {
+            handle_navigation_shortcuts(&mut app, ctx, 1.0);
+        });
+        assert_eq!(
+            app.workspace.selected_path.as_deref(),
+            Some(std::path::Path::new("/workspace/b.rs"))
+        );
+
+        // 4. Press ArrowUp -> moves selection back to a.rs
+        let raw_up = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::ArrowUp,
+                physical_key: Some(egui::Key::ArrowUp),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        let _ = ctx.run(raw_up, |ctx| {
+            handle_navigation_shortcuts(&mut app, ctx, 1.0);
+        });
+        assert_eq!(
+            app.workspace.selected_path.as_deref(),
+            Some(std::path::Path::new("/workspace/a.rs"))
+        );
+    }
+
+    #[test]
+    fn test_sidebar_enter_toggles_directory() {
+        let mut app = App::new();
+        app.sidebar.open = true;
+        app.sidebar.focused = true;
+        let root = PathBuf::from("/workspace");
+        let dir = PathBuf::from("/workspace/src");
+        app.workspace.root = Some(root.clone());
+        app.workspace.entries = vec![crate::workspace::Entry {
+            path: dir.clone(),
+            depth: 1,
+            directory: true,
+        }];
+        app.workspace.selected_path = Some(dir.clone());
+        assert!(!app.workspace.expanded.contains(&dir));
+
+        let ctx = egui::Context::default();
+        let raw_enter = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: Some(egui::Key::Enter),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        let _ = ctx.run(raw_enter, |ctx| {
+            handle_navigation_shortcuts(&mut app, ctx, 1.0);
+        });
+        assert!(app.workspace.expanded.contains(&dir));
+        // Focus stays on sidebar when toggling a folder
+        assert!(app.sidebar.focused);
+    }
 }

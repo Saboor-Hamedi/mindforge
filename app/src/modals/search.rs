@@ -138,7 +138,7 @@ pub fn render_search_modal(
     );
 
     // Keyboard navigation: ArrowUp/Down and vim-style Ctrl+K/J before TextEdit consumes them
-    let (nav_up, nav_down, nav_enter, nav_esc, switch_to_cmd, switch_to_notes, has_text_input) =
+    let (nav_up, nav_down, nav_enter, nav_esc, switch_to_cmd, switch_to_notes) =
         ui.input_mut(|i| {
             let ctrl_shift_p = (i.modifiers.ctrl || i.modifiers.command)
                 && i.modifiers.shift
@@ -160,13 +160,14 @@ pub fn render_search_modal(
             let enter = i.key_pressed(egui::Key::Enter);
             let esc = i.key_pressed(egui::Key::Escape);
 
-            let has_text_input = i.events.iter().any(|e| matches!(e, egui::Event::Text(_)));
-
             if i.key_pressed(egui::Key::ArrowUp) {
                 i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp);
             }
             if i.key_pressed(egui::Key::ArrowDown) {
                 i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown);
+            }
+            if enter {
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Enter);
             }
             if ctrl_k {
                 i.consume_key(egui::Modifiers::CTRL, egui::Key::K);
@@ -186,7 +187,7 @@ pub fn render_search_modal(
                 i.consume_key(egui::Modifiers::COMMAND, egui::Key::P);
             }
 
-            (up, down, enter, esc, ctrl_shift_p, ctrl_p, has_text_input)
+            (up, down, enter, esc, ctrl_shift_p, ctrl_p)
         });
 
     if switch_to_cmd {
@@ -213,7 +214,7 @@ pub fn render_search_modal(
             *selected_idx = 0;
         }
     }
-    if nav_enter && !has_text_input {
+    if nav_enter {
         if let Some(item) = results.get(*selected_idx) {
             match &item.action {
                 crate::services::fuzzy::PaletteAction::OpenThemePicker => {
@@ -525,4 +526,76 @@ pub fn render_search_modal(
     }
 
     action
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_search_modal_enter_selects_item() {
+        let ctx = egui::Context::default();
+        let mut query = "test".to_string();
+        let mut selected_idx = 0;
+        let results = vec![
+            SearchItem {
+                id: 1,
+                title: "Test Note".to_string(),
+                snippet: "Body".to_string(),
+                score: 100,
+                badge: "".to_string(),
+                icon: "📄",
+                action: crate::services::fuzzy::PaletteAction::OpenNote(1),
+            },
+            SearchItem {
+                id: 2,
+                title: "Another Note".to_string(),
+                snippet: "Body 2".to_string(),
+                score: 80,
+                badge: "".to_string(),
+                icon: "📄",
+                action: crate::services::fuzzy::PaletteAction::OpenNote(2),
+            },
+        ];
+        let theme = Theme::default();
+        let bounds = Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 800.0));
+
+        let raw_enter = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: Some(egui::Key::Enter),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+
+        let mut act = None;
+        let _ = ctx.run(raw_enter, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let painter = ui.painter().clone();
+                act = Some(render_search_modal(
+                    ui,
+                    &painter,
+                    bounds,
+                    &mut query,
+                    &results,
+                    &mut selected_idx,
+                    &theme,
+                    false,
+                    0.0,
+                    1.0,
+                ));
+            });
+        });
+
+        let action = act.expect("action returned");
+        assert!(action.should_close);
+        assert!(action.selected_item.is_some());
+        assert_eq!(
+            action.selected_item.unwrap().action,
+            crate::services::fuzzy::PaletteAction::OpenNote(1)
+        );
+    }
 }

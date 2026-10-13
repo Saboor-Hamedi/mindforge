@@ -409,12 +409,17 @@ pub fn update_search_results(app: &mut App) {
         app.services.lunaline_config.style,
     );
     let indexed_paths: Vec<std::path::PathBuf> = Vec::new();
+    let workspace_entries = if app.workspace.search_entries.is_empty() {
+        &app.workspace.entries
+    } else {
+        &app.workspace.search_entries
+    };
     app.modal
         .search_results
         .extend(crate::services::fuzzy::search_workspace(
             query,
             app.workspace.root.as_deref(),
-            &app.workspace.search_entries,
+            workspace_entries,
             &indexed_paths,
         ));
     app.modal

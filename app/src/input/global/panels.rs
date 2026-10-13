@@ -217,21 +217,41 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
     });
     if ctrl_h && !app.command_bar.in_command {
         if app.misc.mode == Mode::Doc {
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::H));
             app.tabs.doc_sidebar_focused = true;
             app.set_status("Doc sidebar focused (Ctrl+L for reader)", now);
+            return Some(false);
         } else if app.sidebar.open {
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::H));
             app.sidebar.focused = true;
+            let mut revealed = false;
             if let Some(tab) = app.open_notes.get(app.tabs.active_tab) {
                 if let Some(path) = &tab.file_path {
                     app.workspace.selected_path = Some(path.clone());
                     app.workspace.reveal(path);
                     app.persist_workspace_expansion();
                     app.sidebar.needs_scroll = true;
+                    revealed = true;
                 }
             }
-            app.set_status("Sidebar focused (Ctrl+L for editor)", now);
+            if !revealed && app.workspace.selected_path.is_none() {
+                if let Some(first) = app.workspace.entries.first() {
+                    let first_path = first.path.clone();
+                    app.workspace.selected_path = Some(first_path.clone());
+                    app.workspace.selected_items.clear();
+                    app.workspace.selected_items.insert(first_path.clone());
+                    app.workspace.selection_anchor = Some(first_path);
+                    app.sidebar.needs_scroll = true;
+                }
+            } else if let Some(path) = &app.workspace.selected_path {
+                app.workspace.selected_items.clear();
+                app.workspace.selected_items.insert(path.clone());
+                app.workspace.selection_anchor = Some(path.clone());
+                app.sidebar.needs_scroll = true;
+            }
+            app.set_status("Sidebar focused (Ctrl+L for editor, j/k to navigate)", now);
+            return Some(false);
         }
-        return Some(false);
     }
 
     // Panel Navigation: Ctrl+L (Focus Editor / Right Pane)
@@ -239,12 +259,14 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
         i.modifiers.ctrl && !i.modifiers.shift && !i.modifiers.alt && i.key_pressed(egui::Key::L)
     });
     if ctrl_l && !app.command_bar.in_command {
+        ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::L));
         if app.sidebar.open && (app.sidebar.focused || app.tabs.doc_sidebar_focused) {
             if app.misc.mode == Mode::Doc {
                 app.tabs.doc_sidebar_focused = false;
                 app.set_status("Doc reader focused (Ctrl+H for sidebar)", now);
             } else {
                 app.sidebar.focused = false;
+                app.misc.caret.gliding = false;
                 app.set_status("Editor focused (Ctrl+H for sidebar)", now);
             }
             return Some(false);
@@ -254,6 +276,7 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
             return Some(false);
         } else if app.sidebar.open {
             app.sidebar.focused = false;
+            app.misc.caret.gliding = false;
             app.set_status("Editor focused (Ctrl+H for sidebar)", now);
             return Some(false);
         }
@@ -269,9 +292,11 @@ mod tests {
     #[test]
     fn ctrl_h_is_not_consumed_as_a_sidebar_shortcut() {
         let mut app = App::new();
+        app.sidebar.open = false;
         let ctx = egui::Context::default();
         let mut result = None;
         let raw = egui::RawInput {
+            modifiers: egui::Modifiers::CTRL,
             events: vec![egui::Event::Key {
                 key: egui::Key::H,
                 physical_key: Some(egui::Key::H),
@@ -285,5 +310,51 @@ mod tests {
             result = handle_panel_shortcuts(&mut app, ctx, 1.0);
         });
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_ctrl_h_focuses_open_sidebar_and_ctrl_l_returns_to_editor() {
+        let mut app = App::new();
+        app.sidebar.open = true;
+        app.sidebar.focused = false;
+        let ctx = egui::Context::default();
+
+        // 1. Press Ctrl+H -> moves focus to sidebar
+        let raw_h = egui::RawInput {
+            modifiers: egui::Modifiers::CTRL,
+            events: vec![egui::Event::Key {
+                key: egui::Key::H,
+                physical_key: Some(egui::Key::H),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::CTRL,
+            }],
+            ..Default::default()
+        };
+        let mut res_h = None;
+        let _ = ctx.run(raw_h, |ctx| {
+            res_h = handle_panel_shortcuts(&mut app, ctx, 1.0);
+        });
+        assert_eq!(res_h, Some(false));
+        assert!(app.sidebar.focused);
+
+        // 2. Press Ctrl+L -> moves focus back to editor
+        let raw_l = egui::RawInput {
+            modifiers: egui::Modifiers::CTRL,
+            events: vec![egui::Event::Key {
+                key: egui::Key::L,
+                physical_key: Some(egui::Key::L),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::CTRL,
+            }],
+            ..Default::default()
+        };
+        let mut res_l = None;
+        let _ = ctx.run(raw_l, |ctx| {
+            res_l = handle_panel_shortcuts(&mut app, ctx, 1.0);
+        });
+        assert_eq!(res_l, Some(false));
+        assert!(!app.sidebar.focused);
     }
 }

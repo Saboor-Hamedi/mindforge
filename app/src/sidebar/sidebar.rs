@@ -72,7 +72,7 @@ pub fn render_sidebar(
 ) -> Option<SidebarAction> {
     // 1. Sidebar card background and border
     let sb_stroke = if sidebar_focused {
-        Stroke::new(1.0, theme.accent.gamma_multiply(0.40))
+        Stroke::new(1.5, theme.accent.gamma_multiply(0.80))
     } else {
         Stroke::new(1.0, theme.border().gamma_multiply(0.60))
     };
