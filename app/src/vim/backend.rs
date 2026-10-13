@@ -464,18 +464,19 @@ impl VimBackend {
                     );
                     self.grid.message = compact_message(&cmdline_text(&args[1]));
                     self.grid.message_at = Some(std::time::Instant::now());
+                    self.grid.message_copied_at = None;
                 }
                 "msg_clear" => {
-                    let sticky = self.grid.message_is_error
-                        && self
-                            .grid
-                            .message_at
-                            .is_some_and(|at| at.elapsed() < Duration::from_secs(8));
+                    let sticky = self
+                        .grid
+                        .message_at
+                        .is_some_and(|at| at.elapsed() < Duration::from_secs(5));
                     if sticky {
                         continue;
                     }
                     self.grid.message.clear();
                     self.grid.message_at = None;
+                    self.grid.message_copied_at = None;
                 }
                 _ => {}
             }

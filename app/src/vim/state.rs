@@ -34,6 +34,7 @@ pub struct GridState {
     /// Documentation / body preview of each completion item.
     pub popup_info: Vec<String>,
     pub message_at: Option<std::time::Instant>,
+    pub message_copied_at: Option<std::time::Instant>,
     pub popup_selected: Option<usize>,
     pub popup_anchor: Option<(usize, usize)>,
     pub message: String,

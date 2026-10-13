@@ -37,8 +37,15 @@ pub fn get_explorer_icon(
             "sql" => "🗄",
             "txt" | "log" => "📄",
             _ => {
-                if file_name.starts_with(".git") {
+                let fn_lower = file_name.to_ascii_lowercase();
+                if fn_lower.starts_with(".git") {
                     "🌿"
+                } else if fn_lower.starts_with(".lumina") || fn_lower.starts_with(".mindforge") {
+                    "✨"
+                } else if fn_lower.starts_with(".env") {
+                    "🔒"
+                } else if fn_lower.starts_with('.') {
+                    "⚙"
                 } else {
                     "📄"
                 }

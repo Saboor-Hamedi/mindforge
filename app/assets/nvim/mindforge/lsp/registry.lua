@@ -155,10 +155,18 @@ M.servers = {
   },
   sql = {
     desc = 'SQL (SQLite / PostgreSQL / MySQL / MariaDB)',
-    npm = { 'sql-language-server' },
+    npm = { 'sql-language-server', 'sql-formatter' },
     bin = 'sql-language-server',
     config = {
       cmd_args = { 'up', '--method=stdio' },
+      filetypes = { 'sql' },
+    },
+  },
+  sql_formatter = {
+    desc = 'SQL Formatter (sql-formatter CLI)',
+    npm = { 'sql-formatter' },
+    bin = 'sql-formatter',
+    config = {
       filetypes = { 'sql' },
     },
   },

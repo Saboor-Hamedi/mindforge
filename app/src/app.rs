@@ -565,10 +565,11 @@ impl App {
             return;
         }
 
-        let title_str = path
+        let title = path
             .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("Untitled");
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Untitled".to_string());
+        let title_str = title.as_str();
 
         // If an untitled scratch tab exists with matching filename or blank "Untitled Note",
         // replace it rather than creating duplicate tabs for the same file!
@@ -628,11 +629,6 @@ impl App {
         {
             let _ = self.persist_scratch_tab(self.tabs.active_tab, now);
         }
-        let title = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("Untitled")
-            .to_string();
         self.file_versions.insert(
             path.clone(),
             crate::workspace::file_fingerprint(&path).unwrap_or(0),

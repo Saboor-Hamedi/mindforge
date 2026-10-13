@@ -287,8 +287,12 @@ fn render_tree_entry(
 
     let response = response.on_hover_text(entry_path.to_string_lossy());
 
-    // Single click: select and open file immediately
-    if response.clicked() {
+    // Single click or release without dragging: select and open file immediately
+    let was_clicked = response.clicked()
+        || (!response.dragged()
+            && response.hovered()
+            && ui.input(|i| i.pointer.button_released(egui::PointerButton::Primary)));
+    if was_clicked {
         let (ctrl, shift) =
             ui.input(|i| (i.modifiers.ctrl || i.modifiers.command, i.modifiers.shift));
         if shift {

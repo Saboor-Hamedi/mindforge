@@ -81,6 +81,11 @@ pub fn search_workspace(
         let name = entry.path.file_name().unwrap_or_default().to_string_lossy();
         let score = fuzzy_match(needle, &name).or_else(|| fuzzy_match(needle, &relative));
         if let Some(score) = score {
+            let (_, icon_glyph) = crate::sidebar::icons::get_explorer_icon(
+                &entry.path,
+                entry.directory,
+                false,
+            );
             results.push(SearchItem {
                 id: 0,
                 title: name.into_owned(),
@@ -91,7 +96,7 @@ pub fn search_workspace(
                 } else {
                     "File".into()
                 },
-                icon: if entry.directory { "📁" } else { "📄" },
+                icon: icon_glyph,
                 action: if entry.directory {
                     PaletteAction::OpenWorkspaceFolder(entry.path.clone())
                 } else {
@@ -494,6 +499,9 @@ pub fn fuzzy_match(needle: &str, haystack: &str) -> Option<i64> {
                 || haystack_chars[h_idx - 1] == '_'
                 || haystack_chars[h_idx - 1] == '-'
                 || haystack_chars[h_idx - 1] == ':'
+                || haystack_chars[h_idx - 1] == '.'
+                || haystack_chars[h_idx - 1] == '/'
+                || haystack_chars[h_idx - 1] == '\\'
             {
                 score += 15; // word boundary bonus
             }

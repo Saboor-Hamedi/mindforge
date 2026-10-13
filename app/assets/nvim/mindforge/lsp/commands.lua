@@ -148,9 +148,20 @@ function M.setup(refresh)
   cmd('Format', function()
     local name = require('mindforge.lsp.format').format()
     if name then
-      say(name == 'lsp' and 'Formatted with LSP' or ('Formatted with ' .. name))
+      if name == 'lsp' then
+        say('Formatted with LSP')
+      elseif name == 'already formatted' then
+        say('file is already formatted')
+      else
+        say('Formatted with ' .. name)
+      end
     else
-      say('no formatter available for this file (install one or :LspInstall)')
+      local ft = vim.bo.filetype
+      if ft == 'sql' then
+        say('no SQL formatter available (run :LspInstall sql or install sql-formatter)')
+      else
+        say('no formatter available for this file (install one or :LspInstall)')
+      end
     end
   end, { desc = 'Format current buffer (LSP or external formatter)' })
 

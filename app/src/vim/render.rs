@@ -150,10 +150,13 @@ impl VimBackend {
         // Expire stale messages/mode text so they never linger on screen (and
         // so a leftover message can no longer interfere with layout).
         if let Some(at) = self.grid.message_at {
-            if at.elapsed() > Duration::from_secs(5) {
+            if at.elapsed() >= Duration::from_secs(5) {
                 self.grid.message.clear();
                 self.grid.message_at = None;
                 self.grid.message_is_error = false;
+                self.grid.message_copied_at = None;
+            } else {
+                ui.ctx().request_repaint_after(Duration::from_millis(200));
             }
         }
 
@@ -250,6 +253,12 @@ impl VimBackend {
             self.sync_theme(theme);
         }
 
+        let rows = self.grid.cells.len();
+        let grid_is_empty = rows == 0
+            || self.grid.cells.iter().all(|row| {
+                row.iter().all(|cell| cell.text.trim().is_empty())
+            });
+
         if self.grid.width == 0 || self.grid.height == 0 {
             painter.text(
                 Pos2::new(origin.x + number_columns as f32 * cell_width, origin.y),
@@ -258,16 +267,27 @@ impl VimBackend {
                 font.clone(),
                 theme.text,
             );
-        }
+        } else if grid_is_empty {
+            if !self.lines.is_empty() && (self.lines.len() > 1 || !self.lines[0].is_empty()) {
+                let pending = self.lines.join("\n");
+                render_pending_text(
+                    &painter,
+                    rect,
+                    &pending,
+                    font_size,
+                    nvim_row_height,
+                    theme,
+                    show_line_numbers,
+                );
+            }
+        } else {
+            // Lay out every row Neovim actually sent (clipped to the rect by the
+            // painter) rather than clamping to the locally-computed height. Clamping
+            // could hide the last row and thus the caret when the grid was briefly a
+            // row taller than our estimate.
+            self.row_layouts.resize_with(rows, || None);
 
-        // Lay out every row Neovim actually sent (clipped to the rect by the
-        // painter) rather than clamping to the locally-computed height. Clamping
-        // could hide the last row and thus the caret when the grid was briefly a
-        // row taller than our estimate.
-        let rows = self.grid.cells.len();
-        self.row_layouts.resize_with(rows, || None);
-
-        for row_idx in 0..rows {
+            for row_idx in 0..rows {
             let row = &self.grid.cells[row_idx];
             let revision = self.grid.row_revision.get(row_idx).copied().unwrap_or(0);
             // Every grid row is real buffer text (messages/cmdline are handled
@@ -459,6 +479,7 @@ impl VimBackend {
                 }
             }
         }
+        }
 
         let font_row_height = self
             .row_layouts
@@ -567,22 +588,156 @@ impl VimBackend {
         }
 
         if !self.grid.message.is_empty() {
-            let fixed_font = crate::services::font_manager::editor_font_id(13.0);
-            // Anchor to the text column (not the gutter) so status/error text
-            // never overlaps the line numbers, and lift it above the command
-            // line when both are visible.
-            let message_y = if has_cmdline {
-                rect.max.y - nvim_row_height - 18.0
+            let fixed_font = crate::services::font_manager::editor_font_id(12.5);
+            let icon_font = crate::services::font_manager::editor_font_id(12.0);
+
+            let msg_text = &self.grid.message;
+            let is_error = self.grid.message_is_error;
+            let is_copied = self
+                .grid
+                .message_copied_at
+                .is_some_and(|t| t.elapsed() < Duration::from_millis(1500));
+
+            // Semantic colors
+            let prefix = if is_error { "⚠ " } else { "ℹ " };
+            let prefix_color = if is_error {
+                Color32::from_rgb(240, 100, 100)
             } else {
-                rect.max.y - 20.0
+                theme.accent
             };
-            painter.text(
-                Pos2::new(text_left, message_y),
-                Align2::LEFT_TOP,
-                &self.grid.message,
-                fixed_font,
-                theme.highlight,
+            let text_color = if is_error {
+                Color32::from_rgb(255, 140, 140)
+            } else {
+                theme.text
+            };
+
+            // Layout prefix and message
+            let prefix_galley =
+                painter.layout_no_wrap(prefix.to_string(), fixed_font.clone(), prefix_color);
+            let max_text_w = (rect.width() - 170.0).max(100.0);
+            let msg_galley = painter.layout(
+                msg_text.to_string(),
+                fixed_font.clone(),
+                text_color,
+                max_text_w,
             );
+
+            // Copy button text & icon
+            let copy_label = if is_copied { "✓ Copied" } else { "⎘ Copy" };
+            let copy_color = if is_copied {
+                theme.accent
+            } else if theme.is_light() {
+                theme.text
+            } else {
+                Color32::from_rgb(215, 220, 230)
+            };
+            let copy_galley =
+                painter.layout_no_wrap(copy_label.to_string(), icon_font.clone(), copy_color);
+            let copy_btn_w = copy_galley.size().x + 16.0;
+            let copy_btn_h = 22.0;
+
+            let pill_h = (msg_galley.size().y + 12.0).max(28.0);
+            let pill_w = (prefix_galley.size().x + msg_galley.size().x + copy_btn_w + 32.0)
+                .min(rect.width() - 24.0);
+
+            // Anchor above bottom edge with a solid gap, elevated above command line if open
+            let pill_bottom_gap = if has_cmdline {
+                nvim_row_height + 12.0
+            } else {
+                12.0
+            };
+            let pill_y = (rect.max.y - pill_bottom_gap - pill_h).max(rect.min.y + 4.0);
+            let pill_x = (rect.min.x + gutter_w + 16.0)
+                .min(rect.max.x - pill_w - 12.0)
+                .max(rect.min.x + 8.0);
+
+            let pill_rect =
+                Rect::from_min_size(Pos2::new(pill_x, pill_y), egui::vec2(pill_w, pill_h));
+
+            // Solid background card with distinct elevation
+            let pill_bg = if theme.is_light() {
+                Color32::from_rgb(246, 248, 251)
+            } else {
+                Color32::from_rgb(24, 26, 32)
+            };
+            let pill_border = if is_error {
+                Color32::from_rgba_unmultiplied(240, 90, 90, 180)
+            } else {
+                theme.border().gamma_multiply(0.85)
+            };
+
+            // Card background & outline
+            painter.rect(
+                pill_rect,
+                6.0,
+                pill_bg,
+                Stroke::new(1.0, pill_border),
+                egui::StrokeKind::Inside,
+            );
+
+            // Draw prefix icon
+            let content_y = pill_rect.center().y;
+            let prefix_pos = Pos2::new(
+                pill_rect.min.x + 10.0,
+                content_y - prefix_galley.size().y * 0.5,
+            );
+            painter.galley(prefix_pos, prefix_galley, prefix_color);
+
+            // Draw message text
+            let text_x = prefix_pos.x + 18.0;
+            let text_pos = Pos2::new(text_x, content_y - msg_galley.size().y * 0.5);
+            painter.galley(text_pos, msg_galley, text_color);
+
+            // Copy button on the right
+            let copy_btn_rect = Rect::from_center_size(
+                Pos2::new(pill_rect.max.x - copy_btn_w * 0.5 - 6.0, content_y),
+                egui::vec2(copy_btn_w, copy_btn_h),
+            );
+
+            let copy_hovered = ui.rect_contains_pointer(copy_btn_rect);
+            if copy_hovered {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+
+            let btn_bg = if is_copied {
+                theme.accent.gamma_multiply(0.20)
+            } else if copy_hovered {
+                theme.highlight.gamma_multiply(0.35)
+            } else {
+                theme.surface().gamma_multiply(0.60)
+            };
+            let btn_stroke = if is_copied {
+                Stroke::new(1.0, theme.accent)
+            } else if copy_hovered {
+                Stroke::new(1.0, theme.accent.gamma_multiply(0.60))
+            } else {
+                Stroke::new(1.0, theme.border().gamma_multiply(0.50))
+            };
+
+            painter.rect(
+                copy_btn_rect,
+                4.0,
+                btn_bg,
+                btn_stroke,
+                egui::StrokeKind::Inside,
+            );
+
+            let copy_text_pos = Pos2::new(
+                copy_btn_rect.center().x - copy_galley.size().x * 0.5,
+                copy_btn_rect.center().y - copy_galley.size().y * 0.5,
+            );
+            painter.galley(copy_text_pos, copy_galley, copy_color);
+
+            // Check click on copy button
+            let primary_clicked = ui.input(|i| {
+                i.pointer.primary_clicked()
+                    || i.pointer.button_clicked(egui::PointerButton::Primary)
+            });
+            if copy_hovered && primary_clicked {
+                ui.ctx().copy_text(self.grid.message.clone());
+                self.grid.message_copied_at = Some(std::time::Instant::now());
+                ui.ctx().request_repaint();
+            }
         }
 
         // Popup completion menu
