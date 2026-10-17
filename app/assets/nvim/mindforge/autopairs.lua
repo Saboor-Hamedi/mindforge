@@ -130,19 +130,91 @@ function M.setup()
     return '<BS>'
   end)
 
-  -- Enter between an empty pair opens an indented block.
+  -- Enter: handles completion popup, bracket expansion, and auto-bullet/numbered list continuation.
+  -- Importantly, when the completion popup is open with NO item selected (`noselect`, selected == -1),
+  -- pressing Enter closes the popup (`<C-e>`) and inserts a real newline instead of swallowing `<CR>`
+  -- or accidentally accepting an unwanted completion.
   imap('<CR>', function()
-    if not is_enabled(0) then
-      return '<CR>'
+    local pum_prefix = ''
+    if vim.fn.pumvisible() == 1 then
+      local info = vim.fn.complete_info({ 'selected' })
+      if info and (info.selected or -1) >= 0 then
+        return '<C-y>'
+      end
+      pum_prefix = '<C-e>'
     end
+
+    if vim.snippet and vim.snippet.active and vim.snippet.active() and not vim.snippet.active({ direction = 1 }) then
+      pcall(vim.snippet.stop)
+    end
+
+    if not is_enabled(0) then
+      return pum_prefix .. '<CR>'
+    end
+
     local prev, next = char_before(), char_after()
     if (prev == '{' and next == '}')
       or (prev == '(' and next == ')')
       or (prev == '[' and next == ']')
     then
-      return '<CR><CR><Up>'
+      return pum_prefix .. '<CR><Esc>O'
     end
-    return '<CR>'
+
+    local line = line_at()
+    local col = vim.api.nvim_win_get_cursor(0)[2]
+
+    -- Check if line is an empty bullet/numbered list item (user wants to exit the list)
+    if line:match('^[ \t]*[-*+][ \t]+%[[ xX]%][ \t]*$')
+      or line:match('^[ \t]*[-*+][ \t]*$')
+      or line:match('^[ \t]*%d+%.[ \t]*$')
+      or line:match('^[ \t]*>[ \t]*$')
+    then
+      return pum_prefix .. '<C-u>'
+    end
+
+    -- Check for markdown / note list continuation
+    -- 1) Task checkbox: `- [ ] ` or `* [ ] `
+    local t_indent, t_bullet = line:match('^([ \t]*)([-*+])[ \t]+%[[ xX]%][ \t]+')
+    if t_indent and t_bullet then
+      if col < #line then
+        return pum_prefix .. '<CR>' .. t_bullet .. ' [ ] '
+      else
+        return pum_prefix .. '<CR><C-u>' .. t_indent .. t_bullet .. ' [ ] '
+      end
+    end
+
+    -- 2) Numbered list: `1. `, `2. `, etc.
+    local n_indent, n_str = line:match('^([ \t]*)(%d+)%.[ \t]+')
+    if n_indent and n_str then
+      local next_num = tostring(tonumber(n_str) + 1)
+      if col < #line then
+        return pum_prefix .. '<CR>' .. next_num .. '. '
+      else
+        return pum_prefix .. '<CR><C-u>' .. n_indent .. next_num .. '. '
+      end
+    end
+
+    -- 3) Bullet list: `- `, `* `, `+ `
+    local b_indent, b_char = line:match('^([ \t]*)([-*+])[ \t]+')
+    if b_indent and b_char then
+      if col < #line then
+        return pum_prefix .. '<CR>' .. b_char .. ' '
+      else
+        return pum_prefix .. '<CR><C-u>' .. b_indent .. b_char .. ' '
+      end
+    end
+
+    -- 4) Blockquote: `> `
+    local q_indent, q_prefix = line:match('^([ \t]*)(>+[ \t]*)')
+    if q_indent and q_prefix then
+      if col < #line then
+        return pum_prefix .. '<CR>' .. q_prefix
+      else
+        return pum_prefix .. '<CR><C-u>' .. q_indent .. q_prefix
+      end
+    end
+
+    return pum_prefix .. '<CR>'
   end)
 end
 

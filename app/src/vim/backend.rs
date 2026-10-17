@@ -26,7 +26,7 @@ use super::{
     client::NeovimClient,
     state::{GridCell, GridState},
 };
-use crate::editor::backend::EditorResult;
+use crate::editor::backend::{EditorBackend, EditorResult};
 use crate::language::FileLanguage;
 use eframe::egui::{self, Color32};
 use rmpv::Value;
@@ -34,6 +34,13 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RowLigature {
+    pub col_offset: usize,
+    pub kind: crate::view_editor::ligatures::LigatureKind,
+    pub color: Color32,
+}
 
 pub struct VimBackend {
     pub(crate) client: NeovimClient,
@@ -51,13 +58,14 @@ pub struct VimBackend {
     pub(crate) last_size: (usize, usize),
     pub(crate) pending_size: Option<(usize, usize)>,
     pub(crate) resize_pending_since: Option<f64>,
-    pub(crate) row_layouts: Vec<Option<(u64, Arc<egui::Galley>)>>,
+    pub(crate) row_layouts: Vec<Option<(u64, Arc<egui::Galley>, Vec<RowLigature>)>>,
     pub(crate) layout_font_size: u32,
     pub(crate) cursor_render_initialized: bool,
     pub(crate) busy: Option<String>,
     pub(crate) lsp_status: (String, String),
     pub(crate) lsp_panel: super::lsp_panel::LspPanel,
     pub(crate) line_numbers_enabled: Option<bool>,
+    pub(crate) last_number_columns: usize,
     pub(crate) cached_theme: Option<(Color32, Color32, Color32, Color32)>,
     pub(crate) suppress_lines_events: usize,
 }
@@ -111,11 +119,17 @@ impl VimBackend {
         let modules = build_lsp_modules_value();
         let _ = client.request(
             "nvim_exec_lua",
-            vec![Value::from(LSP_BOOT), Value::Array(vec![modules])],
+            vec![
+                Value::from(LSP_BOOT),
+                Value::Array(vec![
+                    modules,
+                    Value::from(super::bootstrap::DEFAULT_USER_INIT_LUA),
+                ]),
+            ],
         );
 
-        // Re-run the user's init.lua after our defaults so their options and
-        // keymaps take precedence (Neovim loaded it before our defaults via -u).
+        // Run the user's init.lua after our defaults so their options and
+        // keymaps take full precedence.
         let _ = client.apply_user_config();
 
         let _ = client.request(
@@ -136,7 +150,7 @@ impl VimBackend {
             "nvim_exec_lua",
             vec![
                 Value::from(
-                    "local ok, m = pcall(require, 'mindforge.lsp'); if ok then m.refresh() end",
+                    "if vim.bo[0].filetype == 'lua' or vim.bo[0].filetype == 'vim' then pcall(vim.treesitter.start, 0) end; local ok, m = pcall(require, 'mindforge.lsp'); if ok then m.refresh() end",
                 ),
                 Value::Array(vec![]),
             ],
@@ -177,6 +191,7 @@ impl VimBackend {
             lsp_status: Default::default(),
             lsp_panel: Default::default(),
             line_numbers_enabled: None,
+            last_number_columns: 0,
             cached_theme: None,
             suppress_lines_events: 0,
         })
@@ -194,6 +209,21 @@ impl VimBackend {
             if let Some(groups) = items.get(2).and_then(Value::as_array) {
                 for group in groups {
                     self.apply_redraw_group(group);
+                }
+            }
+        } else if items.get(1).and_then(Value::as_str) == Some("mindforge_options") {
+            if let Some(show_numbers) = items
+                .get(2)
+                .and_then(Value::as_array)
+                .and_then(|args| args.first())
+                .and_then(Value::as_bool)
+            {
+                if self.line_numbers_enabled != Some(show_numbers) {
+                    self.line_numbers_enabled = Some(show_numbers);
+                    self.row_layouts.clear();
+                    for rev in &mut self.grid.row_revision {
+                        *rev = rev.wrapping_add(1);
+                    }
                 }
             }
         } else if items.get(1).and_then(Value::as_str) == Some("mindforge_progress") {
@@ -427,6 +457,9 @@ impl VimBackend {
                     self.grid.command_line = format!("{prefix}{}", cmdline_text(&args[0]));
                 }
                 "cmdline_hide" => self.grid.command_line.clear(),
+                "msg_showcmd" if !args.is_empty() => {
+                    self.grid.showcmd = cmdline_text(&args[0]);
+                }
                 "popupmenu_show" if !args.is_empty() => {
                     self.grid.popup_items = super::render::popupmenu_items(&args[0]);
                     self.grid.popup_meta = super::render::popupmenu_meta(&args[0]);
@@ -574,6 +607,8 @@ impl VimBackend {
         let (mut foreground, mut background, mut special, mut reverse, mut underline) =
             (None, None, None, false, false);
         let mut is_visual = false;
+        let mut is_statusline = false;
+        let mut is_gutter = false;
         if let Some(attrs) = args[1].as_map() {
             for (key, value) in attrs {
                 let color = value.as_u64().map(|n| n as u32);
@@ -602,6 +637,37 @@ impl VimBackend {
                                     reverse = false;
                                     background = None;
                                 }
+                                if matches!(
+                                    name,
+                                    "StatusLine"
+                                        | "StatusLineNC"
+                                        | "WinBar"
+                                        | "WinBarNC"
+                                        | "MsgSeparator"
+                                ) {
+                                    is_statusline = true;
+                                    reverse = false;
+                                    background = None;
+                                    foreground = None;
+                                }
+                                if matches!(
+                                    name,
+                                    "LineNr"
+                                        | "CursorLineNr"
+                                        | "LineNrAbove"
+                                        | "LineNrBelow"
+                                        | "SignColumn"
+                                        | "CursorLineSign"
+                                        | "FoldColumn"
+                                        | "CursorLineFold"
+                                ) {
+                                    is_gutter = true;
+                                }
+                                if name == "markdownError" {
+                                    reverse = false;
+                                    background = None;
+                                    underline = false;
+                                }
                             }
                         }
                     }
@@ -617,11 +683,23 @@ impl VimBackend {
                 reverse,
                 underline,
                 is_visual,
+                is_statusline,
+                is_gutter,
             },
         );
         for revision in &mut self.grid.row_revision {
             *revision = revision.wrapping_add(1);
         }
+    }
+
+    pub fn reload_user_config(&mut self) -> EditorResult<bool> {
+        let res = self.client.force_reload_config()?;
+        let deadline = Instant::now() + Duration::from_millis(20);
+        while Instant::now() < deadline {
+            self.tick();
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        Ok(res)
     }
 
     pub fn take_error(&mut self) -> Option<String> {
@@ -765,22 +843,46 @@ if m:find('^[vV\22]') then vim.cmd('normal! >gv') else vim.cmd('normal! >>') end
         self.suppress_lines_events = self.suppress_lines_events.saturating_add(1);
         self.client.set_buffer_text_async(text)?;
         let filetype = language.nvim_filetype();
-        let _ = self.client.notify(
-            "nvim_command",
-            vec![Value::from(format!("setlocal filetype={filetype} syntax={filetype} numberwidth=4 signcolumn=no foldcolumn=0"))],
-        );
+        let activate_ft_lua = r#"
+            local ft, name = ...
+            if ft == "text" and type(name) == "string" and name ~= "" then
+                local ok, detected = pcall(function()
+                    return vim.filetype and vim.filetype.match and vim.filetype.match({ filename = name })
+                end)
+                if ok and type(detected) == "string" and detected ~= "" then
+                    ft = detected
+                elseif name:lower():match("%.lua$") then
+                    ft = "lua"
+                end
+            end
+            vim.o.laststatus = 0
+            vim.o.statusline = " "
+            vim.wo[0].numberwidth = 4
+            vim.wo[0].signcolumn = "no"
+            vim.wo[0].foldcolumn = "0"
+            vim.b[0].current_syntax = nil
+            vim.bo[0].filetype = ft
+            vim.bo[0].syntax = ft
+            if ft == "lua" or ft == "vim" or ft == "query" then
+                pcall(vim.treesitter.start, 0)
+            else
+                pcall(vim.treesitter.stop, 0)
+            end
+            if ft == "markdown" then
+                pcall(vim.cmd, "silent! syntax clear markdownError")
+                pcall(vim.cmd, "hi! link markdownError Normal")
+            end
+        "#;
         let _ = self.client.notify(
             "nvim_exec_lua",
             vec![
-                Value::from(
-                    "local ok, m = pcall(require, 'mindforge.lsp'); if ok then m.refresh() end",
-                ),
-                Value::Array(vec![]),
+                Value::from(activate_ft_lua),
+                Value::Array(vec![
+                    Value::from(filetype),
+                    Value::from(file_name.to_owned()),
+                ]),
             ],
         );
-        let _ = self
-            .client
-            .notify("nvim_command", vec![Value::from("redraw!")]);
         self.lines = text.split('\n').map(str::to_owned).collect();
         self.document_words = text.split_whitespace().count();
         self.document_lines = text.lines().count();
@@ -789,6 +891,9 @@ if m:find('^[vV\22]') then vim.cmd('normal! >gv') else vim.cmd('normal! >>') end
         self.cursor_char_cache = None;
         self.client
             .set_cursor_async(row, self.cursor_column_bytes(row, column))?;
+        let _ = self
+            .client
+            .notify("nvim_command", vec![Value::from("silent! redraw!")]);
         self.text_updated = false;
         self.last_buffer_change = None;
         self.dirty = false;
@@ -802,6 +907,19 @@ if m:find('^[vV\22]') then vim.cmd('normal! >gv') else vim.cmd('normal! >>') end
         for rev in &mut self.grid.row_revision {
             *rev = rev.wrapping_add(1);
         }
+        // Drain initial syntax-highlighted redraw immediately so switching files
+        // never flashes unhighlighted text or waits for subsequent ticks.
+        let deadline = Instant::now() + Duration::from_millis(25);
+        while Instant::now() < deadline {
+            self.tick();
+            let has_content = self.grid.cells.iter().any(|r| {
+                r.iter().any(|c| !c.text.trim().is_empty())
+            });
+            if has_content {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
         Ok(())
     }
 
@@ -813,7 +931,7 @@ if m:find('^[vV\22]') then vim.cmd('normal! >gv') else vim.cmd('normal! >>') end
     pub fn take_text_update(&mut self) -> Option<String> {
         let settled = self
             .last_buffer_change
-            .is_some_and(|last| last.elapsed() >= Duration::from_millis(300));
+            .is_some_and(|last| last.elapsed() >= Duration::from_millis(80));
         if self.text_updated && settled {
             self.text_updated = false;
             self.last_buffer_change = None;
@@ -989,3 +1107,141 @@ pub(crate) fn compact_message(text: &str) -> String {
     out.push('…');
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vim_backend_gutter_and_init_lua_integrity() {
+        let sample = "vim.opt.relativenumber = true\nvim.opt.number = true";
+        let mut backend = match VimBackend::start(
+            sample,
+            80,
+            24,
+            0,
+            0,
+            None,
+            "init.lua",
+            FileLanguage::Lua,
+        ) {
+            Ok(b) => b,
+            Err(_) => return, // Skip only if nvim binary is not installed
+        };
+
+        let _ = backend.execute_command("set number relativenumber");
+        let _ = backend.execute_command("redraw!");
+        let deadline = Instant::now() + Duration::from_millis(800);
+        while Instant::now() < deadline {
+            backend.tick();
+            let ready = backend.grid.cells.first().is_some_and(|r| {
+                let g = r
+                    .iter()
+                    .take_while(|c| {
+                        backend
+                            .grid
+                            .highlights
+                            .get(&c.highlight)
+                            .is_some_and(|s| s.is_gutter)
+                    })
+                    .count();
+                let txt: String = r.iter().skip(g).take(7).map(|c| c.text.as_str()).collect();
+                g == 4 && txt == "vim.opt"
+            });
+            if ready {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        // Verify INIT_LUA and LSP_BOOT executed cleanly with no Lua errors
+        let fn_type = backend
+            .execute_lua("return type(_G._mindforge_load_user_init)")
+            .unwrap_or_default();
+        assert_eq!(
+            fn_type, "function",
+            "INIT_LUA must compile and execute without syntax errors"
+        );
+        let lsp_check = backend
+            .execute_lua("local p = require('mindforge.lsp.paths'); local i = require('mindforge.lsp.install'); local _ = i.is_installed('lua_ls'); return type(p.servers_dir())")
+            .unwrap_or_default();
+        assert_eq!(
+            lsp_check, "string",
+            "mindforge.lsp.paths.servers_dir() and install.is_installed('lua_ls') must succeed without error"
+        );
+
+        // Verify row 0 has 4 gutter cells followed by "vim.opt.relativenumber = true" at column 4
+        let row0 = &backend.grid.cells[0];
+        let gutter_cols = row0
+            .iter()
+            .take_while(|c| {
+                backend
+                    .grid
+                    .highlights
+                    .get(&c.highlight)
+                    .is_some_and(|s| s.is_gutter)
+            })
+            .count();
+        assert_eq!(
+            gutter_cols, 4,
+            "Expected 4 gutter columns when number/relativenumber is enabled"
+        );
+        let text_start: String = row0
+            .iter()
+            .skip(gutter_cols)
+            .take(7)
+            .map(|c| c.text.as_str())
+            .collect();
+        assert_eq!(
+            text_start, "vim.opt",
+            "Buffer text must start cleanly after the 4 gutter columns"
+        );
+
+        // Now turn off both number and relativenumber and verify gutter_cols becomes 0
+        // and "vim.opt" starts at column 0
+        let _ = backend.execute_command("set nonumber norelativenumber");
+        let _ = backend.execute_command("redraw!");
+        let deadline = Instant::now() + Duration::from_millis(500);
+        while Instant::now() < deadline {
+            backend.tick();
+            let no_gutter = backend.grid.cells.first().is_some_and(|r| {
+                let g = r
+                    .iter()
+                    .take_while(|c| {
+                        backend
+                            .grid
+                            .highlights
+                            .get(&c.highlight)
+                            .is_some_and(|s| s.is_gutter)
+                    })
+                    .count();
+                g == 0
+            });
+            if no_gutter {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let row0 = &backend.grid.cells[0];
+        let gutter_cols_off = row0
+            .iter()
+            .take_while(|c| {
+                backend
+                    .grid
+                    .highlights
+                    .get(&c.highlight)
+                    .is_some_and(|s| s.is_gutter)
+            })
+            .count();
+        assert_eq!(
+            gutter_cols_off, 0,
+            "Expected 0 gutter columns when number and relativenumber are disabled"
+        );
+        let text_start_off: String = row0.iter().take(7).map(|c| c.text.as_str()).collect();
+        assert_eq!(
+            text_start_off, "vim.opt",
+            "Buffer text must start at column 0 when gutter is disabled"
+        );
+    }
+}
+

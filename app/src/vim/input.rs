@@ -145,16 +145,7 @@ fn send_text(app: &mut App, text: &str, now: f64) {
             .as_ref()
             .is_some_and(|backend| !backend.is_insert_mode());
         if normal_mode {
-            if app.misc.showcmd.is_pending
-                && app.misc.showcmd.kind == crate::ui::showcmd::ShowCmdKind::Keystroke
-            {
-                let sequence = format!("{}{}", app.misc.showcmd.text, text);
-                app.misc.showcmd.record_action(&sequence, now);
-            } else if matches!(text, "d" | "c" | "y" | "g" | "z") {
-                app.misc.showcmd.set_pending(text, now);
-            } else {
-                app.misc.showcmd.record_action(text, now);
-            }
+            app.misc.showcmd.push_key(text, now);
         }
     }
     if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
@@ -269,7 +260,7 @@ fn send_key(app: &mut App, event: EditorKeyEvent, now: f64) {
     {
         app.misc
             .showcmd
-            .record_action(&key_label(event.key, event.modifiers), now);
+            .push_key(&key_label(event.key, event.modifiers), now);
     }
     if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
         if let Err(error) = backend.handle_key(event) {

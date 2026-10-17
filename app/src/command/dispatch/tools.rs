@@ -15,7 +15,7 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             );
             true
         }
-        "settings" | "setting" | "preferences" | "pref" | "config" => {
+        "settings" | "setting" | "preferences" | "pref" => {
             app.modal.settings_open = !app.modal.settings_open;
             app.modal.settings_just_opened = app.modal.settings_open;
             if app.modal.settings_open {

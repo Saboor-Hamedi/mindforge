@@ -30,15 +30,32 @@ end
 
 --- `refresh` re-registers servers after an install changes what can run.
 function M.setup(refresh)
-  local cmd = vim.api.nvim_create_user_command
+  local function cmd(name, fn, opts)
+    vim.api.nvim_create_user_command(name, fn, opts)
+    local lower = name:lower()
+    if lower ~= name then
+      pcall(vim.cmd, string.format(
+        "cnoreabbrev <expr> %s (getcmdtype() == ':' && getcmdline() =~# '^%s\\>') ? '%s' : '%s'",
+        lower, lower, name, lower
+      ))
+    end
+  end
 
   cmd('LspInstall', function(opts)
-    local names = opts.fargs
-    if #names == 0 then
-      names = registry.for_filetype(vim.bo.filetype)
+    local names = registry.resolve_targets(opts.fargs, vim.bo.filetype)
+    if vim.bo.filetype == 'lua' or vim.tbl_contains(names, 'lua_ls') then
+      if vim.bo.filetype == '' or vim.bo.filetype == 'text' then
+        local bufname = vim.api.nvim_buf_get_name(0):lower()
+        if bufname:match('%.lua$') then
+          vim.bo.filetype = 'lua'
+          vim.bo.syntax = 'lua'
+        end
+      end
+      pcall(vim.treesitter.start, 0)
     end
     if #names == 0 then
-      return say('no known server for filetype "' .. vim.bo.filetype .. '". Try :LspList')
+      local target = (#opts.fargs > 0) and table.concat(opts.fargs, ', ') or vim.bo.filetype
+      return say('no known server for "' .. target .. '". Try :LspList')
     end
     for _, name in ipairs(names) do
       installer.install(name, function(ok)
@@ -52,7 +69,8 @@ function M.setup(refresh)
   end, { nargs = '*', complete = server_names, desc = 'Install language servers' })
 
   cmd('LspUninstall', function(opts)
-    for _, name in ipairs(opts.fargs) do
+    local names = registry.resolve_targets(opts.fargs, vim.bo.filetype)
+    for _, name in ipairs(names) do
       installer.uninstall(name, function()
         pcall(vim.lsp.enable, name, false)
         push_list(false)
@@ -134,6 +152,19 @@ function M.setup(refresh)
     paths.ensure(paths.nvim_dir())
     vim.cmd('edit ' .. vim.fn.fnameescape(paths.user_config()))
   end, { desc = 'Open your MindForge LSP configuration' })
+
+  local function open_init_config()
+    local path = paths.init_config()
+    paths.ensure(paths.nvim_dir())
+    if not vim.uv.fs_stat(path) and _G._mindforge_default_init_lua then
+      pcall(vim.fn.writefile, vim.split(_G._mindforge_default_init_lua, '\n'), path)
+    end
+    vim.cmd('edit ' .. vim.fn.fnameescape(path))
+  end
+
+  cmd('Init', open_init_config, { desc = 'Open your MindForge Neovim init.lua configuration' })
+  cmd('InitConfig', open_init_config, { desc = 'Open your MindForge Neovim init.lua configuration' })
+  cmd('Config', open_init_config, { desc = 'Open your MindForge Neovim init.lua configuration' })
 
   cmd('FormatConfig', function()
     local path = paths.formatters_config()

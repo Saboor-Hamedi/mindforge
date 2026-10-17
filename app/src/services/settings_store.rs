@@ -61,13 +61,10 @@ fn storage_dir() -> PathBuf {
 
 fn write_settings_file_atomic(path: &std::path::Path, map: &HashMap<String, String>) -> std::io::Result<()> {
     let json = serde_json::to_string_pretty(map).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    let tmp = path.with_extension("tmp");
-    std::fs::write(&tmp, &json)?;
-    if std::fs::rename(&tmp, path).is_err() {
-        let _ = std::fs::remove_file(path);
-        let _ = std::fs::rename(&tmp, path);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
     }
-    Ok(())
+    std::fs::write(path, &json)
 }
 
 /// Spawns the background filesystem settings and metadata storage worker thread.

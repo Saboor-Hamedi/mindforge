@@ -37,13 +37,12 @@ impl NeovimClient {
     pub fn start(repaint_ctx: Option<eframe::egui::Context>) -> Result<Self, String> {
         let mut cmd = Command::new("nvim");
         cmd.arg("--embed");
-        // Load MindForge's dedicated lightweight Neovim config when present.
-        // This is distinct from a user's full Neovim setup, which can launch
-        // dashboards or other UI that does not belong inside the editor pane.
-        //
-        // The path is remembered even when the file does not exist yet, so that
-        // creating/editing `init.lua` later is picked up by the live-reload watcher
-        // instead of requiring an app restart.
+        // MindForge's dedicated Neovim config lives at `%APPDATA%/mindforge/mindforge/nvim/init.lua`.
+        // Ensure the directory and a default `init.lua` exist so users always have a single
+        // authoritative `init.lua` to configure line numbers, keymaps, options, and formatters.
+        // We start Neovim with `--clean` and execute `init.lua` via `_mindforge_load_user_init`
+        // right after `INIT_LUA` and `LSP_BOOT`, so `init.lua` runs once in the full runtime
+        // environment and overrides any built-in defaults or keymaps.
         let app_nvim_config = std::env::var_os("APPDATA").map(|path| {
             std::path::PathBuf::from(path)
                 .join("mindforge")
@@ -51,16 +50,20 @@ impl NeovimClient {
                 .join("nvim")
                 .join("init.lua")
         });
-        if let Some(config) = app_nvim_config.as_ref().filter(|path| path.is_file()) {
-            cmd.arg("-u").arg(config);
-        } else {
-            cmd.arg("--clean");
+        if let Some(config_path) = app_nvim_config.as_ref() {
+            if let Some(parent) = config_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if !config_path.exists() {
+                let _ = std::fs::write(config_path, super::bootstrap::DEFAULT_USER_INIT_LUA);
+            }
         }
+        cmd.arg("--clean");
         let config_modified = app_nvim_config
             .as_ref()
             .and_then(|path| std::fs::metadata(path).ok())
             .and_then(|metadata| metadata.modified().ok());
-        cmd.args(["--cmd", "set mouse=a shortmess+=I nomore noswapfile guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ "])
+        cmd.args(["--cmd", "set mouse=a number relativenumber cursorline numberwidth=4 signcolumn=no foldcolumn=0 laststatus=0 noruler noshowmode noshowcmd shortmess+=ltToOCFsSWAI nomore noswapfile statusline=\\  guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ ,stl:\\ ,stlnc:\\ "])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
@@ -254,6 +257,7 @@ impl NeovimClient {
                 Value::from(height.max(1) as u64),
                 Value::Map(vec![
                     (Value::from("ext_linegrid"), Value::from(true)),
+                    (Value::from("ext_hlstate"), Value::from(true)),
                     (Value::from("ext_popupmenu"), Value::from(true)),
                     (Value::from("ext_cmdline"), Value::from(true)),
                     (Value::from("ext_messages"), Value::from(true)),
@@ -364,49 +368,54 @@ impl NeovimClient {
         )
     }
 
-    /// Reload MindForge's lightweight init.lua after it is saved on disk.
-    /// Re-sources the user's `init.lua` (if present) so their settings and
-    /// keymaps win over MindForge's built-in defaults.
-    ///
-    /// Neovim loads `-u <init.lua>` *before* MindForge applies its defaults, so
-    /// without this the user's `vim.opt`/`vim.keymap.set` calls would be
-    /// overridden. Called once at startup, after the defaults are installed.
+    /// Loads the user's `init.lua` (if present) after MindForge's built-in defaults
+    /// and LSP/autopairs modules are installed, so all user options (`vim.opt.number`,
+    /// indentation, etc.) and keymaps take precedence, and publishes initial options.
     pub fn apply_user_config(&mut self) -> Result<bool, String> {
+        let path_string = self
+            .config_path
+            .as_ref()
+            .filter(|p| p.is_file())
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let has_file = !path_string.is_empty();
+        self.notify(
+            "nvim_exec_lua",
+            vec![
+                Value::from(
+                    "if _G._mindforge_load_user_init then _G._mindforge_load_user_init(..., false) end",
+                ),
+                Value::Array(vec![Value::from(path_string)]),
+            ],
+        )?;
+        Ok(has_file)
+    }
+
+    pub fn force_reload_config(&mut self) -> Result<bool, String> {
+        self.last_config_check = Instant::now();
         let Some(path) = self.config_path.as_ref() else {
             return Ok(false);
         };
         if !path.is_file() {
             return Ok(false);
         }
+        let modified = std::fs::metadata(path).ok().and_then(|m| m.modified().ok());
         let path_string = path.to_string_lossy().into_owned();
-        self.notify(
-            "nvim_exec_lua",
-            vec![
-                Value::from("dofile(...)"),
-                Value::Array(vec![Value::from(path_string)]),
-            ],
-        )?;
-        self.remap_lsp_keys();
-        Ok(true)
-    }
-
-    /// Re-applies MindForge's language-intelligence keymaps after the user's
-    /// config is (re)sourced, so K/gd/gr/<leader>f keep working even when the
-    /// user's init.lua defines its own mappings or options.
-    fn remap_lsp_keys(&self) {
-        let _ = self.notify(
+        let _ = self.request(
             "nvim_exec_lua",
             vec![
                 Value::from(
-                    "pcall(function() require('mindforge.lsp.completion').remap(); require('mindforge.autopairs').setup() end)",
+                    "if _G._mindforge_load_user_init then _G._mindforge_load_user_init(..., true) end",
                 ),
-                Value::Array(vec![]),
+                Value::Array(vec![Value::from(path_string)]),
             ],
         );
+        self.config_modified = modified;
+        Ok(true)
     }
 
     pub fn reload_config_if_changed(&mut self) -> Result<bool, String> {
-        if self.last_config_check.elapsed() < std::time::Duration::from_millis(400) {
+        if self.last_config_check.elapsed() < std::time::Duration::from_millis(250) {
             return Ok(false);
         }
         self.last_config_check = Instant::now();
@@ -424,15 +433,12 @@ impl NeovimClient {
         self.notify(
             "nvim_exec_lua",
             vec![
-                Value::from("dofile(...)"),
+                Value::from(
+                    "if _G._mindforge_load_user_init then _G._mindforge_load_user_init(..., true) end",
+                ),
                 Value::Array(vec![Value::from(path_string)]),
             ],
         )?;
-        self.notify(
-            "nvim_command",
-            vec![Value::from("set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler")],
-        )?;
-        self.remap_lsp_keys();
         self.config_modified = modified;
         Ok(true)
     }

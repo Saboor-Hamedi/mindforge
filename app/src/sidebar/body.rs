@@ -7,20 +7,116 @@ use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Rect, Stroke};
 
 use crate::ui::theme::Theme;
 
+/// Returns a warm classic golden-amber color for folders, harmonized with the active theme.
+fn folder_icon_color(theme: &Theme, expanded: bool, highlighted: bool) -> Color32 {
+    let base = if theme.is_light() {
+        if expanded || highlighted {
+            Color32::from_rgb(217, 130, 18)
+        } else {
+            Color32::from_rgb(226, 148, 38)
+        }
+    } else if expanded || highlighted {
+        Color32::from_rgb(248, 194, 86)
+    } else {
+        Color32::from_rgb(232, 174, 68)
+    };
+    base.lerp_to_gamma(theme.accent, 0.12)
+}
+
+/// Returns a subtle extension-tinted color for document icons in the explorer tree.
+fn file_icon_color(path: &std::path::Path, theme: &Theme, highlighted: bool) -> Color32 {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let is_light = theme.is_light();
+    let tint = match ext.as_str() {
+        "lua" => Some(if is_light {
+            Color32::from_rgb(37, 99, 235)
+        } else {
+            Color32::from_rgb(88, 166, 255)
+        }),
+        "rs" | "toml" => Some(if is_light {
+            Color32::from_rgb(217, 95, 43)
+        } else {
+            Color32::from_rgb(240, 136, 90)
+        }),
+        "py" | "pyw" => Some(if is_light {
+            Color32::from_rgb(45, 125, 210)
+        } else {
+            Color32::from_rgb(100, 181, 246)
+        }),
+        "js" | "mjs" | "cjs" | "jsx" => Some(if is_light {
+            Color32::from_rgb(202, 138, 4)
+        } else {
+            Color32::from_rgb(245, 194, 66)
+        }),
+        "ts" | "mts" | "cts" | "tsx" => Some(if is_light {
+            Color32::from_rgb(2, 132, 199)
+        } else {
+            Color32::from_rgb(79, 193, 255)
+        }),
+        "md" | "markdown" => Some(theme.accent),
+        "sql" | "sqlite" | "sqlite3" | "mysql" | "mariadb" | "pgsql" => Some(if is_light {
+            Color32::from_rgb(13, 148, 136)
+        } else {
+            Color32::from_rgb(77, 208, 225)
+        }),
+        "json" | "jsonc" | "yaml" | "yml" => Some(if is_light {
+            Color32::from_rgb(180, 110, 20)
+        } else {
+            Color32::from_rgb(229, 192, 123)
+        }),
+        "html" | "htm" => Some(if is_light {
+            Color32::from_rgb(220, 75, 45)
+        } else {
+            Color32::from_rgb(224, 108, 117)
+        }),
+        "css" | "scss" | "less" => Some(if is_light {
+            Color32::from_rgb(126, 58, 242)
+        } else {
+            Color32::from_rgb(198, 120, 221)
+        }),
+        _ => None,
+    };
+    match tint {
+        Some(c) if highlighted => c,
+        Some(c) => c.lerp_to_gamma(theme.text, 0.15),
+        None if highlighted => theme.accent,
+        None => theme.text.lerp_to_gamma(theme.muted, 0.25),
+    }
+}
+
 /// Renders the inline file or folder creation row in the tree (VS Code style).
 fn render_inline_creation(
     ui: &mut egui::Ui,
     workspace: &mut WorkspaceState,
     depth: usize,
     is_dir: bool,
-    _theme: &Theme,
+    theme: &Theme,
     action: &mut Option<SidebarAction>,
 ) {
     let indent = depth as f32 * 14.0;
-    let icon = if is_dir { "▸ 📁" } else { "    📄" };
     ui.horizontal(|ui| {
         ui.add_space(indent + 4.0);
-        ui.label(egui::RichText::new(icon).size(13.0));
+        let (icon_rect, _) = ui.allocate_exact_size(vec2(26.0, 20.0), egui::Sense::hover());
+        let icon_color = theme.text.lerp_to_gamma(theme.muted, 0.20);
+        if is_dir {
+            let chev_rect = Rect::from_min_size(pos2(icon_rect.min.x, icon_rect.min.y + 3.0), vec2(10.0, 14.0));
+            let fld_rect = Rect::from_min_size(pos2(icon_rect.min.x + 11.0, icon_rect.min.y + 3.0), vec2(14.0, 14.0));
+            crate::ui_components::icons::render_chevron_icon(ui.painter(), chev_rect, icon_color, false);
+            crate::ui_components::icons::render_folder_icon(
+                ui.painter(),
+                fld_rect,
+                folder_icon_color(theme, false, true),
+                false,
+            );
+        } else {
+            let doc_rect = Rect::from_min_size(pos2(icon_rect.min.x + 11.0, icon_rect.min.y + 3.0), vec2(14.0, 14.0));
+            let file_col = file_icon_color(std::path::Path::new(&workspace.dialog_name), theme, true);
+            crate::ui_components::icons::render_document_icon(ui.painter(), doc_rect, file_col);
+        }
         let field_w = (ui.available_width() - 8.0).max(60.0);
         let field = ui.add(
             egui::TextEdit::singleline(&mut workspace.dialog_name)
@@ -84,7 +180,7 @@ fn render_inline_creation(
         ui.horizontal_wrapped(|ui| {
             ui.add_space(indent + 16.0);
             ui.label(
-                egui::RichText::new(format!("⚠ {}", err))
+                egui::RichText::new(format!("! {}", err))
                     .color(Color32::from_rgb(248, 113, 113))
                     .size(11.0),
             );
@@ -98,14 +194,29 @@ fn render_inline_rename(
     workspace: &mut WorkspaceState,
     depth: usize,
     is_dir: bool,
-    _theme: &Theme,
+    theme: &Theme,
     action: &mut Option<SidebarAction>,
 ) {
     let indent = depth as f32 * 14.0;
-    let icon = if is_dir { "▸ 📁" } else { "    📄" };
     ui.horizontal(|ui| {
         ui.add_space(indent + 4.0);
-        ui.label(egui::RichText::new(icon).size(13.0));
+        let (icon_rect, _) = ui.allocate_exact_size(vec2(26.0, 20.0), egui::Sense::hover());
+        let icon_color = theme.text.lerp_to_gamma(theme.muted, 0.20);
+        if is_dir {
+            let chev_rect = Rect::from_min_size(pos2(icon_rect.min.x, icon_rect.min.y + 3.0), vec2(10.0, 14.0));
+            let fld_rect = Rect::from_min_size(pos2(icon_rect.min.x + 11.0, icon_rect.min.y + 3.0), vec2(14.0, 14.0));
+            crate::ui_components::icons::render_chevron_icon(ui.painter(), chev_rect, icon_color, false);
+            crate::ui_components::icons::render_folder_icon(
+                ui.painter(),
+                fld_rect,
+                folder_icon_color(theme, false, true),
+                false,
+            );
+        } else {
+            let doc_rect = Rect::from_min_size(pos2(icon_rect.min.x + 11.0, icon_rect.min.y + 3.0), vec2(14.0, 14.0));
+            let file_col = file_icon_color(std::path::Path::new(&workspace.dialog_name), theme, true);
+            crate::ui_components::icons::render_document_icon(ui.painter(), doc_rect, file_col);
+        }
         let field_w = (ui.available_width() - 8.0).max(60.0);
         let field = ui.add(
             egui::TextEdit::singleline(&mut workspace.dialog_name)
@@ -161,7 +272,7 @@ fn render_inline_rename(
         ui.horizontal_wrapped(|ui| {
             ui.add_space(indent + 16.0);
             ui.label(
-                egui::RichText::new(format!("⚠ {}", err))
+                egui::RichText::new(format!("! {}", err))
                     .color(Color32::from_rgb(248, 113, 113))
                     .size(11.0),
             );
@@ -191,7 +302,7 @@ fn render_tree_entry(
             .map_or(false, |p| crate::workspace::same_path(p, entry_path));
     let active = active_file.is_some_and(|path| crate::workspace::same_path(path, entry_path));
     let expanded = workspace.expanded.contains(entry_path);
-    let (caret, glyph) = super::icons::get_explorer_icon(entry_path, entry_is_directory, expanded);
+    let _ = super::icons::get_explorer_icon(entry_path, entry_is_directory, expanded);
     let file_name = entry_path.file_name().unwrap_or_default().to_string_lossy();
 
     let row_w = ui.available_width();
@@ -206,8 +317,12 @@ fn render_tree_entry(
     );
     let hovered = !any_modal_open && response.hovered();
 
+    // Only scroll the tree when the selected row is actually outside the visible viewport!
     if selected && sidebar_needs_scroll {
-        response.scroll_to_me(Some(egui::Align::Center));
+        let clip = ui.clip_rect();
+        if row_rect.min.y < clip.min.y || row_rect.max.y > clip.max.y {
+            response.scroll_to_me(None);
+        }
     }
 
     // 1. Background highlighting
@@ -254,7 +369,7 @@ fn render_tree_entry(
         }
     }
 
-    // 2. Strict left-aligned text and icon
+    // 2. Strict left-aligned classic icon and text
     let text_x = row_rect.min.x + indent + 6.0;
     let text_clip = Rect::from_min_max(
         pos2(text_x, row_rect.min.y),
@@ -262,25 +377,31 @@ fn render_tree_entry(
     );
     let text_painter = ui.painter().with_clip_rect(text_clip);
 
-    let text_color = if active {
-        theme.highlight
-    } else if selected {
+    let text_color = if active || selected {
         theme.highlight
     } else if hovered {
         theme.text
     } else {
         theme.text.lerp_to_gamma(theme.muted, 0.20)
     };
+    let highlighted = active || selected || hovered;
 
-    let display_str = if entry_is_directory {
-        format!("{caret} {glyph}  {file_name}")
+    let cy = row_rect.center().y;
+    if entry_is_directory {
+        let chev_rect = Rect::from_center_size(pos2(text_x + 5.0, cy), vec2(10.0, 12.0));
+        let fld_rect = Rect::from_center_size(pos2(text_x + 18.0, cy), vec2(14.5, 14.5));
+        let fld_color = folder_icon_color(theme, expanded, highlighted);
+        crate::ui_components::icons::render_chevron_icon(&text_painter, chev_rect, text_color, expanded);
+        crate::ui_components::icons::render_folder_icon(&text_painter, fld_rect, fld_color, expanded);
     } else {
-        format!("   {glyph}  {file_name}")
-    };
+        let doc_rect = Rect::from_center_size(pos2(text_x + 18.0, cy), vec2(13.0, 14.0));
+        let doc_color = file_icon_color(entry_path, theme, highlighted);
+        crate::ui_components::icons::render_document_icon(&text_painter, doc_rect, doc_color);
+    }
     text_painter.text(
-        pos2(text_x, row_rect.center().y),
+        pos2(text_x + 30.0, cy),
         Align2::LEFT_CENTER,
-        display_str,
+        file_name,
         FontId::proportional(12.5),
         text_color,
     );
@@ -412,8 +533,6 @@ fn render_root_entry(
     );
     let hovered = !any_modal_open && response.hovered();
     let expanded = workspace.expanded.contains(root);
-    let caret = if expanded { "▾" } else { "▸" };
-    let glyph = "📁";
     let project_name = root
         .file_name()
         .unwrap_or(root.as_os_str())
@@ -478,22 +597,29 @@ fn render_root_entry(
                     *action = Some(SidebarAction::WorkspaceRefresh);
                     btn_clicked = true;
                 }
-                if ui
-                    .add(egui::Button::new(egui::RichText::new("📁+").size(11.5)).frame(false))
-                    .on_hover_text("New Folder")
-                    .clicked()
-                {
+                let (fld_btn_rect, fld_btn_resp) =
+                    ui.allocate_exact_size(vec2(20.0, 20.0), egui::Sense::click());
+                crate::ui_components::icons::render_folder_icon(
+                    ui.painter(),
+                    fld_btn_rect.shrink(3.0),
+                    if fld_btn_resp.hovered() { theme.accent } else { theme.text },
+                    false,
+                );
+                if fld_btn_resp.on_hover_text("New Folder").clicked() {
                     *action = Some(SidebarAction::WorkspaceCreate(
                         root.to_path_buf(),
                         WorkspaceDialog::CreateFolder,
                     ));
                     btn_clicked = true;
                 }
-                if ui
-                    .add(egui::Button::new(egui::RichText::new("📄+").size(11.5)).frame(false))
-                    .on_hover_text("New File")
-                    .clicked()
-                {
+                let (doc_btn_rect, doc_btn_resp) =
+                    ui.allocate_exact_size(vec2(20.0, 20.0), egui::Sense::click());
+                crate::ui_components::icons::render_document_icon(
+                    ui.painter(),
+                    doc_btn_rect.shrink(3.0),
+                    if doc_btn_resp.hovered() { theme.accent } else { theme.text },
+                );
+                if doc_btn_resp.on_hover_text("New File").clicked() {
                     *action = Some(SidebarAction::WorkspaceCreate(
                         root.to_path_buf(),
                         WorkspaceDialog::CreateFile,
@@ -504,7 +630,7 @@ fn render_root_entry(
         );
     }
 
-    // 3. Label text
+    // 3. Label text & classic root icon
     let text_x = row_rect.min.x + 6.0;
     let right_limit = if hovered {
         row_rect.max.x - 90.0
@@ -516,11 +642,20 @@ fn render_root_entry(
         pos2(right_limit, row_rect.max.y),
     );
     let text_painter = ui.painter().with_clip_rect(text_clip);
-    let display_str = format!("{caret} {glyph}  {}", project_name.to_uppercase());
+    let cy = row_rect.center().y;
+    let chev_rect = Rect::from_center_size(pos2(text_x + 5.0, cy), vec2(10.0, 12.0));
+    let fld_rect = Rect::from_center_size(pos2(text_x + 18.0, cy), vec2(14.5, 14.5));
+    crate::ui_components::icons::render_chevron_icon(&text_painter, chev_rect, theme.highlight, expanded);
+    crate::ui_components::icons::render_folder_icon(
+        &text_painter,
+        fld_rect,
+        folder_icon_color(theme, expanded, true),
+        expanded,
+    );
     text_painter.text(
-        pos2(text_x, row_rect.center().y),
+        pos2(text_x + 30.0, cy),
         Align2::LEFT_CENTER,
-        display_str,
+        project_name.to_uppercase(),
         FontId::proportional(12.0),
         theme.highlight,
     );
@@ -609,7 +744,14 @@ pub fn render_sidebar_body(
                 let resp = card_frame
                     .show(ui, |ui| {
                         ui.vertical_centered(|ui| {
-                            ui.label(egui::RichText::new("📂").size(22.0));
+                            let (fld_rect, _) =
+                                ui.allocate_exact_size(vec2(24.0, 22.0), egui::Sense::hover());
+                            crate::ui_components::icons::render_folder_icon(
+                                ui.painter(),
+                                fld_rect,
+                                theme.accent,
+                                true,
+                            );
                             ui.add_space(4.0);
                             ui.label(
                                 egui::RichText::new("No Folder Open")

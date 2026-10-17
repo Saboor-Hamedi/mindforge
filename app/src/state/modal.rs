@@ -28,10 +28,11 @@ pub struct ModalState {
     pub search_just_opened: bool,
     pub search_opened_at: f64,
 
-    // Rename modal (Ctrl+R)
+    // Rename modal (Ctrl+Shift+R or F2 in sidebar)
     pub rename_open: bool,
     pub rename_input: String,
     pub rename_just_opened: bool,
+    pub pending_rename_path: Option<std::path::PathBuf>,
 
     // Delete confirmation modal (Ctrl+Shift+D or :d)
     pub delete_confirm_open: bool,
@@ -67,6 +68,7 @@ impl Default for ModalState {
             rename_open: false,
             rename_input: String::new(),
             rename_just_opened: false,
+            pending_rename_path: None,
             delete_confirm_open: false,
             delete_just_opened: false,
             pending_delete_note_id: None,
@@ -103,6 +105,7 @@ impl ModalState {
         self.search_just_opened = false;
         self.rename_open = false;
         self.rename_just_opened = false;
+        self.pending_rename_path = None;
         self.delete_confirm_open = false;
         self.delete_just_opened = false;
         self.pending_delete_note_id = None;

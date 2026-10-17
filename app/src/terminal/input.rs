@@ -33,6 +33,37 @@ impl TerminalPane {
                     modifiers,
                     ..
                 } => {
+                    // Shift + Navigation keys scroll the terminal history buffer directly
+                    if modifiers.shift && !modifiers.ctrl && !modifiers.alt {
+                        match key {
+                            Key::PageUp => {
+                                active.backend.process_command(BackendCommand::Scroll(20));
+                                return;
+                            }
+                            Key::PageDown => {
+                                active.backend.process_command(BackendCommand::Scroll(-20));
+                                return;
+                            }
+                            Key::ArrowUp => {
+                                active.backend.process_command(BackendCommand::Scroll(3));
+                                return;
+                            }
+                            Key::ArrowDown => {
+                                active.backend.process_command(BackendCommand::Scroll(-3));
+                                return;
+                            }
+                            Key::Home => {
+                                active.backend.process_command(BackendCommand::Scroll(100_000));
+                                return;
+                            }
+                            Key::End => {
+                                active.backend.process_command(BackendCommand::Scroll(-100_000));
+                                return;
+                            }
+                            _ => {}
+                        }
+                    }
+
                     if let Some(bytes) = map_key_to_terminal_bytes(*key, *modifiers) {
                         active.backend.process_command(BackendCommand::Write(bytes));
                     }

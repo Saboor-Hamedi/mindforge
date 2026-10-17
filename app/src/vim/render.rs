@@ -167,13 +167,41 @@ impl VimBackend {
         }
 
         let nvim_row_height = row_height.max(1.0);
-        // Fixed gutter width matching Neovim's `numberwidth=4`. Deriving it from
-        // the live buffer line count made the gutter grow/shrink while a file was
-        // still loading (and when switching between files of different sizes),
-        // which shifted the text left/right. A constant width keeps it rock-solid.
+        let rows = self.grid.cells.len();
+        let grid_is_empty = rows == 0
+            || self.grid.cells.iter().all(|row| {
+                row.iter().all(|cell| cell.text.trim().is_empty())
+            });
+        let detected_gutter_cols = self
+            .grid
+            .cells
+            .iter()
+            .map(|r| {
+                r.iter()
+                    .take_while(|c| {
+                        self.grid
+                            .highlights
+                            .get(&c.highlight)
+                            .is_some_and(|s| s.is_gutter)
+                    })
+                    .count()
+            })
+            .max()
+            .unwrap_or(0);
+
+        let show_line_numbers = if !grid_is_empty && !self.grid.highlights.is_empty() {
+            detected_gutter_cols > 0
+        } else {
+            self.line_numbers_enabled.unwrap_or(show_line_numbers)
+        };
         const NUMBER_WIDTH: usize = 4;
+        let gutter_cols = if show_line_numbers {
+            detected_gutter_cols.max(NUMBER_WIDTH)
+        } else {
+            0
+        };
         let gutter_w = if show_line_numbers {
-            (NUMBER_WIDTH as f32 * (font_size * 0.55) + 14.0).max(28.0)
+            (gutter_cols as f32 * (font_size * 0.55) + 14.0).max(28.0)
         } else {
             0.0
         };
@@ -186,20 +214,17 @@ impl VimBackend {
         let text_left = rect.min.x + effective_gutter_w + pad_x;
 
         let number_columns = if show_line_numbers && effective_gutter_w > 0.0 {
-            NUMBER_WIDTH
+            if !grid_is_empty && !self.grid.highlights.is_empty() {
+                detected_gutter_cols
+            } else {
+                NUMBER_WIDTH
+            }
         } else {
             0
         };
-        if self.line_numbers_enabled != Some(show_line_numbers) {
-            let options = if show_line_numbers {
-                "set number relativenumber cursorline numberwidth=4 signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ \nhi Cursor NONE\nhi TermCursor NONE"
-            } else {
-                "set nonumber norelativenumber cursorline signcolumn=no laststatus=0 noruler noshowmode virtualedit=onemore guicursor=a:ver1-Cursor/lCursor fillchars+=eob:\\ \nhi Cursor NONE\nhi TermCursor NONE"
-            };
-            let _ = self
-                .client
-                .notify("nvim_command", vec![Value::from(options)]);
-            self.line_numbers_enabled = Some(show_line_numbers);
+        if self.last_number_columns != number_columns {
+            self.last_number_columns = number_columns;
+            self.row_layouts.clear();
         }
 
         let origin = Pos2::new(
@@ -253,12 +278,6 @@ impl VimBackend {
             self.sync_theme(theme);
         }
 
-        let rows = self.grid.cells.len();
-        let grid_is_empty = rows == 0
-            || self.grid.cells.iter().all(|row| {
-                row.iter().all(|cell| cell.text.trim().is_empty())
-            });
-
         if self.grid.width == 0 || self.grid.height == 0 {
             painter.text(
                 Pos2::new(origin.x + number_columns as f32 * cell_width, origin.y),
@@ -289,6 +308,17 @@ impl VimBackend {
 
             for row_idx in 0..rows {
             let row = &self.grid.cells[row_idx];
+            // Never render a Neovim statusline row (e.g. bottom filename/ruler bar).
+            let row_is_statusline = !row.is_empty()
+                && row.iter().any(|c| {
+                    self.grid
+                        .highlights
+                        .get(&c.highlight)
+                        .is_some_and(|s| s.is_statusline)
+                });
+            if row_is_statusline {
+                continue;
+            }
             let revision = self.grid.row_revision.get(row_idx).copied().unwrap_or(0);
             // Every grid row is real buffer text (messages/cmdline are handled
             // out-of-band via `ext_messages`/`ext_cmdline`), so each row is laid
@@ -296,15 +326,48 @@ impl VimBackend {
             let row_font = font.clone();
             if self.row_layouts[row_idx]
                 .as_ref()
-                .is_none_or(|(cached_revision, _)| *cached_revision != revision)
+                .is_none_or(|(cached_revision, _, _)| *cached_revision != revision)
             {
-                let mut job = egui::text::LayoutJob::default();
-                for (col_offset, cell) in row
+                let visible_count = width.saturating_sub(number_columns);
+                let visible_slice = if number_columns < row.len() {
+                    let end = (number_columns + visible_count).min(row.len());
+                    &row[number_columns..end]
+                } else {
+                    &[]
+                };
+
+                let row_chars: Vec<char> = visible_slice
                     .iter()
-                    .skip(number_columns)
-                    .take(width.saturating_sub(number_columns))
-                    .enumerate()
-                {
+                    .map(|c| c.text.chars().next().unwrap_or(' '))
+                    .collect();
+
+                let mut row_ligatures = Vec::new();
+                let mut i = 0;
+                while i < row_chars.len() {
+                    if let Some(lig) = crate::view_editor::ligatures::detect_ligature(&row_chars, i) {
+                        let len = lig.char_len();
+                        let cell = &visible_slice[i];
+                        let mut foreground = theme.text;
+                        if let Some(style) = self.grid.highlights.get(&cell.highlight) {
+                            if style.reverse {
+                                foreground = style.background.map(rgb).unwrap_or(theme.bg);
+                            } else if let Some(color) = style.foreground {
+                                foreground = rgb(color);
+                            }
+                        }
+                        row_ligatures.push(super::backend::RowLigature {
+                            col_offset: i,
+                            kind: lig,
+                            color: foreground,
+                        });
+                        i += len;
+                    } else {
+                        i += 1;
+                    }
+                }
+
+                let mut job = egui::text::LayoutJob::default();
+                for (col_offset, cell) in visible_slice.iter().enumerate() {
                     let col_idx = number_columns + col_offset;
                     let is_cursor_cell =
                         row_idx == self.grid.cursor.row && col_idx == self.grid.cursor.column;
@@ -315,8 +378,11 @@ impl VimBackend {
                         background: Color32::TRANSPARENT,
                         ..Default::default()
                     };
+                    let mut is_stl = false;
                     if let Some(style) = self.grid.highlights.get(&cell.highlight) {
-                        if style.reverse {
+                        if style.is_statusline {
+                            is_stl = true;
+                        } else if style.reverse {
                             if !is_cursor_cell || caret.kind == crate::caret::CaretKind::Block {
                                 foreground = style.background.map(rgb).unwrap_or(theme.bg);
                             }
@@ -325,14 +391,23 @@ impl VimBackend {
                         }
                     }
                     format.color = foreground;
-                    job.append(&cell.text, 0.0, format);
+
+                    let in_ligature = row_ligatures.iter().any(|lig| {
+                        col_offset >= lig.col_offset && col_offset < lig.col_offset + lig.kind.char_len()
+                    });
+                    if in_ligature || is_stl {
+                        format.color = Color32::TRANSPARENT;
+                        job.append(" ", 0.0, format);
+                    } else {
+                        job.append(&cell.text, 0.0, format);
+                    }
                 }
-                self.row_layouts[row_idx] = Some((revision, painter.layout_job(job)));
+                self.row_layouts[row_idx] = Some((revision, painter.layout_job(job), row_ligatures));
             }
             let font_row_height = self
                 .row_layouts
                 .iter()
-                .filter_map(|opt| opt.as_ref().map(|(_, g)| g.size().y))
+                .filter_map(|opt| opt.as_ref().map(|(_, g, _)| g.size().y))
                 .next()
                 .unwrap_or(font_size * 1.25);
             let y_offset = ((nvim_row_height - font_row_height) * 0.5).max(0.0).round();
@@ -352,7 +427,9 @@ impl VimBackend {
                     row_idx == self.grid.cursor.row && col_idx == self.grid.cursor.column;
                 let mut bg_color = None;
                 if let Some(style) = self.grid.highlights.get(&cell.highlight) {
-                    if style.reverse {
+                    if style.is_statusline {
+                        bg_color = None;
+                    } else if style.reverse {
                         if !is_cursor_cell || caret.kind == crate::caret::CaretKind::Block {
                             bg_color = Some(style.foreground.map(rgb).unwrap_or(theme.text));
                         }
@@ -403,9 +480,22 @@ impl VimBackend {
                 );
             }
 
-            if let Some((_, galley)) = &self.row_layouts[row_idx] {
+            if let Some((_, galley, ligatures)) = &self.row_layouts[row_idx] {
                 let y_pos = origin.y + row_idx as f32 * nvim_row_height + y_offset;
                 painter.galley(Pos2::new(text_left, y_pos), Arc::clone(galley), theme.text);
+
+                for lig in ligatures {
+                    let x_start = text_left + lig.col_offset as f32 * cell_width;
+                    let y_mid = row_top + nvim_row_height * 0.5;
+                    crate::view_editor::ligatures::draw_ligature(
+                        &painter,
+                        lig.kind,
+                        x_start,
+                        y_mid,
+                        cell_width,
+                        Stroke::new(1.35, lig.color),
+                    );
+                }
             }
 
             for (col_offset, cell) in row
@@ -432,6 +522,12 @@ impl VimBackend {
                 let number = row
                     .iter()
                     .take(number_columns)
+                    .filter(|cell| {
+                        self.grid
+                            .highlights
+                            .get(&cell.highlight)
+                            .is_some_and(|s| s.is_gutter)
+                    })
                     .map(|cell| cell.text.as_str())
                     .collect::<String>();
                 let number = number.trim();
@@ -484,7 +580,7 @@ impl VimBackend {
         let font_row_height = self
             .row_layouts
             .iter()
-            .filter_map(|opt| opt.as_ref().map(|(_, g)| g.size().y))
+            .filter_map(|opt| opt.as_ref().map(|(_, g, _)| g.size().y))
             .next()
             .unwrap_or(font_size * 1.25);
         let y_offset = ((nvim_row_height - font_row_height) * 0.5).max(0.0).round();
@@ -588,8 +684,8 @@ impl VimBackend {
         }
 
         if !self.grid.message.is_empty() {
-            let fixed_font = crate::services::font_manager::editor_font_id(12.5);
-            let icon_font = crate::services::font_manager::editor_font_id(12.0);
+            let fixed_font = crate::services::font_manager::editor_font_id(11.5);
+            let icon_font = crate::services::font_manager::editor_font_id(11.0);
 
             let msg_text = &self.grid.message;
             let is_error = self.grid.message_is_error;
@@ -598,99 +694,108 @@ impl VimBackend {
                 .message_copied_at
                 .is_some_and(|t| t.elapsed() < Duration::from_millis(1500));
 
-            // Semantic colors
-            let prefix = if is_error { "⚠ " } else { "ℹ " };
+            // Subtle semantic colors
             let prefix_color = if is_error {
-                Color32::from_rgb(240, 100, 100)
+                Color32::from_rgb(235, 105, 105)
             } else {
-                theme.accent
+                theme.accent.gamma_multiply(0.85)
             };
             let text_color = if is_error {
-                Color32::from_rgb(255, 140, 140)
+                Color32::from_rgb(245, 145, 145)
             } else {
-                theme.text
+                theme.text.lerp_to_gamma(theme.muted, 0.25)
             };
 
-            // Layout prefix and message
-            let prefix_galley =
-                painter.layout_no_wrap(prefix.to_string(), fixed_font.clone(), prefix_color);
-            let max_text_w = (rect.width() - 170.0).max(100.0);
-            let msg_galley = painter.layout(
-                msg_text.to_string(),
-                fixed_font.clone(),
-                text_color,
-                max_text_w,
-            );
-
-            // Copy button text & icon
-            let copy_label = if is_copied { "✓ Copied" } else { "⎘ Copy" };
+            // Subtle Copy button text & vector icon
+            let copy_label = if is_copied { "Copied" } else { "Copy" };
             let copy_color = if is_copied {
                 theme.accent
-            } else if theme.is_light() {
-                theme.text
             } else {
-                Color32::from_rgb(215, 220, 230)
+                theme.muted.lerp_to_gamma(theme.text, 0.35)
             };
             let copy_galley =
                 painter.layout_no_wrap(copy_label.to_string(), icon_font.clone(), copy_color);
-            let copy_btn_w = copy_galley.size().x + 16.0;
-            let copy_btn_h = 22.0;
+            let icon_w = 11.0;
+            let copy_btn_w = icon_w + 4.0 + copy_galley.size().x + 12.0;
+            let copy_btn_h = 18.0;
+            let prefix_w = 10.0;
 
-            let pill_h = (msg_galley.size().y + 12.0).max(28.0);
-            let pill_w = (prefix_galley.size().x + msg_galley.size().x + copy_btn_w + 32.0)
-                .min(rect.width() - 24.0);
+            // Layout single-line message so it never collides with the Copy button
+            let max_text_w =
+                (rect.width() - prefix_w - copy_btn_w - 48.0).clamp(80.0, 620.0);
+            let single_line_msg = msg_text
+                .lines()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let mut job = egui::text::LayoutJob::single_section(
+                single_line_msg,
+                egui::TextFormat {
+                    font_id: fixed_font.clone(),
+                    color: text_color,
+                    ..Default::default()
+                },
+            );
+            job.wrap = egui::text::TextWrapping {
+                max_width: max_text_w,
+                max_rows: 1,
+                break_anywhere: true,
+                overflow_character: Some('…'),
+            };
+            let msg_galley = painter.layout_job(job);
 
-            // Anchor above bottom edge with a solid gap, elevated above command line if open
+            let pill_h = (msg_galley.size().y + 8.0).max(24.0);
+            let pill_w = (prefix_w + msg_galley.size().x + copy_btn_w + 28.0)
+                .min(rect.width() - 16.0);
+
+            // Horizontally centered near the bottom of the editor
             let pill_bottom_gap = if has_cmdline {
-                nvim_row_height + 12.0
+                nvim_row_height + 10.0
             } else {
-                12.0
+                10.0
             };
             let pill_y = (rect.max.y - pill_bottom_gap - pill_h).max(rect.min.y + 4.0);
-            let pill_x = (rect.min.x + gutter_w + 16.0)
-                .min(rect.max.x - pill_w - 12.0)
-                .max(rect.min.x + 8.0);
+            let min_x = rect.min.x + 8.0;
+            let max_x = (rect.max.x - pill_w - 8.0).max(min_x);
+            let pill_x = (rect.center().x - pill_w * 0.5).clamp(min_x, max_x);
 
             let pill_rect =
                 Rect::from_min_size(Pos2::new(pill_x, pill_y), egui::vec2(pill_w, pill_h));
 
-            // Solid background card with distinct elevation
+            // Subtle translucent floating capsule
             let pill_bg = if theme.is_light() {
-                Color32::from_rgb(246, 248, 251)
+                Color32::from_rgba_unmultiplied(248, 250, 252, 225)
             } else {
-                Color32::from_rgb(24, 26, 32)
+                Color32::from_rgba_unmultiplied(22, 24, 30, 215)
             };
             let pill_border = if is_error {
-                Color32::from_rgba_unmultiplied(240, 90, 90, 180)
+                Color32::from_rgba_unmultiplied(235, 95, 95, 110)
             } else {
-                theme.border().gamma_multiply(0.85)
+                theme.border().gamma_multiply(0.45)
             };
 
-            // Card background & outline
             painter.rect(
                 pill_rect,
-                6.0,
+                12.0,
                 pill_bg,
-                Stroke::new(1.0, pill_border),
+                Stroke::new(0.8, pill_border),
                 egui::StrokeKind::Inside,
             );
 
-            // Draw prefix icon
+            // Draw crisp vector status indicator dot
             let content_y = pill_rect.center().y;
-            let prefix_pos = Pos2::new(
-                pill_rect.min.x + 10.0,
-                content_y - prefix_galley.size().y * 0.5,
-            );
-            painter.galley(prefix_pos, prefix_galley, prefix_color);
+            let dot_center = Pos2::new(pill_rect.min.x + 12.0, content_y);
+            painter.circle_filled(dot_center, 3.2, prefix_color);
 
             // Draw message text
-            let text_x = prefix_pos.x + 18.0;
+            let text_x = pill_rect.min.x + 10.0 + prefix_w;
             let text_pos = Pos2::new(text_x, content_y - msg_galley.size().y * 0.5);
             painter.galley(text_pos, msg_galley, text_color);
 
-            // Copy button on the right
+            // Subtle Copy chip on the right
             let copy_btn_rect = Rect::from_center_size(
-                Pos2::new(pill_rect.max.x - copy_btn_w * 0.5 - 6.0, content_y),
+                Pos2::new(pill_rect.max.x - copy_btn_w * 0.5 - 5.0, content_y),
                 egui::vec2(copy_btn_w, copy_btn_h),
             );
 
@@ -700,30 +805,53 @@ impl VimBackend {
             }
 
             let btn_bg = if is_copied {
-                theme.accent.gamma_multiply(0.20)
+                theme.accent.gamma_multiply(0.16)
             } else if copy_hovered {
-                theme.highlight.gamma_multiply(0.35)
+                theme.highlight.gamma_multiply(0.25)
             } else {
-                theme.surface().gamma_multiply(0.60)
+                Color32::TRANSPARENT
             };
             let btn_stroke = if is_copied {
-                Stroke::new(1.0, theme.accent)
+                Stroke::new(0.8, theme.accent.gamma_multiply(0.75))
             } else if copy_hovered {
-                Stroke::new(1.0, theme.accent.gamma_multiply(0.60))
+                Stroke::new(0.8, theme.border().gamma_multiply(0.65))
             } else {
-                Stroke::new(1.0, theme.border().gamma_multiply(0.50))
+                Stroke::NONE
             };
 
             painter.rect(
                 copy_btn_rect,
-                4.0,
+                9.0,
                 btn_bg,
                 btn_stroke,
                 egui::StrokeKind::Inside,
             );
 
+            // Vector copy / checkmark icon inside Copy chip
+            let icon_x = copy_btn_rect.min.x + 6.0;
+            let icon_stroke = Stroke::new(1.15, copy_color);
+            if is_copied {
+                let p1 = Pos2::new(icon_x + 1.5, content_y + 0.5);
+                let p2 = Pos2::new(icon_x + 4.2, content_y + 3.0);
+                let p3 = Pos2::new(icon_x + 9.2, content_y - 2.8);
+                painter.line_segment([p1, p2], icon_stroke);
+                painter.line_segment([p2, p3], icon_stroke);
+            } else {
+                let back_sheet = Rect::from_min_size(
+                    Pos2::new(icon_x + 1.0, content_y - 4.8),
+                    egui::vec2(6.2, 7.2),
+                );
+                let front_sheet = Rect::from_min_size(
+                    Pos2::new(icon_x + 3.2, content_y - 2.6),
+                    egui::vec2(6.2, 7.2),
+                );
+                painter.rect_stroke(back_sheet, 1.2, icon_stroke, egui::StrokeKind::Inside);
+                painter.rect_filled(front_sheet, 1.2, pill_bg);
+                painter.rect_stroke(front_sheet, 1.2, icon_stroke, egui::StrokeKind::Inside);
+            }
+
             let copy_text_pos = Pos2::new(
-                copy_btn_rect.center().x - copy_galley.size().x * 0.5,
+                icon_x + icon_w + 3.0,
                 copy_btn_rect.center().y - copy_galley.size().y * 0.5,
             );
             painter.galley(copy_text_pos, copy_galley, copy_color);

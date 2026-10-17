@@ -286,9 +286,16 @@ local function setup_keys()
   end
 
   local function safe_format()
+    local say = require('mindforge.lsp.notify').say
     local name = require('mindforge.lsp.format').format()
-    if not name then
-      vim.notify('No formatter available for this file', vim.log.levels.WARN)
+    if name then
+      if name == 'already formatted' then
+        say('file is already formatted')
+      else
+        say('Formatted with ' .. name)
+      end
+    else
+      say('No formatter available for this file')
     end
   end
 
@@ -303,13 +310,13 @@ local function setup_keys()
       if pum_selected() >= 0 then
         return '<C-y>'
       end
-      return '<C-n><C-y>'
+      return '<C-e><CR>'
     end
     if vim.snippet and vim.snippet.active and vim.snippet.active() and not vim.snippet.active({ direction = 1 }) then
       pcall(vim.snippet.stop)
     end
     return '<CR>'
-  end, { expr = true })
+  end, { expr = true, replace_keycodes = true })
   map('i', '<Esc>', function()
     if vim.snippet and vim.snippet.active and vim.snippet.active() then
       pcall(vim.snippet.stop)

@@ -6,6 +6,7 @@
 
 use crate::ui::theme::Theme;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, FontId, Painter, Rect, Stroke, Ui};
+use alacritty_terminal::grid::Dimensions;
 use egui_term::{BackendCommand, ColorPalette, TerminalTheme, TerminalView};
 
 use super::state::TerminalState;
@@ -196,31 +197,67 @@ impl TerminalPane {
             self.last_theme_kind = Some(theme.kind);
         }
 
-        // Mouse-wheel scrollback. egui_term only scrolls while its widget holds
+        // Mouse-wheel & trackpad scrollback. egui_term only scrolls while its widget holds
         // focus, but we deliberately withhold focus (to avoid duplicate keyboard
         // input), so we forward wheel events to the PTY ourselves whenever the
-        // pointer is over the terminal body. This lets users scroll up to read
-        // earlier output (e.g. a long `python script.py` run).
+        // pointer is over the terminal body. This lets users smoothly scroll up to read
+        // earlier output (e.g. a long script output, compiler warnings, etc.).
         if ui.rect_contains_pointer(term_body_rect) {
-            let wheel: f32 = ui.input(|i| {
-                i.events
-                    .iter()
-                    .filter_map(|event| match event {
-                        egui::Event::MouseWheel { delta, .. } => Some(delta.y),
-                        _ => None,
-                    })
-                    .sum()
+            let modifiers = ui.input(|i| i.modifiers);
+            let speed_mult = if modifiers.shift {
+                5.0f32
+            } else if modifiers.ctrl || modifiers.command {
+                15.0f32
+            } else {
+                1.0f32
+            };
+
+            let mut lines_delta = 0.0f32;
+            ui.input(|i| {
+                for event in &i.events {
+                    if let egui::Event::MouseWheel { unit, delta, .. } = event {
+                        match unit {
+                            egui::MouseWheelUnit::Line => {
+                                lines_delta += delta.y * 3.0 * speed_mult;
+                            }
+                            egui::MouseWheelUnit::Point => {
+                                lines_delta += (delta.y / 16.0) * speed_mult;
+                            }
+                            egui::MouseWheelUnit::Page => {
+                                lines_delta += delta.y * 15.0 * speed_mult;
+                            }
+                        }
+                    }
+                }
+                if lines_delta == 0.0 {
+                    let raw_y = i.raw_scroll_delta.y;
+                    let smooth_y = i.smooth_scroll_delta.y;
+                    let dy = if raw_y.abs() > 0.001 { raw_y } else { smooth_y };
+                    if dy != 0.0 {
+                        lines_delta += (dy / 16.0) * speed_mult;
+                    }
+                }
             });
-            if wheel != 0.0 {
-                const TERM_CELL_H: f32 = 16.0;
-                self.scroll_pixels += wheel;
-                let lines = (self.scroll_pixels / TERM_CELL_H).trunc();
-                if lines != 0.0 {
-                    self.scroll_pixels -= lines * TERM_CELL_H;
+
+            if lines_delta != 0.0 {
+                self.scroll_pixels += lines_delta;
+                let whole = if self.scroll_pixels.abs() >= 1.0 {
+                    let l = self.scroll_pixels.trunc();
+                    self.scroll_pixels -= l;
+                    l as i32
+                } else if self.scroll_pixels.abs() > 0.35 {
+                    let s = self.scroll_pixels.signum() as i32;
+                    self.scroll_pixels = 0.0;
+                    s
+                } else {
+                    0
+                };
+
+                if whole != 0 {
                     if let Some(active) = self.sessions.get_mut(self.active_session_idx) {
                         active
                             .backend
-                            .process_command(BackendCommand::Scroll(lines as i32));
+                            .process_command(BackendCommand::Scroll(whole));
                     }
                 }
                 // Consume the wheel so it does not also scroll the editor behind.
@@ -250,6 +287,149 @@ impl TerminalPane {
                     .set_focus(selecting)
                     .set_theme(term_theme.clone());
                 child_ui.add(term_view);
+
+                // --- Terminal Scrollbar & History Status Indicator ---
+                let (display_offset, history_size, screen_lines) = {
+                    let content = active_session.backend.last_content();
+                    (
+                        content.grid.display_offset(),
+                        content.grid.history_size(),
+                        content.grid.screen_lines(),
+                    )
+                };
+
+                if history_size > 0 {
+                    let track_w = 6.0f32;
+                    let track_rect = Rect::from_min_max(
+                        pos2(inner_rect.max.x - track_w - 2.0, inner_rect.min.y + 4.0),
+                        pos2(inner_rect.max.x - 2.0, inner_rect.max.y - 4.0),
+                    );
+
+                    let total_lines = (history_size + screen_lines) as f32;
+                    let thumb_fraction = (screen_lines as f32 / total_lines).clamp(0.08, 0.7);
+                    let track_h = track_rect.height();
+                    let thumb_h = (track_h * thumb_fraction).max(18.0);
+                    let scrollable_h = track_h - thumb_h;
+
+                    // When display_offset == 0 (at bottom of terminal output), thumb is at bottom
+                    let scroll_fraction = 1.0 - (display_offset as f32 / history_size as f32);
+                    let thumb_top = track_rect.min.y + scroll_fraction * scrollable_h;
+                    let thumb_rect = Rect::from_min_max(
+                        pos2(track_rect.min.x, thumb_top),
+                        pos2(track_rect.max.x, thumb_top + thumb_h),
+                    );
+
+                    let is_track_hovered = ui.rect_contains_pointer(track_rect.expand(6.0));
+                    let is_thumb_hovered = ui.rect_contains_pointer(thumb_rect.expand(3.0));
+                    let primary_down = ui.input(|i| i.pointer.primary_down());
+
+                    // Dragging / clicking scrollbar
+                    if is_track_hovered && primary_down {
+                        if let Some(mouse_pos) = ui.input(|i| i.pointer.interact_pos()) {
+                            let rel_y = (mouse_pos.y - track_rect.min.y - thumb_h * 0.5)
+                                / scrollable_h.max(1.0);
+                            let desired_scroll_fraction =
+                                (1.0 - rel_y.clamp(0.0, 1.0)) * history_size as f32;
+                            let target_offset = desired_scroll_fraction.round() as usize;
+                            let delta = target_offset as i32 - display_offset as i32;
+                            if delta != 0 {
+                                active_session
+                                    .backend
+                                    .process_command(BackendCommand::Scroll(delta));
+                            }
+                        }
+                    }
+
+                    // Draw track background on hover
+                    if is_track_hovered {
+                        painter.rect_filled(
+                            track_rect,
+                            3.0,
+                            Color32::from_rgba_unmultiplied(
+                                theme.surface().r(),
+                                theme.surface().g(),
+                                theme.surface().b(),
+                                90,
+                            ),
+                        );
+                    }
+
+                    // Draw thumb
+                    let thumb_color = if is_thumb_hovered || (is_track_hovered && primary_down) {
+                        theme.accent
+                    } else if display_offset > 0 {
+                        theme.muted.lerp_to_gamma(theme.accent, 0.45)
+                    } else {
+                        Color32::from_rgba_unmultiplied(
+                            theme.muted.r(),
+                            theme.muted.g(),
+                            theme.muted.b(),
+                            110,
+                        )
+                    };
+                    painter.rect_filled(thumb_rect, 3.0, thumb_color);
+                }
+
+                // If user is scrolled up in history, show floating jump-to-bottom badge in bottom right
+                if display_offset > 0 {
+                    let badge_text = format!(
+                        "▼ Scrolled up {} lines (Click or Shift+End to bottom)",
+                        display_offset
+                    );
+                    let badge_font = FontId::monospace(font_size * 0.68);
+                    let text_galley = painter.layout_no_wrap(badge_text, badge_font, theme.accent);
+                    let badge_w = text_galley.size().x + 18.0;
+                    let badge_h = 22.0;
+                    let badge_rect = Rect::from_min_max(
+                        pos2(
+                            inner_rect.max.x - badge_w - 14.0,
+                            inner_rect.max.y - badge_h - 6.0,
+                        ),
+                        pos2(inner_rect.max.x - 14.0, inner_rect.max.y - 6.0),
+                    );
+
+                    let is_badge_hovered = ui.rect_contains_pointer(badge_rect);
+                    let badge_bg = if is_badge_hovered {
+                        theme.surface().lerp_to_gamma(theme.accent, 0.25)
+                    } else {
+                        Color32::from_rgba_unmultiplied(
+                            theme.bg.r(),
+                            theme.bg.g(),
+                            theme.bg.b(),
+                            230,
+                        )
+                    };
+                    let badge_stroke = Stroke::new(
+                        1.0,
+                        if is_badge_hovered {
+                            theme.accent
+                        } else {
+                            theme.border()
+                        },
+                    );
+
+                    painter.rect(
+                        badge_rect,
+                        4.0,
+                        badge_bg,
+                        badge_stroke,
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.galley(
+                        pos2(
+                            badge_rect.min.x + 9.0,
+                            badge_rect.center().y - text_galley.size().y * 0.5,
+                        ),
+                        text_galley,
+                        theme.accent,
+                    );
+
+                    if is_badge_hovered && ui.input(|i| i.pointer.primary_clicked()) {
+                        active_session
+                            .backend
+                            .process_command(BackendCommand::Scroll(-100_000));
+                    }
+                }
             }
         }
 

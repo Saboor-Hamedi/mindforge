@@ -28,6 +28,65 @@ pub fn default_backup_dir() -> std::path::PathBuf {
     }
 }
 
+/// Reads `<APPDATA>/mindforge/mindforge/nvim/init.lua` (creating the default template if
+/// missing) to determine the initial line-number gutter state before Neovim finishes booting.
+fn detect_initial_line_numbers_from_init_lua() -> bool {
+    let Some(appdata) = std::env::var_os("APPDATA") else {
+        return true;
+    };
+    let init_path = std::path::PathBuf::from(appdata)
+        .join("mindforge")
+        .join("mindforge")
+        .join("nvim")
+        .join("init.lua");
+    if !init_path.exists() {
+        if let Some(parent) = init_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(&init_path, crate::vim::bootstrap::DEFAULT_USER_INIT_LUA);
+        return true;
+    }
+    let Ok(content) = std::fs::read_to_string(&init_path) else {
+        return true;
+    };
+    let mut number = true;
+    let mut relativenumber = true;
+    let mut explicitly_set_rnu = false;
+    for raw_line in content.lines() {
+        let line = raw_line.split("--").next().unwrap_or("").trim();
+        if line.is_empty() {
+            continue;
+        }
+        let compact: String = line.chars().filter(|c| !c.is_whitespace()).collect();
+        if compact.contains("number=false") || line.contains("set nonumber") || line.contains("set nonu") {
+            if !compact.contains("relativenumber=false") {
+                number = false;
+                if !explicitly_set_rnu {
+                    relativenumber = false;
+                }
+            }
+        } else if compact.contains("number=true") || line.contains("set number") || line.contains("set nu") {
+            if !compact.contains("relativenumber=true") {
+                number = true;
+            }
+        }
+        if compact.contains("relativenumber=false")
+            || line.contains("set norelativenumber")
+            || line.contains("set nornu")
+        {
+            explicitly_set_rnu = true;
+            relativenumber = false;
+        } else if compact.contains("relativenumber=true")
+            || line.contains("set relativenumber")
+            || line.contains("set rnu")
+        {
+            explicitly_set_rnu = true;
+            relativenumber = true;
+        }
+    }
+    number || relativenumber
+}
+
 impl App {
     pub fn new() -> Self {
         Self::new_with_flags(false)
@@ -70,6 +129,7 @@ impl App {
                 rename_open: false,
                 rename_input: String::new(),
                 rename_just_opened: false,
+                pending_rename_path: None,
                 delete_confirm_open: false,
                 delete_just_opened: false,
                 pending_delete_note_id: None,
@@ -316,9 +376,8 @@ impl App {
         if let Some(s) = map.get("showcmd") {
             self.misc.showcmd.enabled = s != "off" && s != "false";
         }
-        if let Some(ln) = map.get("line_numbers") {
-            self.editor.show_line_numbers = ln != "off" && ln != "false";
-        }
+        // Line numbers are controlled exclusively by `<APPDATA>/mindforge/mindforge/nvim/init.lua`.
+        self.editor.show_line_numbers = detect_initial_line_numbers_from_init_lua();
         if let Some(p) = map.get("preview") {
             self.editor.preview_open = p == "on" || p == "true";
         }

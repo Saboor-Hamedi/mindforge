@@ -176,13 +176,39 @@ pub fn handle_panel_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) -> O
         return Some(false);
     }
 
+    // Sidebar F2: Rename selected file or folder in the Rename modal.
+    let f2 = ctx.input(|i| i.key_pressed(egui::Key::F2));
+    if f2 && !app.command_bar.in_command && app.sidebar.open && app.sidebar.focused {
+        let target = app
+            .workspace
+            .selected_path
+            .clone()
+            .or_else(|| app.workspace.selected_items.iter().next().cloned());
+        if let Some(path) = target {
+            app.modal.pending_rename_path = Some(path.clone());
+            app.modal.rename_input = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            app.modal.rename_open = true;
+            app.modal.rename_just_opened = true;
+            return Some(false);
+        } else if !app.notes.notes_list.is_empty() {
+            app.modal.pending_rename_path = None;
+            app.modal.rename_input = app.notes.active_note_title.clone();
+            app.modal.rename_open = true;
+            app.modal.rename_just_opened = true;
+            return Some(false);
+        }
+    }
+
     // Toggle Documentation Mode: F2.
     // While the embedded Neovim editor owns input, F2 must reach it so the
     // documented <F2> LSP rename works; other LSP keys (K, gd, gr, ...) are
     // forwarded for the same reason.
     let neovim_owns_keys = app.services.vim_runtime.backend.is_some()
         && matches!(app.misc.mode, Mode::Normal | Mode::Doc);
-    let f2 = ctx.input(|i| i.key_pressed(egui::Key::F2));
     if f2 && !app.command_bar.in_command && !neovim_owns_keys {
         if app.misc.mode == Mode::Doc {
             app.misc.mode = Mode::Normal;

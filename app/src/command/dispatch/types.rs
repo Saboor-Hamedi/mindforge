@@ -148,6 +148,14 @@ pub const COMMAND_CATALOG: &[CommandInfo] = &[
         desc: "Sort lines alphabetically (:sort, :sort!, :sort u, :sort n)",
     },
     CommandInfo {
+        name: "init",
+        desc: "Open Neovim init.lua configuration in tab (:init, :config)",
+    },
+    CommandInfo {
+        name: "config",
+        desc: "Open Neovim init.lua configuration in tab (:config, :init)",
+    },
+    CommandInfo {
         name: "syntax",
         desc: "Toggle syntax highlighting (:syntax on, :syntax off, :syntax enable)",
     },

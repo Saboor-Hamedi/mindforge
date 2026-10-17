@@ -34,11 +34,36 @@ pub fn quick_save_active_note(app: &mut App, now: f64) {
                 }
                 app.editor.is_dirty = false;
                 app.editor.last_saved_time = now;
+                let is_nvim_config = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|name| {
+                        name.eq_ignore_ascii_case("init.lua")
+                            || name.eq_ignore_ascii_case("lsp.lua")
+                            || name.eq_ignore_ascii_case("formatters.lua")
+                    });
+                let mut reloaded_cfg = false;
                 if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
                     backend.mark_saved();
+                    if is_nvim_config {
+                        reloaded_cfg = backend.reload_user_config().unwrap_or(false);
+                        if let Some(ln) = backend.line_numbers_enabled {
+                            app.editor.show_line_numbers = ln;
+                        }
+                    }
                 }
                 app.sync_active_tab();
-                app.set_status(format!("Saved {}", app.display_file_path(&path)), now);
+                if is_nvim_config && reloaded_cfg {
+                    app.set_status(
+                        format!(
+                            "Saved & reloaded config {}",
+                            app.display_file_path(&path)
+                        ),
+                        now,
+                    );
+                } else {
+                    app.set_status(format!("Saved {}", app.display_file_path(&path)), now);
+                }
             }
             Err(error) => app.set_status(format!("Save failed: {error}"), now),
         }

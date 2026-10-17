@@ -5,6 +5,7 @@ use std::path::Path;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FileLanguage {
     Markdown,
+    Lua,
     JavaScript,
     Jsx,
     TypeScript,
@@ -21,8 +22,9 @@ pub enum FileLanguage {
 }
 
 impl FileLanguage {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Markdown,
+        Self::Lua,
         Self::JavaScript,
         Self::TypeScript,
         Self::Jsx,
@@ -54,6 +56,7 @@ impl FileLanguage {
         };
         match extension.to_ascii_lowercase().as_str() {
             "md" | "markdown" | "mdown" => Self::Markdown,
+            "lua" => Self::Lua,
             "js" | "mjs" | "cjs" => Self::JavaScript,
             "jsx" => Self::Jsx,
             "ts" | "mts" | "cts" => Self::TypeScript,
@@ -65,7 +68,7 @@ impl FileLanguage {
             "css" => Self::Css,
             "json" | "jsonc" => Self::Json,
             "yaml" | "yml" => Self::Yaml,
-            "sql" => Self::Sql,
+            "sql" | "sqlite" | "sqlite3" | "mysql" | "mariadb" | "pgsql" | "psql" => Self::Sql,
             _ => Self::PlainText,
         }
     }
@@ -73,6 +76,7 @@ impl FileLanguage {
     pub fn label(self) -> &'static str {
         match self {
             Self::Markdown => "Markdown",
+            Self::Lua => "Lua",
             Self::JavaScript => "JavaScript",
             Self::Jsx => "JSX",
             Self::TypeScript => "TypeScript",
@@ -92,6 +96,7 @@ impl FileLanguage {
     pub fn nvim_filetype(self) -> &'static str {
         match self {
             Self::Markdown => "markdown",
+            Self::Lua => "lua",
             Self::JavaScript => "javascript",
             Self::Jsx => "javascriptreact",
             Self::TypeScript => "typescript",
@@ -111,6 +116,7 @@ impl FileLanguage {
     pub fn default_extension(self) -> &'static str {
         match self {
             Self::Markdown => "md",
+            Self::Lua => "lua",
             Self::JavaScript => "js",
             Self::Jsx => "jsx",
             Self::TypeScript => "ts",
@@ -155,11 +161,16 @@ mod tests {
             FileLanguage::from_title("hello.py"),
             Some(FileLanguage::Python)
         );
+        assert_eq!(
+            FileLanguage::from_title("init.lua"),
+            Some(FileLanguage::Lua)
+        );
     }
     #[test]
     fn detects_supported_extensions_case_insensitively() {
         let cases = [
             ("my_book.md", FileLanguage::Markdown),
+            ("init.lua", FileLanguage::Lua),
             ("app.js", FileLanguage::JavaScript),
             ("view.jsx", FileLanguage::Jsx),
             ("main.ts", FileLanguage::TypeScript),

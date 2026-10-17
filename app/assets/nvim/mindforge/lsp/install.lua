@@ -52,9 +52,29 @@ local function tail(text)
   return #text > 160 and ('...' .. text:sub(-160)) or text
 end
 
---- Absolute path of the server executable, or nil when it is not installed.
-function M.resolve(spec)
+local resolve_cache = {}
+local command_cache = {}
+
+function M.clear_cache()
+  resolve_cache = {}
+  command_cache = {}
+end
+
+local function servers_dir()
+  return (paths.servers_dir and paths.servers_dir()) or (paths.nvim_dir() .. '/servers')
+end
+
+local function resolve_uncached(spec)
+  local home = vim.uv.os_homedir() or vim.env.USERPROFILE or vim.env.HOME or ''
   if spec.rustup then
+    local cargo_bin = home .. '/.cargo/bin/' .. spec.bin .. (is_windows and '.exe' or '')
+    if vim.uv.fs_stat(cargo_bin) then
+      return cargo_bin
+    end
+    local found = vim.fn.exepath(spec.bin)
+    if found ~= '' and vim.uv.fs_stat(found) then
+      return found
+    end
     local rustup = vim.fn.exepath('rustup')
     if rustup ~= '' then
       local ok, res = pcall(function()
@@ -66,22 +86,43 @@ function M.resolve(spec)
           return p
         end
       end
-      return nil
     end
-    local found = vim.fn.exepath(spec.bin)
-    return found ~= '' and found or nil
+    return nil
   end
   local managed = paths.npm_prefix() .. '/node_modules/.bin/' .. spec.bin .. (is_windows and '.cmd' or '')
   if vim.uv.fs_stat(managed) then
     return managed
   end
-  -- Common user-scope install locations (cargo / go / scoop shims / pipx) that
-  -- may not be on the PATH inherited by the embedded Neovim process.
-  local home = vim.uv.os_homedir() or vim.env.USERPROFILE or vim.env.HOME or ''
+  -- Managed standalone server directory (<home>/nvim/servers/<bin>/bin/<bin>.exe)
+  local sroot = servers_dir()
+  local standalone_dirs = {
+    sroot .. '/' .. spec.bin .. '/bin',
+    sroot .. '/' .. spec.bin,
+    sroot .. '/lua_ls/bin',
+  }
   local suffixes = is_windows and { '.exe', '.cmd', '.bat', '' } or { '' }
-  for _, dir in ipairs({ '/.cargo/bin', '/go/bin', '/scoop/shims', '/.local/bin' }) do
+  for _, sdir in ipairs(standalone_dirs) do
     for _, suffix in ipairs(suffixes) do
-      local candidate = home .. dir .. '/' .. spec.bin .. suffix
+      local candidate = sdir .. '/' .. spec.bin .. suffix
+      if vim.uv.fs_stat(candidate) then
+        return candidate
+      end
+    end
+  end
+  -- Common user-scope install locations (cargo / go / scoop shims / winget / pipx) that
+  -- may not be on the PATH inherited by the embedded Neovim process.
+  local localapp = vim.env.LOCALAPPDATA or (home .. '/AppData/Local')
+  local search_dirs = {
+    home .. '/.cargo/bin',
+    home .. '/go/bin',
+    home .. '/scoop/shims',
+    home .. '/.local/bin',
+    localapp .. '/Microsoft/WinGet/Links',
+    localapp .. '/Programs/lua-language-server/bin',
+  }
+  for _, dir in ipairs(search_dirs) do
+    for _, suffix in ipairs(suffixes) do
+      local candidate = dir .. '/' .. spec.bin .. suffix
       if vim.uv.fs_stat(candidate) then
         return candidate
       end
@@ -91,14 +132,37 @@ function M.resolve(spec)
   return found ~= '' and found or nil
 end
 
+--- Absolute path of the server executable, or nil when it is not installed.
+function M.resolve(spec)
+  if not spec or not spec.bin then
+    return nil
+  end
+  local cached = resolve_cache[spec.bin]
+  if cached ~= nil then
+    return cached ~= false and cached or nil
+  end
+  local resolved = resolve_uncached(spec)
+  resolve_cache[spec.bin] = resolved or false
+  return resolved
+end
+
 --- Command prefix that starts the server. On Windows npm installs `.cmd` shims
 --- which libuv cannot spawn directly and which add a cmd.exe hop, so the shim is
 --- resolved to `node <script>` instead.
 function M.command(spec)
-  local exe = M.resolve(spec)
-  if not exe then
+  if not spec or not spec.bin then
     return nil
   end
+  local cached = command_cache[spec.bin]
+  if cached ~= nil then
+    return cached ~= false and vim.deepcopy(cached) or nil
+  end
+  local exe = M.resolve(spec)
+  if not exe then
+    command_cache[spec.bin] = false
+    return nil
+  end
+  local result = { exe }
   if is_windows and exe:lower():match('%.cmd$') then
     local lines = vim.fn.readfile(exe)
     local script
@@ -108,10 +172,11 @@ function M.command(spec)
     local node = vim.fn.exepath('node')
     if script and node ~= '' then
       local dir = vim.fs.dirname(exe)
-      return { node, dir .. '/' .. script:gsub('\\', '/') }
+      result = { node, dir .. '/' .. script:gsub('\\', '/') }
     end
   end
-  return { exe }
+  command_cache[spec.bin] = result
+  return vim.deepcopy(result)
 end
 
 --- Folder holding tsserver.js. typescript-language-server needs it but only
@@ -136,6 +201,7 @@ function M.is_installed(name)
 end
 
 local function finish(name, ok, detail, on_done)
+  M.clear_cache()
   installing[name] = nil
   progress.stop('install:' .. name)
   if ok then
@@ -226,6 +292,17 @@ function M.install(name, on_done)
     local pkgs = type(spec.scoop) == 'table' and spec.scoop or { spec.scoop }
     cmd, method = vim.list_extend(vim.deepcopy(scoop), vim.list_extend({ 'install' }, pkgs)), 'scoop'
   end
+  if not cmd and is_windows and spec.win_zip then
+    local dest = servers_dir() .. '/' .. name
+    paths.ensure(dest)
+    local zip_path = dest .. '/package.zip'
+    local ps_script = string.format(
+      "$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%s' -OutFile '%s'; Expand-Archive -Path '%s' -DestinationPath '%s' -Force; Remove-Item -Path '%s' -Force -ErrorAction SilentlyContinue",
+      spec.win_zip, zip_path, zip_path, dest, zip_path
+    )
+    cmd = { 'powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps_script }
+    method = 'direct download'
+  end
   local winget = exe('winget')
   if not cmd and spec.winget and winget then
     cmd, method = vim.list_extend(vim.deepcopy(winget), {
@@ -251,6 +328,7 @@ function M.install(name, on_done)
   progress.start('install:' .. name, 'Installing ' .. name)
   say('installing ' .. name .. ' ...')
   local ok, err = pcall(vim.system, cmd, { text = true, cwd = cwd }, vim.schedule_wrap(function(result)
+    M.clear_cache()
     local success = result.code == 0 and M.is_installed(name)
     local detail = not success and tail((result.stderr or '') .. ' ' .. (result.stdout or '')) or nil
     finish(name, success, detail, on_done)
@@ -262,6 +340,16 @@ end
 
 function M.uninstall(name, on_done)
   local spec = registry.servers[name]
+  if spec and spec.win_zip then
+    local dest = servers_dir() .. '/' .. name
+    if vim.uv.fs_stat(dest) then
+      pcall(vim.fn.delete, dest, 'rf')
+      M.clear_cache()
+      say(name .. ' removed')
+      if on_done then on_done() end
+      return
+    end
+  end
   if not spec or spec.rustup or not spec.npm then
     return say(name .. ' is not managed by MindForge (use rustup / your package manager)')
   end
@@ -275,6 +363,7 @@ function M.uninstall(name, on_done)
     return say('npm is required to uninstall ' .. name)
   end
   vim.system(cmd, { text = true, cwd = prefix }, vim.schedule_wrap(function(result)
+    M.clear_cache()
     say(name .. (result.code == 0 and ' removed' or ' uninstall failed'))
     if on_done then
       on_done()

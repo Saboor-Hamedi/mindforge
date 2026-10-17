@@ -11,11 +11,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
         }
         "nu" | "number" => {
             app.editor.show_line_numbers = true;
-            let _ = app.services.db_tx.send(DbMsg::SaveSetting {
-                key: "line_numbers".into(),
-                val: "true".into(),
-            });
-            app.set_status("Line numbers enabled", now);
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                let _ = backend.execute_command("set number");
+            }
+            app.set_status("Line numbers enabled (configure permanently in nvim/init.lua)", now);
             true
         }
         "syntax" | "syn" | "synatx" => {
@@ -29,9 +28,9 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 }
                 "on" | "enable" | "" => {
                     if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
-                        let _ = backend.execute_command("syntax enable");
-                        let _ =
-                            backend.execute_command("setlocal filetype=markdown syntax=markdown");
+                        let _ = backend.execute_lua(
+                            "vim.cmd('syntax enable'); local ft = vim.bo[0].filetype; if ft ~= '' then vim.bo[0].syntax = ft end; if ft == 'lua' or ft == 'vim' then pcall(vim.treesitter.start, 0) end",
+                        );
                         backend.sync_theme(&app.misc.theme);
                     }
                     app.set_status("Syntax highlighting enabled", now);
@@ -48,11 +47,10 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
         }
         "nonu" | "nonumber" => {
             app.editor.show_line_numbers = false;
-            let _ = app.services.db_tx.send(DbMsg::SaveSetting {
-                key: "line_numbers".into(),
-                val: "false".into(),
-            });
-            app.set_status("Line numbers hidden", now);
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                let _ = backend.execute_command("set nonumber norelativenumber");
+            }
+            app.set_status("Line numbers hidden (configure permanently in nvim/init.lua)", now);
             true
         }
         "preview" | "p" => {
@@ -296,19 +294,17 @@ fn handle_set(app: &mut App, args: &str, now: f64) {
     match opt.as_str() {
         "nu" | "number" => {
             app.editor.show_line_numbers = true;
-            let _ = app.services.db_tx.send(DbMsg::SaveSetting {
-                key: "line_numbers".into(),
-                val: "true".into(),
-            });
-            app.set_status("Line numbers enabled", now);
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                let _ = backend.execute_command("set number");
+            }
+            app.set_status("Line numbers enabled (configure permanently in nvim/init.lua)", now);
         }
         "nonu" | "nonumber" => {
             app.editor.show_line_numbers = false;
-            let _ = app.services.db_tx.send(DbMsg::SaveSetting {
-                key: "line_numbers".into(),
-                val: "false".into(),
-            });
-            app.set_status("Line numbers hidden", now);
+            if let Some(backend) = app.services.vim_runtime.backend.as_mut() {
+                let _ = backend.execute_command("set nonumber norelativenumber");
+            }
+            app.set_status("Line numbers hidden (configure permanently in nvim/init.lua)", now);
         }
         "preview" | "p" => {
             app.editor.preview_open = true;

@@ -22,6 +22,10 @@ function M.nvim_dir()
   return M.home() .. '/nvim'
 end
 
+function M.init_config()
+  return M.nvim_dir() .. '/init.lua'
+end
+
 function M.user_config()
   return M.nvim_dir() .. '/lsp.lua'
 end
@@ -34,8 +38,12 @@ function M.native_dir()
   return M.nvim_dir() .. '/lsp'
 end
 
+function M.servers_dir()
+  return M.nvim_dir() .. '/servers'
+end
+
 function M.npm_prefix()
-  return M.nvim_dir() .. '/servers/npm'
+  return M.servers_dir() .. '/npm'
 end
 
 --- Creates `dir` (and parents). Returns false when it cannot be created.

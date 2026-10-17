@@ -15,6 +15,8 @@ pub struct HighlightStyle {
     pub reverse: bool,
     pub underline: bool,
     pub is_visual: bool,
+    pub is_statusline: bool,
+    pub is_gutter: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -40,6 +42,8 @@ pub struct GridState {
     pub message: String,
     /// Errors stay visible for a few seconds instead of vanishing on the next redraw.
     pub message_is_error: bool,
+    /// Partial command sequence reported by Neovim `msg_showcmd` over MessagePack-RPC.
+    pub showcmd: String,
 }
 
 impl GridState {

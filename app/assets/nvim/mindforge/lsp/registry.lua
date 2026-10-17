@@ -159,7 +159,7 @@ M.servers = {
     bin = 'sql-language-server',
     config = {
       cmd_args = { 'up', '--method=stdio' },
-      filetypes = { 'sql' },
+      filetypes = { 'sql', 'mysql', 'mariadb', 'sqlite', 'pgsql', 'plsql' },
     },
   },
   sql_formatter = {
@@ -167,7 +167,7 @@ M.servers = {
     npm = { 'sql-formatter' },
     bin = 'sql-formatter',
     config = {
-      filetypes = { 'sql' },
+      filetypes = { 'sql', 'mysql', 'mariadb', 'sqlite', 'pgsql', 'plsql' },
     },
   },
   clangd = {
@@ -182,13 +182,25 @@ M.servers = {
     },
   },
   lua_ls = {
-    desc = 'Lua (lua-language-server)',
+    desc = 'Lua & Neovim init.lua (lua-language-server)',
     bin = 'lua-language-server',
+    win_zip = 'https://github.com/LuaLS/lua-language-server/releases/download/3.13.6/lua-language-server-3.13.6-win32-x64.zip',
     scoop = 'lua-language-server',
     winget = 'LuaLS.lua-language-server',
     config = {
       filetypes = { 'lua' },
-      root_markers = { '.luarc.json', '.luarc.jsonc', '.stylua.toml', '.git' },
+      root_markers = { '.luarc.json', '.luarc.jsonc', '.stylua.toml', 'init.lua', '.git' },
+      settings = {
+        Lua = {
+          runtime = { version = 'LuaJIT' },
+          diagnostics = { globals = { 'vim' } },
+          workspace = {
+            checkThirdParty = false,
+            library = { vim.env.VIMRUNTIME },
+          },
+          telemetry = { enable = false },
+        },
+      },
     },
   },
   gopls = {
@@ -251,6 +263,71 @@ function M.for_filetype(ft)
     end
   end
   return found
+end
+
+local aliases = {
+  lua = 'lua_ls',
+  luals = 'lua_ls',
+  ['lua-language-server'] = 'lua_ls',
+  py = 'pyright',
+  python = 'pyright',
+  rs = 'rust_analyzer',
+  rust = 'rust_analyzer',
+  ['rust-analyzer'] = 'rust_analyzer',
+  js = 'ts_ls',
+  javascript = 'ts_ls',
+  ts = 'ts_ls',
+  typescript = 'ts_ls',
+  jsx = 'ts_ls',
+  tsx = 'ts_ls',
+  c = 'clangd',
+  cpp = 'clangd',
+  md = 'marksman',
+  markdown = 'marksman',
+  yml = 'yamlls',
+  yaml = 'yamlls',
+  json = 'jsonls',
+  css = 'cssls',
+  sh = 'bashls',
+  bash = 'bashls',
+  php = 'intelephense',
+  go = 'gopls',
+  toml = 'taplo',
+}
+
+--- Resolves user arguments (server names or language/filetype aliases) into registry server names.
+function M.resolve_targets(fargs, current_ft)
+  if not fargs or #fargs == 0 then
+    local ft = (current_ft and current_ft ~= '') and current_ft or ''
+    if ft == '' then
+      local name = vim.api.nvim_buf_get_name(0):lower()
+      if name:match('%.lua$') then ft = 'lua' end
+    end
+    return M.for_filetype(ft)
+  end
+  local out = {}
+  local seen = {}
+  local function add(n)
+    if n and M.servers[n] and not seen[n] then
+      seen[n] = true
+      table.insert(out, n)
+    end
+  end
+  for _, raw in ipairs(fargs) do
+    local key = raw:lower()
+    if M.servers[raw] then
+      add(raw)
+    elseif M.servers[key] then
+      add(key)
+    elseif aliases[key] then
+      add(aliases[key])
+    else
+      for _, by_ft in ipairs(M.for_filetype(key)) do
+        add(by_ft)
+      end
+    end
+  end
+  return out
 end
 
 return M

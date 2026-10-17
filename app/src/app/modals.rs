@@ -434,7 +434,7 @@ impl App {
             }
         }
 
-        // 3. Rename Document Modal (Ctrl+R)
+        // 3. Rename Document / Workspace Item Modal (F2 / Ctrl+Shift+R)
         if self.modal.rename_open {
             let act = render_rename_modal(
                 ui,
@@ -447,10 +447,30 @@ impl App {
             self.modal.rename_just_opened = false;
             if let Some(new_title) = act.confirmed_title {
                 self.modal.rename_open = false;
-                self.rename_active_note(&new_title, now);
+                if let Some(target_path) = self.modal.pending_rename_path.take() {
+                    let trimmed = new_title.trim().to_string();
+                    if !trimmed.is_empty() {
+                        self.workspace.selected_path = Some(target_path.clone());
+                        self.workspace.dialog_parent = target_path
+                            .parent()
+                            .unwrap_or(std::path::Path::new(""))
+                            .to_path_buf();
+                        self.workspace.dialog_name = trimmed.clone();
+                        self.workspace.dialog = Some(crate::workspace::WorkspaceDialog::Rename);
+                        self.perform_workspace_dialog(now);
+                        self.workspace.dialog = None;
+                        self.workspace.dialog_error = None;
+                        if let Some(tab) = self.open_notes.get(self.tabs.active_tab) {
+                            self.notes.active_note_title = tab.title.clone();
+                        }
+                    }
+                } else {
+                    self.rename_active_note(&new_title, now);
+                }
             }
             if act.should_close {
                 self.modal.rename_open = false;
+                self.modal.pending_rename_path = None;
             }
         }
 

@@ -245,7 +245,17 @@ pub fn update(app: &mut App, ctx: &egui::Context, now: f64) {
 }
 
 pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
-    let (update, cursor, tab_index, note_id, backend_error) = {
+    let (
+        update,
+        cursor,
+        tab_index,
+        note_id,
+        backend_error,
+        line_numbers_enabled,
+        rpc_showcmd,
+        rpc_cmdline,
+        rpc_mode,
+    ) = {
         let Some(backend) = app.services.vim_runtime.backend.as_mut() else {
             return;
         };
@@ -253,14 +263,28 @@ pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
         let update = backend.take_text_update();
         let cursor = Some(backend.cursor_char_index());
         let backend_error = backend.take_error();
+        let line_numbers_enabled = backend.line_numbers_enabled;
+        let rpc_showcmd = backend.grid.showcmd.clone();
+        let rpc_cmdline = backend.grid.command_line.clone();
+        let rpc_mode = backend.grid.mode.clone();
         (
             update,
             cursor,
             app.services.vim_runtime.tab_index,
             app.services.vim_runtime.note_id,
             backend_error,
+            line_numbers_enabled,
+            rpc_showcmd,
+            rpc_cmdline,
+            rpc_mode,
         )
     };
+    app.misc
+        .showcmd
+        .sync_from_rpc(&rpc_showcmd, &rpc_cmdline, &rpc_mode, now);
+    if let Some(show_numbers) = line_numbers_enabled {
+        app.editor.show_line_numbers = show_numbers;
+    }
     if let Some(error) = backend_error {
         app.set_status(format!("Neovim error: {error}"), now);
     }

@@ -644,9 +644,11 @@ impl App {
                 }
 
                 if ui.rect_contains_pointer(actual_editor_rect)
-                    && ui.input(|i| i.pointer.primary_clicked())
+                    && ui.input(|i| i.pointer.primary_pressed() || i.pointer.primary_clicked())
                 {
                     self.terminal.focused = false;
+                    self.sidebar.focused = false;
+                    self.tabs.doc_sidebar_focused = false;
                     ui.memory_mut(|m| m.surrender_focus(egui::Id::new("deepseek_prompt_input")));
                 }
 

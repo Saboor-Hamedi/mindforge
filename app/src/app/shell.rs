@@ -510,6 +510,28 @@ impl App {
                     self.modal.delete_just_opened = true;
                 }
 
+                if !any_modal_open
+                    && self.sidebar.focused
+                    && self.workspace.dialog.is_none()
+                    && ui.input(|i| i.key_pressed(egui::Key::F2))
+                {
+                    let target = self
+                        .workspace
+                        .selected_path
+                        .clone()
+                        .or_else(|| self.workspace.selected_items.iter().next().cloned());
+                    if let Some(path) = target {
+                        self.modal.pending_rename_path = Some(path.clone());
+                        self.modal.rename_input = path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .into_owned();
+                        self.modal.rename_open = true;
+                        self.modal.rename_just_opened = true;
+                    }
+                }
+
                 if let Some(act) = action {
                     if !any_modal_open {
                         match act {
@@ -519,29 +541,26 @@ impl App {
                                 }
                             }
                             SidebarAction::OpenWorkspaceFile(path) => {
-                                self.open_file_path(path, now)
+                                self.open_file_path(path, now);
+                                self.sidebar.focused = true;
                             }
                             SidebarAction::ToggleWorkspaceFolder(path) => {
-                                self.toggle_workspace_folder(&path)
+                                self.toggle_workspace_folder(&path);
+                                self.sidebar.focused = true;
                             }
                             SidebarAction::WorkspaceCreate(parent, kind) => {
                                 self.start_workspace_create(parent, kind);
                             }
                             SidebarAction::WorkspaceRename(path) => {
-                                self.workspace.dialog_name = path
+                                self.workspace.selected_path = Some(path.clone());
+                                self.modal.pending_rename_path = Some(path.clone());
+                                self.modal.rename_input = path
                                     .file_name()
                                     .unwrap_or_default()
                                     .to_string_lossy()
                                     .into_owned();
-                                self.workspace.dialog_error = None;
-                                self.workspace.dialog_focus_requested = true;
-                                self.workspace.selected_path = Some(path.clone());
-                                self.workspace.dialog_parent = path
-                                    .parent()
-                                    .unwrap_or(std::path::Path::new(""))
-                                    .to_path_buf();
-                                self.workspace.dialog =
-                                    Some(crate::workspace::WorkspaceDialog::Rename);
+                                self.modal.rename_open = true;
+                                self.modal.rename_just_opened = true;
                             }
                             SidebarAction::WorkspaceDelete(path) => {
                                 if self.workspace.selected_items.contains(&path)

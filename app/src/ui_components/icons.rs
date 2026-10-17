@@ -240,33 +240,53 @@ pub fn render_gear_icon(painter: &Painter, rect: Rect, color: Color32) {
     }
 }
 
-/// Renders modern document / note icon with folded corner.
+/// Renders modern document / note icon with folded corner and subtle dual-tone fill.
 pub fn render_document_icon(painter: &Painter, rect: Rect, color: Color32) {
     let c = rect.center();
     let w = rect.width() * 0.72;
     let h = rect.height() * 0.88;
     let fold = w * 0.32;
-    let stroke = Stroke::new(1.3_f32, color);
+    let stroke = Stroke::new(1.25_f32, color);
 
     let min_x = c.x - w * 0.5;
     let max_x = c.x + w * 0.5;
     let min_y = c.y - h * 0.5;
     let max_y = c.y + h * 0.5;
 
-    // Page body with cut corner
-    let pts = vec![
+    // Soft dual-tone page fill
+    let body_fill = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 38);
+    let page_poly = vec![
         pos2(min_x, min_y),
         pos2(max_x - fold, min_y),
         pos2(max_x, min_y + fold),
         pos2(max_x, max_y),
         pos2(min_x, max_y),
     ];
-    for w_pts in pts.windows(2) {
+    painter.add(eframe::egui::Shape::convex_polygon(
+        page_poly.clone(),
+        body_fill,
+        Stroke::NONE,
+    ));
+
+    // Folded corner triangle fill
+    let flap_fill = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 95);
+    painter.add(eframe::egui::Shape::convex_polygon(
+        vec![
+            pos2(max_x - fold, min_y),
+            pos2(max_x, min_y + fold),
+            pos2(max_x - fold, min_y + fold),
+        ],
+        flap_fill,
+        Stroke::NONE,
+    ));
+
+    // Page outline with cut corner
+    for w_pts in page_poly.windows(2) {
         painter.line_segment([w_pts[0], w_pts[1]], stroke);
     }
-    painter.line_segment([pts[4], pts[0]], stroke);
+    painter.line_segment([page_poly[4], page_poly[0]], stroke);
 
-    // Fold flap
+    // Fold flap crease
     painter.line_segment(
         [pos2(max_x - fold, min_y), pos2(max_x - fold, min_y + fold)],
         stroke,
@@ -277,7 +297,7 @@ pub fn render_document_icon(painter: &Painter, rect: Rect, color: Color32) {
     );
 
     // 2 Text lines
-    let line_col = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 120);
+    let line_col = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 150);
     painter.line_segment(
         [
             pos2(min_x + w * 0.22, c.y + h * 0.05),
@@ -378,6 +398,135 @@ pub fn render_pen_icon(painter: &Painter, rect: Rect, color: Color32) {
     painter.circle_filled(p_tip, 1.8, Color32::from_rgb(255, 189, 46));
 }
 
+/// Renders classic dual-tone vector folder icon (closed or open) with top-left tab.
+pub fn render_folder_icon(painter: &Painter, rect: Rect, color: Color32, open: bool) {
+    let c = rect.center();
+    let w = rect.width() * 0.90;
+    let h = rect.height() * 0.76;
+    let stroke = Stroke::new(1.25_f32, color);
+
+    let min_x = c.x - w * 0.5;
+    let max_x = c.x + w * 0.5;
+    let min_y = c.y - h * 0.5;
+    let max_y = c.y + h * 0.5;
+    let tab_w = w * 0.42;
+    let tab_h = h * 0.24;
+    let body_top = min_y + tab_h;
+
+    let back_fill = Color32::from_rgba_unmultiplied(
+        (color.r() as u16 * 85 / 100) as u8,
+        (color.g() as u16 * 82 / 100) as u8,
+        (color.b() as u16 * 78 / 100) as u8,
+        if open { 115 } else { 95 },
+    );
+    let front_fill = Color32::from_rgba_unmultiplied(
+        color.r(),
+        color.g(),
+        color.b(),
+        if open { 185 } else { 155 },
+    );
+    let highlight_lip = Color32::from_rgba_unmultiplied(
+        color.r().saturating_add(30),
+        color.g().saturating_add(25),
+        color.b().saturating_add(20),
+        210,
+    );
+
+    // 1. Back tab trapezoid fill
+    painter.add(eframe::egui::Shape::convex_polygon(
+        vec![
+            pos2(min_x, body_top),
+            pos2(min_x, min_y),
+            pos2(min_x + tab_w * 0.76, min_y),
+            pos2(min_x + tab_w, body_top),
+        ],
+        back_fill,
+        Stroke::NONE,
+    ));
+
+    // 2. Back folder plate fill
+    painter.rect_filled(
+        Rect::from_min_max(pos2(min_x, body_top), pos2(max_x, max_y)),
+        1.2,
+        back_fill,
+    );
+
+    // 3. Back folder outline with top-left tab
+    let pts = [
+        pos2(min_x, max_y),
+        pos2(min_x, min_y),
+        pos2(min_x + tab_w * 0.76, min_y),
+        pos2(min_x + tab_w, body_top),
+        pos2(max_x, body_top),
+        pos2(max_x, max_y),
+        pos2(min_x, max_y),
+    ];
+    for seg in pts.windows(2) {
+        painter.line_segment([seg[0], seg[1]], stroke);
+    }
+
+    if open {
+        // Subtle inner paper peek when open
+        let paper_rect = Rect::from_min_max(
+            pos2(min_x + w * 0.12, body_top + 1.0),
+            pos2(max_x - w * 0.08, body_top + h * 0.34),
+        );
+        painter.rect_filled(
+            paper_rect,
+            0.8,
+            Color32::from_rgba_unmultiplied(245, 248, 255, 130),
+        );
+
+        // Angled front pocket flap for open folder
+        let flap_top = body_top + h * 0.25;
+        let shift = w * 0.11;
+        let flap_poly = vec![
+            pos2(min_x, max_y),
+            pos2(min_x + shift, flap_top),
+            pos2(max_x + shift * 0.45, flap_top),
+            pos2(max_x, max_y),
+        ];
+        painter.add(eframe::egui::Shape::convex_polygon(
+            flap_poly.clone(),
+            front_fill,
+            Stroke::NONE,
+        ));
+        painter.line_segment([flap_poly[1], flap_poly[2]], Stroke::new(1.3_f32, highlight_lip));
+        for seg in flap_poly.windows(2) {
+            painter.line_segment([seg[0], seg[1]], stroke);
+        }
+    } else {
+        // Rich front pocket fill for closed folder
+        let pocket_top = body_top + h * 0.14;
+        let pocket_rect = Rect::from_min_max(pos2(min_x, pocket_top), pos2(max_x, max_y));
+        painter.rect_filled(pocket_rect, 1.2, front_fill);
+        painter.line_segment(
+            [pos2(min_x + 0.5, pocket_top), pos2(max_x - 0.5, pocket_top)],
+            Stroke::new(1.15_f32, highlight_lip),
+        );
+        painter.rect_stroke(
+            pocket_rect,
+            1.2,
+            stroke,
+            eframe::egui::StrokeKind::Inside,
+        );
+    }
+}
+
+/// Renders a crisp chevron icon (`>` when collapsed, `v` when expanded).
+pub fn render_chevron_icon(painter: &Painter, rect: Rect, color: Color32, expanded: bool) {
+    let c = rect.center();
+    let s = rect.width().min(rect.height()) * 0.26;
+    let stroke = Stroke::new(1.35_f32, color);
+    if expanded {
+        painter.line_segment([pos2(c.x - s, c.y - s * 0.5), pos2(c.x, c.y + s * 0.6)], stroke);
+        painter.line_segment([pos2(c.x, c.y + s * 0.6), pos2(c.x + s, c.y - s * 0.5)], stroke);
+    } else {
+        painter.line_segment([pos2(c.x - s * 0.5, c.y - s), pos2(c.x + s * 0.6, c.y)], stroke);
+        painter.line_segment([pos2(c.x + s * 0.6, c.y), pos2(c.x - s * 0.5, c.y + s)], stroke);
+    }
+}
+
 /// Unified icon dispatcher that maps string identifiers or emoji glyphs
 /// into modern vector graphic icons rendered directly via painter.
 pub fn render_vector_icon(painter: &Painter, icon_id: &str, rect: Rect, color: Color32) {
@@ -389,7 +538,9 @@ pub fn render_vector_icon(painter: &Painter, icon_id: &str, rect: Rect, color: C
         "✦" | "sparkle" | "caret" => render_sparkle_icon(painter, rect, color),
         "🔍" | "search" => render_search_icon(painter, rect, color),
         "⚙" | "settings" | "gear" => render_gear_icon(painter, rect, color),
-        "📄" | "doc" | "note" => render_document_icon(painter, rect, color),
+        "📄" | "doc" | "note" | "file" => render_document_icon(painter, rect, color),
+        "📁" | "folder" => render_folder_icon(painter, rect, color, false),
+        "📂" | "folder_open" => render_folder_icon(painter, rect, color, true),
         "👁" | "preview" | "view" => render_eye_icon(painter, rect, color),
         "⚡" | "bolt" | "command" => render_bolt_icon(painter, rect, color),
         "🔤" | "font" | "typography" => render_font_icon(painter, rect, color),
