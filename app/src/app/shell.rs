@@ -241,6 +241,8 @@ impl App {
                     &self.misc.theme,
                     self.misc.opacity,
                     any_modal_open,
+                    &mut self.tabs.doc_filter_query,
+                    &mut self.tabs.doc_focus_search,
                 );
                 if let Some(action) = doc_action {
                     match action {

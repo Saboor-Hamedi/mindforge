@@ -276,6 +276,18 @@ return {
     end
     vim.lsp.buf.definition()
   end, { desc = 'Go to symbol definition' })
+
+  cmd('Tutor', function()
+    pcall(vim.rpcnotify, 0, 'mindforge_toggle_tutor')
+  end, { desc = 'Toggle MindForge documentation and interactive tutor (:tutor)' })
+
+  cmd('Docs', function()
+    pcall(vim.rpcnotify, 0, 'mindforge_toggle_tutor')
+  end, { desc = 'Toggle MindForge documentation and interactive tutor (:docs)' })
+
+  cmd('Doc', function()
+    pcall(vim.rpcnotify, 0, 'mindforge_toggle_tutor')
+  end, { desc = 'Toggle MindForge documentation and interactive tutor (:doc)' })
 end
 
 return M

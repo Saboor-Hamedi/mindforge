@@ -195,6 +195,9 @@ fn canonicalize_custom_command(cmd_lower: &str, raw: &str) -> String {
         "references" => Some("References"),
         "hover" => Some("Hover"),
         "definition" => Some("Definition"),
+        "tutor" => Some("Tutor"),
+        "docs" => Some("Docs"),
+        "doc" => Some("Doc"),
         _ => None,
     };
     if let Some(target) = canonical {

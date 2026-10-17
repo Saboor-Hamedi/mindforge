@@ -32,13 +32,17 @@ pub struct TabsState {
     /// Horizontal scroll offset for the doc tab strip
     pub doc_tab_scroll_offset: f32,
 
-    // Doc sidebar (right-hand panel)
+    // Doc sidebar (tutor navigation)
     /// Index of the currently selected doc in the sidebar
     pub active_doc_idx: usize,
     /// Whether the doc sidebar has keyboard focus
     pub doc_sidebar_focused: bool,
     /// Selected item index within the doc sidebar
     pub doc_selected_idx: usize,
+    /// Search filter query inside the tutor/documentation sidebar
+    pub doc_filter_query: String,
+    /// Whether the search input should claim focus on the next frame
+    pub doc_focus_search: bool,
 }
 
 impl Default for TabsState {
@@ -55,6 +59,8 @@ impl Default for TabsState {
             active_doc_idx: 0,
             doc_sidebar_focused: false,
             doc_selected_idx: 0,
+            doc_filter_query: String::new(),
+            doc_focus_search: false,
         }
     }
 }

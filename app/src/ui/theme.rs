@@ -199,6 +199,31 @@ impl Theme {
         }
     }
 
+    /// Hover state color for cards, dropdown options, and list rows
+    pub fn surface_hover(&self) -> Color32 {
+        if self.is_light() {
+            let r = self.bg.r().saturating_sub(18);
+            let g = self.bg.g().saturating_sub(18);
+            let b = self.bg.b().saturating_sub(22);
+            Color32::from_rgb(r, g, b)
+        } else {
+            let r = (self.bg.r() as u16 + 22).min(255) as u8;
+            let g = (self.bg.g() as u16 + 26).min(255) as u8;
+            let b = (self.bg.b() as u16 + 34).min(255) as u8;
+            Color32::from_rgb(r, g, b)
+        }
+    }
+
+    /// Background color for selected list items and active navigation rows
+    pub fn selection_bg(&self) -> Color32 {
+        Color32::from_rgba_unmultiplied(
+            self.accent.r(),
+            self.accent.g(),
+            self.accent.b(),
+            if self.is_light() { 28 } else { 38 },
+        )
+    }
+
     pub fn from_kind(kind: ThemeKind) -> Self {
         match kind {
             ThemeKind::Shell => Self {

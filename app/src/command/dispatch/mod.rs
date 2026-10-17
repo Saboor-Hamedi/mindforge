@@ -68,6 +68,7 @@ pub fn execute_command(app: &mut App, raw: &str, now: f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mode::Mode;
 
     #[test]
     fn test_backlinks_and_outline_command_catalog() {
@@ -103,5 +104,27 @@ mod tests {
 
         execute_command(&mut app, ":syntax off", 0.0);
         assert_eq!(app.misc.status_msg.as_str(), "Syntax highlighting disabled");
+    }
+
+    #[test]
+    fn test_tutor_and_docs_toggle_dispatch() {
+        let mut app = App::new();
+        assert_eq!(app.misc.mode, Mode::Normal);
+
+        // :tutor opens Doc mode
+        execute_command(&mut app, ":tutor", 0.0);
+        assert_eq!(app.misc.mode, Mode::Doc);
+
+        // Running :tutor again toggles back to Normal mode (does not layer!)
+        execute_command(&mut app, ":tutor", 0.0);
+        assert_eq!(app.misc.mode, Mode::Normal);
+
+        // :docs opens Doc mode
+        execute_command(&mut app, ":docs", 0.0);
+        assert_eq!(app.misc.mode, Mode::Doc);
+
+        // Running :docs again toggles back to Normal mode
+        execute_command(&mut app, ":docs", 0.0);
+        assert_eq!(app.misc.mode, Mode::Normal);
     }
 }

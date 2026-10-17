@@ -46,6 +46,7 @@ MindForge provides granular control over every UI surface:
   :blur             Toggle Windows Acrylic/Mica backdrop blur
   :opacity <0.2-1>  Set window transparency percentage (:opacity 0.95)
   :settings         Open Preferences & Settings modal (:pref, :set)
+  :tutor / :docs    Toggle interactive Tutor & documentation (:tutor, :docs)
   :config / :init   Open user init.lua in editor tab
   :so / :source     Reload Neovim configuration live
 

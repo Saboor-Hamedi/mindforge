@@ -68,6 +68,7 @@ pub struct VimBackend {
     pub(crate) last_number_columns: usize,
     pub(crate) cached_theme: Option<(Color32, Color32, Color32, Color32)>,
     pub(crate) suppress_lines_events: usize,
+    pub(crate) toggle_tutor_requested: bool,
 }
 
 impl VimBackend {
@@ -194,6 +195,7 @@ impl VimBackend {
             last_number_columns: 0,
             cached_theme: None,
             suppress_lines_events: 0,
+            toggle_tutor_requested: false,
         })
     }
 
@@ -258,6 +260,8 @@ impl VimBackend {
             self.grid.message_at = Some(std::time::Instant::now());
             self.grid.message_copied_at = None;
             self.grid.message_is_error = false;
+        } else if items.get(1).and_then(Value::as_str) == Some("mindforge_toggle_tutor") {
+            self.toggle_tutor_requested = true;
         } else if items.get(1).and_then(Value::as_str) == Some("nvim_buf_lines_event") {
             self.apply_lines_event(items.get(2).unwrap_or(&Value::Nil));
         }

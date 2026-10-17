@@ -354,11 +354,14 @@ pub fn render_doc_sidebar(
     theme: &crate::ui::theme::Theme,
     opacity: f32,
     any_modal_open: bool,
+    filter_query: &mut String,
+    focus_search: &mut bool,
 ) -> Option<DocSidebarAction> {
     let mut action = None;
 
+    // 1. Sidebar card background and border (matching sidebar.rs)
     let sb_stroke = if is_focused {
-        Stroke::new(1.0, theme.accent.gamma_multiply(0.40))
+        Stroke::new(1.5, theme.accent.gamma_multiply(0.80))
     } else {
         Stroke::new(1.0, theme.border().gamma_multiply(0.60))
     };
@@ -373,251 +376,400 @@ pub fn render_doc_sidebar(
             alpha,
         )
     };
+    painter.rect(rect, 5.0, sb_bg, sb_stroke, egui::StrokeKind::Inside);
 
     if any_modal_open {
-        painter.rect(rect, 5.0, sb_bg, sb_stroke, egui::StrokeKind::Inside);
         return None;
     }
 
-    painter.rect(rect, 5.0, sb_bg, sb_stroke, egui::StrokeKind::Inside);
-
-    let origin = rect.min + vec2(16.0, 18.0);
-
-    // Header branding
-    painter.text(
-        origin,
-        Align2::LEFT_TOP,
-        "MINDFORGE",
-        FontId::monospace(15.0),
-        theme.accent,
+    // 2. Compute inner boundary and exact 5px section gaps (identical to sidebar.rs)
+    let pad_x = 12.0;
+    let pad_y = 12.0;
+    let inner_rect = Rect::from_min_max(
+        pos2(rect.min.x + pad_x, rect.min.y + pad_y),
+        pos2(rect.max.x - pad_x, rect.max.y - pad_y),
     );
 
-    // Subtitle badge
-    painter.text(
-        origin + vec2(0.0, 20.0),
-        Align2::LEFT_TOP,
-        format!("📖 User Guides ({}) · Try examples", BRAIN_DOCS.len()),
-        FontId::monospace(10.5),
-        Color32::from_gray(140),
+    let header_h = 58.0;
+    let header_rect = Rect::from_min_max(
+        inner_rect.min,
+        pos2(inner_rect.max.x, inner_rect.min.y + header_h),
     );
 
-    // Sidebar collapse icon on top right [◀]
-    let collapse_rect = Rect::from_min_size(pos2(rect.max.x - 34.0, origin.y), vec2(22.0, 22.0));
-    let collapse_resp = ui
-        .allocate_rect(collapse_rect, egui::Sense::click())
-        .on_hover_text("Collapse sidebar (Ctrl+B)");
-    let collapse_hover = collapse_resp.hovered() || ui.rect_contains_pointer(collapse_rect);
-    if collapse_hover {
-        painter.rect_filled(collapse_rect, 4.0, Color32::from_rgb(26, 28, 36));
-        if collapse_resp.clicked() || ui.input(|i| i.pointer.primary_clicked()) {
-            action = Some(DocSidebarAction::ToggleSidebar);
-        }
-    }
-    painter.text(
-        collapse_rect.center(),
-        Align2::CENTER_CENTER,
-        "◀",
-        FontId::monospace(11.0),
-        if collapse_hover {
-            theme.accent
-        } else {
-            Color32::from_gray(130)
+    let footer_h = 28.0;
+    let footer_rect = Rect::from_min_max(
+        pos2(inner_rect.min.x, inner_rect.max.y - footer_h),
+        inner_rect.max,
+    );
+
+    const SECTION_GAP: f32 = 5.0;
+    let body_top = header_rect.max.y + SECTION_GAP;
+    let body_bottom = (footer_rect.min.y - SECTION_GAP).max(body_top);
+    let body_rect = Rect::from_min_max(
+        pos2(inner_rect.min.x, body_top),
+        pos2(inner_rect.max.x, body_bottom),
+    );
+
+    // ── Header Component: Search input on Row 1, Stats + Collapse on Row 2 ──
+    ui.allocate_new_ui(
+        egui::UiBuilder::new()
+            .max_rect(header_rect)
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+        |ui| {
+            // Row 1: Search input (borderless, sleek, VS Code style)
+            let search_row_h = 26.0;
+            let (search_rect, _) = ui.allocate_exact_size(
+                vec2(ui.available_width(), search_row_h),
+                egui::Sense::hover(),
+            );
+
+            let input_bg = if theme.is_light() {
+                Color32::from_rgba_unmultiplied(0, 0, 0, 12)
+            } else {
+                Color32::from_rgba_unmultiplied(255, 255, 255, 10)
+            };
+            ui.painter().rect_filled(search_rect, 4.0, input_bg);
+
+            ui.allocate_new_ui(
+                egui::UiBuilder::new()
+                    .max_rect(search_rect.shrink2(vec2(6.0, 2.0)))
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                |ui| {
+                    ui.label(egui::RichText::new("🔍").size(11.0).color(theme.muted));
+
+                    let clear_btn_w = if !filter_query.is_empty() { 18.0 } else { 0.0 };
+                    let available_input_w = (ui.available_width() - clear_btn_w - 4.0).max(40.0);
+
+                    let edit = egui::TextEdit::singleline(filter_query)
+                        .desired_width(available_input_w)
+                        .margin(egui::Margin::symmetric(2, 2))
+                        .font(FontId::proportional(12.0))
+                        .text_color(theme.text)
+                        .frame(false)
+                        .hint_text(
+                            egui::RichText::new("Search tutor guides (Ctrl+F)...")
+                                .color(theme.muted)
+                                .size(11.5),
+                        );
+
+                    let edit_resp = ui.add(edit);
+
+                    if *focus_search {
+                        edit_resp.request_focus();
+                        *focus_search = false;
+                    }
+
+                    if edit_resp.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        if !filter_query.is_empty() {
+                            filter_query.clear();
+                        } else {
+                            edit_resp.surrender_focus();
+                        }
+                    }
+
+                    if !filter_query.is_empty() {
+                        let clear_btn = ui.add(
+                            egui::Button::new(
+                                egui::RichText::new("✕").size(10.5).color(theme.muted),
+                            )
+                            .frame(false),
+                        );
+                        if clear_btn.clicked() {
+                            filter_query.clear();
+                        }
+                    }
+                },
+            );
+
+            ui.add_space(5.0);
+
+            // Row 2: Flex row with Stats/Title on the LEFT, and Collapse icon on the RIGHT
+            let controls_row_h = 22.0;
+            let (controls_rect, _) = ui.allocate_exact_size(
+                vec2(ui.available_width(), controls_row_h),
+                egui::Sense::hover(),
+            );
+
+            ui.allocate_new_ui(
+                egui::UiBuilder::new()
+                    .max_rect(controls_rect)
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                |ui| {
+                    // Left: Section Title / Badge
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = vec2(4.0, 0.0);
+                        ui.label(
+                            egui::RichText::new("📖")
+                                .size(11.5)
+                                .color(theme.accent),
+                        );
+                        ui.label(
+                            egui::RichText::new("TUTOR GUIDES")
+                                .size(11.0)
+                                .strong()
+                                .color(theme.text),
+                        );
+                        let count_str = format!("({})", BRAIN_DOCS.len());
+                        ui.label(
+                            egui::RichText::new(count_str)
+                                .size(10.5)
+                                .color(theme.muted),
+                        );
+                    });
+
+                    // Right: Collapse sidebar button
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let btn_size = 20.0;
+                        let (btn_rect, btn_resp) = ui.allocate_exact_size(
+                            vec2(btn_size, btn_size),
+                            egui::Sense::click(),
+                        );
+                        let btn_resp = btn_resp.on_hover_text("Collapse sidebar (Ctrl+B)");
+                        let is_hovered = btn_resp.hovered() || ui.rect_contains_pointer(btn_rect);
+                        if is_hovered {
+                            let hover_bg = if theme.is_light() {
+                                Color32::from_rgba_unmultiplied(0, 0, 0, 14)
+                            } else {
+                                Color32::from_rgba_unmultiplied(255, 255, 255, 14)
+                            };
+                            ui.painter().rect_filled(btn_rect, 3.0, hover_bg);
+                        }
+                        ui.painter().text(
+                            btn_rect.center(),
+                            Align2::CENTER_CENTER,
+                            "◀",
+                            FontId::proportional(11.0),
+                            if is_hovered { theme.text } else { theme.muted },
+                        );
+                        if btn_resp.clicked() {
+                            action = Some(DocSidebarAction::ToggleSidebar);
+                        }
+                    });
+                },
+            );
         },
     );
 
-    // Divider under header
-    let div_y = origin.y + 44.0;
-    painter.line_segment(
-        [
-            pos2(rect.min.x + 16.0, div_y),
-            pos2(rect.max.x - 16.0, div_y),
-        ],
-        Stroke::new(1.0_f32, theme.border()),
+    // ── Body Component: ScrollArea matching sidebar/body.rs ─────────────────
+    ui.allocate_new_ui(
+        egui::UiBuilder::new()
+            .max_rect(body_rect)
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+        |ui| {
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    let q = filter_query.trim().to_lowercase();
+                    let mut visible_count = 0;
+
+                    for (idx, doc) in BRAIN_DOCS.iter().enumerate() {
+                        if !q.is_empty()
+                            && !doc.title.to_lowercase().contains(&q)
+                            && !doc.filename.to_lowercase().contains(&q)
+                        {
+                            continue;
+                        }
+                        visible_count += 1;
+
+                        let row_w = ui.available_width();
+                        let row_h = 24.0;
+                        let (row_rect, response) = ui.allocate_exact_size(
+                            vec2(row_w, row_h),
+                            egui::Sense::click(),
+                        );
+                        let hovered = response.hovered();
+                        let active = idx == active_idx;
+                        let selected = idx == selected_idx;
+
+                        // Background & accent bar matching body.rs
+                        if active || selected || hovered {
+                            if selected && active {
+                                let bg_alpha = if is_focused { 0.25 } else { 0.16 };
+                                ui.painter().rect_filled(
+                                    row_rect,
+                                    3.0,
+                                    theme.accent.gamma_multiply(bg_alpha),
+                                );
+                                let bar = Rect::from_min_size(
+                                    pos2(row_rect.min.x + 1.0, row_rect.min.y + 3.0),
+                                    vec2(3.0, row_h - 6.0),
+                                );
+                                ui.painter().rect_filled(bar, 1.5, theme.accent);
+                            } else if active {
+                                ui.painter().rect_filled(
+                                    row_rect,
+                                    3.0,
+                                    theme.accent.gamma_multiply(0.18),
+                                );
+                                let bar = Rect::from_min_size(
+                                    pos2(row_rect.min.x + 1.0, row_rect.min.y + 3.0),
+                                    vec2(2.5, row_h - 6.0),
+                                );
+                                ui.painter().rect_filled(bar, 1.25, theme.accent);
+                            } else if selected {
+                                let bg_alpha = if is_focused { 0.18 } else { 0.10 };
+                                let bar_color = if is_focused {
+                                    theme.accent
+                                } else {
+                                    theme.muted
+                                };
+                                ui.painter().rect_filled(
+                                    row_rect,
+                                    3.0,
+                                    theme.accent.gamma_multiply(bg_alpha),
+                                );
+                                let bar = Rect::from_min_size(
+                                    pos2(row_rect.min.x + 1.0, row_rect.min.y + 3.0),
+                                    vec2(2.5, row_h - 6.0),
+                                );
+                                ui.painter().rect_filled(bar, 1.25, bar_color);
+                            } else if hovered {
+                                let hover_bg = if theme.is_light() {
+                                    Color32::from_rgba_unmultiplied(0, 0, 0, 10)
+                                } else {
+                                    Color32::from_rgba_unmultiplied(255, 255, 255, 12)
+                                };
+                                ui.painter().rect_filled(row_rect, 3.0, hover_bg);
+                            }
+                        }
+
+                        // Document icon matching sidebar document styling
+                        let icon_rect = Rect::from_min_size(
+                            pos2(row_rect.min.x + 6.0, row_rect.center().y - 7.0),
+                            vec2(14.0, 14.0),
+                        );
+                        let doc_icon_color = if active {
+                            theme.accent
+                        } else if selected && is_focused {
+                            theme.accent.lerp_to_gamma(theme.text, 0.40)
+                        } else {
+                            theme.text.lerp_to_gamma(theme.muted, 0.30)
+                        };
+                        crate::ui_components::icons::render_document_icon(
+                            ui.painter(),
+                            icon_rect,
+                            doc_icon_color,
+                        );
+
+                        // Document title text
+                        let text_rect = Rect::from_min_max(
+                            pos2(row_rect.min.x + 26.0, row_rect.min.y),
+                            pos2(row_rect.max.x - 4.0, row_rect.max.y),
+                        );
+                        let text_painter = ui.painter().with_clip_rect(text_rect);
+                        let text_color = if active || (selected && is_focused) {
+                            theme.accent
+                        } else if hovered {
+                            theme.text
+                        } else {
+                            theme.text.lerp_to_gamma(theme.muted, 0.20)
+                        };
+                        text_painter.text(
+                            pos2(text_rect.min.x, row_rect.center().y),
+                            Align2::LEFT_CENTER,
+                            doc.title,
+                            FontId::proportional(12.5),
+                            text_color,
+                        );
+
+                        if response.clicked() {
+                            action = Some(DocSidebarAction::SelectDoc(idx));
+                        }
+                    }
+
+                    if visible_count == 0 {
+                        ui.add_space(20.0);
+                        ui.vertical_centered(|ui| {
+                            ui.label(
+                                egui::RichText::new("No matching guides")
+                                    .size(11.5)
+                                    .color(theme.muted),
+                            );
+                        });
+                    }
+                });
+        },
     );
 
-    // Navigation items (Body matching sidebar/body.rs)
-    let doc_icons = ["📖", "⚡", "⌨", "⚔", "✨", "🚀", "🌐", "🧠", "🎨", "🖥", "🛡"];
-    let start_y = div_y + 10.0;
-    let item_w = rect.width() - 32.0;
-    // Fit every guide between the header divider and the footer buttons.
-    let footer_top = rect.max.y - 30.0 - 10.0 - 8.0;
-    let doc_count = BRAIN_DOCS.len().max(1) as f32;
-    let pitch = ((footer_top - start_y) / doc_count).clamp(20.0, 34.0);
-    let item_h = (pitch - 4.0).max(18.0);
-    let list_clip = Rect::from_min_max(pos2(rect.min.x, start_y), pos2(rect.max.x, footer_top));
-    let list_painter = painter.with_clip_rect(list_clip);
-
-    // Only the list uses the clipped painter; the footer below keeps the full one.
-    {
-        let painter = &list_painter;
-        for (idx, doc) in BRAIN_DOCS.iter().enumerate() {
-            let item_rect = Rect::from_min_size(
-                pos2(origin.x, start_y + idx as f32 * pitch),
-                vec2(item_w, item_h),
+    // ── Footer Component: Exactly matching sidebar/footer.rs ────────────────
+    ui.allocate_new_ui(
+        egui::UiBuilder::new()
+            .max_rect(footer_rect)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        |ui| {
+            // Left: Settings button (28x28px, identical to footer.rs)
+            let btn_size = 28.0;
+            let (btn_rect, btn_resp) = ui.allocate_exact_size(
+                vec2(btn_size, btn_size),
+                egui::Sense::click(),
             );
-            let is_active = idx == active_idx;
-            let is_selected = idx == selected_idx;
-            let is_hovered = ui.rect_contains_pointer(item_rect.intersect(list_clip));
-
-            if is_active || (is_selected && is_focused) || is_hovered {
-                let bg = if is_selected && is_focused && is_active {
-                    Color32::from_rgba_unmultiplied(
-                        theme.accent.r(),
-                        theme.accent.g(),
-                        theme.accent.b(),
-                        24,
-                    )
-                } else if is_selected && is_focused {
-                    Color32::from_rgba_unmultiplied(
-                        theme.accent.r(),
-                        theme.accent.g(),
-                        theme.accent.b(),
-                        18,
-                    )
-                } else if is_active {
-                    Color32::from_rgba_unmultiplied(
-                        theme.accent.r(),
-                        theme.accent.g(),
-                        theme.accent.b(),
-                        16,
-                    )
+            let btn_resp = btn_resp.on_hover_text("Settings & Preferences (Ctrl+,)");
+            let is_hovered = btn_resp.hovered() || ui.rect_contains_pointer(btn_rect);
+            let bg_color = if is_hovered {
+                if theme.is_light() {
+                    Color32::from_rgba_unmultiplied(0, 0, 0, 14)
                 } else {
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 8)
-                };
-                painter.rect_filled(item_rect, 4.0, bg);
-
-                // Left accent bar on active or focused/selected item
-                if is_active || (is_selected && is_focused) {
-                    let bar_w = if is_selected && is_focused { 3.0 } else { 2.5 };
-                    let bar = Rect::from_min_size(
-                        pos2(item_rect.min.x, item_rect.min.y + 3.0),
-                        vec2(bar_w, item_rect.height() - 6.0),
-                    );
-                    painter.rect_filled(bar, 1.5, theme.accent);
+                    Color32::from_rgba_unmultiplied(255, 255, 255, 16)
                 }
-
-                if is_hovered && ui.input(|i| i.pointer.primary_clicked()) {
-                    action = Some(DocSidebarAction::SelectDoc(idx));
-                }
+            } else {
+                Color32::TRANSPARENT
+            };
+            let stroke = if is_hovered {
+                Stroke::new(1.0_f32, theme.border())
+            } else {
+                Stroke::NONE
+            };
+            ui.painter().rect(btn_rect, 4.0, bg_color, stroke, egui::StrokeKind::Inside);
+            ui.painter().text(
+                btn_rect.center(),
+                Align2::CENTER_CENTER,
+                "⚙",
+                FontId::proportional(15.0),
+                if is_hovered { theme.text } else { theme.muted },
+            );
+            if btn_resp.clicked() {
+                action = Some(DocSidebarAction::OpenSettings);
             }
 
-            let icon = doc_icons.get(idx).copied().unwrap_or("📄");
-            let label = format!("{} {}", icon, doc.title);
-            let label_color = if is_active {
-                theme.accent
-            } else if is_selected && is_focused {
-                Color32::WHITE
-            } else {
-                theme.text
-            };
-
-            painter.text(
-                pos2(item_rect.min.x + 10.0, item_rect.center().y),
-                Align2::LEFT_CENTER,
-                label,
-                FontId::monospace(12.0),
-                label_color,
-            );
-        }
-    }
-
-    // ── Footer Bar: Exactly matching sidebar/footer.rs ──────────────────────
-    let btn_size = 30.0;
-    let bottom_y = rect.max.y - btn_size - 10.0;
-
-    // 1. Settings icon button on bottom left (identical geometry & styling to footer.rs)
-    let settings_rect =
-        Rect::from_min_size(pos2(rect.min.x + 14.0, bottom_y), vec2(btn_size, btn_size));
-    let settings_resp = ui.allocate_rect(settings_rect, egui::Sense::click());
-    let settings_hovered = settings_resp.hovered() || ui.rect_contains_pointer(settings_rect);
-
-    let settings_bg = if settings_hovered {
-        if theme.is_light() {
-            Color32::from_rgba_unmultiplied(0, 0, 0, 14)
-        } else {
-            Color32::from_rgba_unmultiplied(255, 255, 255, 16)
-        }
-    } else {
-        Color32::TRANSPARENT
-    };
-    let settings_stroke = if settings_hovered {
-        Stroke::new(1.0_f32, theme.border())
-    } else {
-        Stroke::NONE
-    };
-    painter.rect(
-        settings_rect,
-        6.0,
-        settings_bg,
-        settings_stroke,
-        egui::StrokeKind::Inside,
-    );
-
-    painter.text(
-        settings_rect.center(),
-        Align2::CENTER_CENTER,
-        "⚙",
-        FontId::proportional(15.5),
-        if settings_hovered {
-            theme.text
-        } else {
-            theme.muted
+            // Right: Return to Editor / Exit Tutor button
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let back_btn_w = 84.0;
+                let back_btn_h = 26.0;
+                let (back_rect, back_resp) = ui.allocate_exact_size(
+                    vec2(back_btn_w, back_btn_h),
+                    egui::Sense::click(),
+                );
+                let back_resp = back_resp
+                    .on_hover_text("Exit Tutor mode and return to Notes (:tutor or :edit)");
+                let is_hovered = back_resp.hovered() || ui.rect_contains_pointer(back_rect);
+                let bg_color = if is_hovered {
+                    if theme.is_light() {
+                        Color32::from_rgba_unmultiplied(0, 0, 0, 14)
+                    } else {
+                        Color32::from_rgba_unmultiplied(255, 255, 255, 16)
+                    }
+                } else {
+                    Color32::TRANSPARENT
+                };
+                let stroke = if is_hovered {
+                    Stroke::new(1.0_f32, theme.border())
+                } else {
+                    Stroke::NONE
+                };
+                ui.painter().rect(back_rect, 4.0, bg_color, stroke, egui::StrokeKind::Inside);
+                ui.painter().text(
+                    back_rect.center(),
+                    Align2::CENTER_CENTER,
+                    "← Editor",
+                    FontId::proportional(12.0),
+                    if is_hovered { theme.accent } else { theme.muted },
+                );
+                if back_resp.clicked() {
+                    action = Some(DocSidebarAction::BackToEditor);
+                }
+            });
         },
     );
-    let settings_resp = settings_resp.on_hover_text("Settings (Ctrl+,)");
-    if settings_resp.clicked() || (settings_hovered && ui.input(|i| i.pointer.primary_clicked())) {
-        action = Some(DocSidebarAction::OpenSettings);
-    }
-
-    // 2. Return to Notes Editor button on bottom right (sleek, compact, borderless idle)
-    let back_btn_w = 76.0;
-    let back_btn_h = 30.0;
-    let back_rect = Rect::from_min_size(
-        pos2(rect.max.x - back_btn_w - 14.0, bottom_y),
-        vec2(back_btn_w, back_btn_h),
-    );
-    let back_resp = ui
-        .allocate_rect(back_rect, egui::Sense::click())
-        .on_hover_text("Return to Notes (:editor)");
-    let back_hovered = back_resp.hovered() || ui.rect_contains_pointer(back_rect);
-
-    let back_bg = if back_hovered {
-        if theme.is_light() {
-            Color32::from_rgba_unmultiplied(0, 0, 0, 14)
-        } else {
-            Color32::from_rgba_unmultiplied(255, 255, 255, 16)
-        }
-    } else {
-        Color32::TRANSPARENT
-    };
-    let back_stroke = if back_hovered {
-        Stroke::new(1.0_f32, theme.border())
-    } else {
-        Stroke::NONE
-    };
-    painter.rect(
-        back_rect,
-        6.0,
-        back_bg,
-        back_stroke,
-        egui::StrokeKind::Inside,
-    );
-
-    painter.text(
-        back_rect.center(),
-        Align2::CENTER_CENTER,
-        "← Notes",
-        FontId::monospace(11.5),
-        if back_hovered {
-            theme.accent
-        } else {
-            theme.muted
-        },
-    );
-
-    if back_resp.clicked() || (back_hovered && ui.input(|i| i.pointer.primary_clicked())) {
-        action = Some(DocSidebarAction::BackToEditor);
-    }
 
     action
 }

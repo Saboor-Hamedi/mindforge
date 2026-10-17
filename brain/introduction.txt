@@ -30,19 +30,21 @@ local filesystem. Your thoughts and files remain 100% private and yours.
   [Ctrl+B]          Toggle the notes sidebar library.
   [Ctrl+P]          Fast fuzzy search across all notes by title or content.
   [Ctrl+,]          Open preferences (themes, carets, sounds, keys, AI).
+  :tutor / :docs    Toggle built-in Tutor and interactive guide (:tutor, :docs).
 
 
 3. BUILT-IN DOCUMENTATION CHAPTERS
 --------------------------------------------------------------------------------
-Browse the files in /brain to master every MindForge subsystem:
+Browse the files in /brain or use :tutor to master every MindForge subsystem:
 
   * introduction.txt       Quick start, core principles, and chapter guide.
   * architecture.txt       Purpose, mission, filesystem storage, and dual-engine design.
   * notes.txt              Creating notes, checklists, auto-saving, and search.
   * shortcuts.txt          Complete cheat-sheet for all keyboard shortcuts.
-  * vim_editor.txt         Vim modal editing, modes, operators, and HUD.
-  * vim_motions.txt        Precision text object editing (ci", da(, vi[, etc.).
+  * vim.txt                Vim modal editing, modes, operators, and HUD.
+  * motions.txt            Precision text object editing (ci", da(, vi[, etc.).
+  * neovim.txt             Native Neovim MessagePack-RPC, Lua, and init.lua guide.
+  * lsp.txt                Language servers, completion, diagnostics, and formatting.
   * customization.txt      Keybindings, fonts, blur, opacity, themes, and AI.
   * terminal.txt           Interactive embedded shell, PTY, and terminal tabs.
-  * security_scanner.txt   Built-in web security and vulnerability scanner (:scan).
-  * neovim_rpc.txt         Native Neovim MessagePack-RPC, Lua, and init.lua guide.
+  * security.txt           Built-in web security and vulnerability scanner (:scan).

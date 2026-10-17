@@ -96,8 +96,16 @@ pub const COMMAND_CATALOG: &[CommandInfo] = &[
         desc: "Create a backup snapshot",
     },
     CommandInfo {
+        name: "tutor",
+        desc: "Toggle interactive tutor guide (:tutor, :docs)",
+    },
+    CommandInfo {
+        name: "docs",
+        desc: "Toggle reference documentation & tutor (:docs, :tutor)",
+    },
+    CommandInfo {
         name: "doc",
-        desc: "Open reference documentation",
+        desc: "Toggle reference documentation & tutor (:doc, :tutor)",
     },
     CommandInfo {
         name: "edit",

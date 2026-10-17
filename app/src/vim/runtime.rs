@@ -255,6 +255,7 @@ pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
         rpc_showcmd_update,
         rpc_cmdline,
         rpc_mode,
+        toggle_tutor_requested,
     ) = {
         let Some(backend) = app.services.vim_runtime.backend.as_mut() else {
             return;
@@ -267,6 +268,7 @@ pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
         let rpc_showcmd_update = backend.take_showcmd_update();
         let rpc_cmdline = backend.grid.command_line.clone();
         let rpc_mode = backend.grid.mode.clone();
+        let toggle_tutor = std::mem::take(&mut backend.toggle_tutor_requested);
         (
             update,
             cursor,
@@ -277,8 +279,17 @@ pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
             rpc_showcmd_update,
             rpc_cmdline,
             rpc_mode,
+            toggle_tutor,
         )
     };
+    if toggle_tutor_requested {
+        if app.misc.mode == Mode::Doc {
+            app.misc.mode = Mode::Normal;
+            app.set_status("Switched to Notes Editor", now);
+        } else {
+            app.open_docs_mode(now);
+        }
+    }
     app.misc.showcmd.sync_from_rpc(
         rpc_showcmd_update.as_deref(),
         &rpc_cmdline,

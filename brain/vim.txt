@@ -82,6 +82,7 @@ Preferences Dialog ([Ctrl+,]):
   <F2> / <leader>rn Symbol rename (:Rename)
   Alt+Enter / <leader>ca  Code actions / Quick-fixes (:CodeAction)
   Alt+Shift+F / <leader>f Format document (:Format)
+  :tutor / :docs    Toggle interactive documentation and tutor guide
 
 
 9. SHOWCMD KEYSTROKE HUD
@@ -90,7 +91,7 @@ MindForge includes a floating Heads-Up Display in the bottom-right corner:
   * [VIM]   Tracks multi-key operators, counts, and text objects (e.g. "ci\"", "3dd", "d$", "40j", "gd").
   * [VIS]   Visual mode selection chords (e.g. "vi(", "va{", "vpw").
   * [FIND]  Active search queries (/needle, ?pattern).
-  * [CMD]   Live command-line buffer tracking (:w, :doc, :format).
+  * [CMD]   Live command-line buffer tracking (:w, :tutor, :docs, :format).
   * Smart Replacement: Completed commands (like "vi(" or "40j") remain visible
     during their full timeout, and automatically replace as soon as a new action
     begins (e.g. typing "yp" replaces "vi(" with "yp" rather than concatenating).

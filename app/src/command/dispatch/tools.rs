@@ -91,9 +91,14 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
             );
             true
         }
-        "doc" | "docs" | "tutorial" | "tutorials" | "document" | "documents" | "documentation"
+        "tutor" | "tutors" | "doc" | "docs" | "tutorial" | "tutorials" | "document" | "documents" | "documentation"
         | "documentations" => {
-            app.open_docs_mode(now);
+            if app.misc.mode == Mode::Doc {
+                app.misc.mode = Mode::Normal;
+                app.set_status("Switched to Notes Editor", now);
+            } else {
+                app.open_docs_mode(now);
+            }
             true
         }
         "bd" | "bdelete" | "close" | "tabclose" => {

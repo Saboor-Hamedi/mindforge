@@ -55,7 +55,7 @@ mindforge/
 │   │   │   ├── panes.rs (733)
 │   │   │   ├── right_pane.rs (218)
 │   │   │   ├── scan_view.rs (61)
-│   │   │   ├── shell.rs (1024)
+│   │   │   ├── shell.rs (1045)
 │   │   │   └── stats_view.rs (27)
 │   │   ├── bin/
 │   │   │   └── publish.rs (251)
@@ -78,10 +78,10 @@ mindforge/
 │   │   │   └── dispatch/
 │   │   │       ├── appearance.rs (117)
 │   │   │       ├── file_ops.rs (410)
-│   │   │       ├── mod.rs (107)
-│   │   │       ├── mode_vim.rs (283)
-│   │   │       ├── tools.rs (211)
-│   │   │       ├── types.rs (167)
+│   │   │       ├── mod.rs (130)
+│   │   │       ├── mode_vim.rs (286)
+│   │   │       ├── tools.rs (215)
+│   │   │       ├── types.rs (174)
 │   │   │       └── view_settings.rs (441)
 │   │   ├── editor/
 │   │   │   ├── backend.rs (32)
@@ -188,7 +188,7 @@ mindforge/
 │   │   │   ├── snapshot.rs (5)
 │   │   │   └── visual_line.rs (5)
 │   │   ├── ui/
-│   │   │   ├── docs.rs (684)
+│   │   │   ├── docs.rs (836)
 │   │   │   ├── help_panel.rs (162)
 │   │   │   ├── mod.rs (26)
 │   │   │   ├── palette.rs (311)
@@ -246,7 +246,7 @@ mindforge/
 │   │   │       ├── journal.rs (160)
 │   │   │       └── mod.rs (120)
 │   │   ├── vim/
-│   │   │   ├── backend.rs (1275)
+│   │   │   ├── backend.rs (1279)
 │   │   │   ├── bootstrap.rs (300)
 │   │   │   ├── client.rs (630)
 │   │   │   ├── editor_backend.rs (192)
@@ -254,7 +254,7 @@ mindforge/
 │   │   │   ├── lsp_panel.rs (329)
 │   │   │   ├── mod.rs (15)
 │   │   │   ├── render.rs (1243)
-│   │   │   ├── runtime.rs (327)
+│   │   │   ├── runtime.rs (337)
 │   │   │   ├── state.rs (73)
 │   │   │   └── theme.rs (299)
 │   │   ├── wikilink/
