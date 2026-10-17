@@ -720,7 +720,7 @@ impl VimBackend {
             let copy_btn_h = 18.0;
             let prefix_w = 10.0;
 
-            // Layout single-line message so it never collides with the Copy button
+            // Layout single-line message with layout_no_wrap so it never wraps or collides with Copy
             let max_text_w =
                 (rect.width() - prefix_w - copy_btn_w - 48.0).clamp(80.0, 620.0);
             let single_line_msg = msg_text
@@ -729,21 +729,19 @@ impl VimBackend {
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>()
                 .join(" ");
-            let mut job = egui::text::LayoutJob::single_section(
-                single_line_msg,
-                egui::TextFormat {
-                    font_id: fixed_font.clone(),
-                    color: text_color,
-                    ..Default::default()
-                },
-            );
-            job.wrap = egui::text::TextWrapping {
-                max_width: max_text_w,
-                max_rows: 1,
-                break_anywhere: true,
-                overflow_character: Some('…'),
+            let approx_char_w = (font_size * 0.52).max(6.0);
+            let max_chars = ((max_text_w / approx_char_w).floor() as usize).max(16);
+            let display_msg = if single_line_msg.chars().count() > max_chars {
+                let kept: String = single_line_msg
+                    .chars()
+                    .take(max_chars.saturating_sub(3))
+                    .collect();
+                format!("{kept}...")
+            } else {
+                single_line_msg
             };
-            let msg_galley = painter.layout_job(job);
+            let msg_galley =
+                painter.layout_no_wrap(display_msg, fixed_font.clone(), text_color);
 
             let pill_h = (msg_galley.size().y + 8.0).max(24.0);
             let pill_w = (prefix_w + msg_galley.size().x + copy_btn_w + 28.0)

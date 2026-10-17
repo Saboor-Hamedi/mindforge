@@ -71,20 +71,22 @@ Snippet Placeholders (VS Code Friendly):
     Esc in Normal      Clears search highlights (:nohlsearch) and active snippets
 
 
-5. COMMANDS
------------
-    :LspInstall [names]    Install servers (default: servers for active file type)
+5. COMMANDS (Case-Insensitive)
+------------------------------
+    :LspInstall [names]    Install servers (default: servers for active file type; e.g. :LspInstall lua)
     :LspUninstall names    Remove a managed server
     :LspList               Browse installed and available language servers
     :LspInfo               Show servers attached to the current buffer
     :LspRestart            Restart language servers for the current buffer
     :LspConfig             Open your lsp.lua configuration
-    :Format                Format current buffer using active LSP server
-    :Rename                Rename symbol under cursor
-    :CodeAction            Trigger LSP quick-fixes and refactorings
-    :References            Find all references to symbol under cursor
-    :Hover                 Show hover documentation for symbol
-    :Definition            Jump to symbol definition
+    :config / :init        Open your user init.lua on an editor tab
+    :so / :source          Reload your Neovim configuration live
+    :Format / :format      Format current buffer using active LSP server (or CLI formatter fallback)
+    :Rename / :rename      Rename symbol under cursor
+    :CodeAction / :codeaction Trigger LSP quick-fixes and refactorings
+    :References / :references Find all references to symbol under cursor
+    :Hover / :hover        Show hover documentation for symbol
+    :Definition / :definition Jump to symbol definition
 
 
 6. BUILT-IN SERVERS
@@ -98,18 +100,18 @@ Snippet Placeholders (VS Code Friendly):
     cmake                  CMake (npm)
     sql                    SQL (npm)
     rust_analyzer          Rust (rustup component add rust-analyzer)
-    clangd                 C / C++ / Objective-C (system PATH)
-    lua_ls                 Lua (system PATH)
-    gopls                  Go (system PATH)
-    taplo                  TOML (system PATH)
-    marksman               Markdown (system PATH)
+    lua_ls                 Lua & init.lua (:LspInstall lua_ls / win-zip / scoop / winget)
+    clangd                 C / C++ / Objective-C (system PATH / scoop / winget)
+    gopls                  Go (system PATH / go install / scoop)
+    taplo                  TOML (npm @taplo/cli / system PATH)
+    marksman               Markdown (system PATH / scoop / winget)
     texlab                 LaTeX / BibTeX (system PATH)
 
 npm servers are installed into:   <home>\nvim\servers\npm
+Standalone servers (lua_ls) install into: <home>\nvim\servers\lua_ls
 A server already on your PATH is used as-is. npm (Node.js) and rustup must be
-installed for the respective servers. System servers (clangd, lua_ls, gopls,
-taplo, marksman, texlab) are not managed by MindForge — install them with your
-package manager (scoop, winget, brew, apt) and they are enabled automatically.
+installed for the respective servers. System servers can be installed via
+:LspInstall <name> or your system package manager (scoop, winget, brew, apt).
 
 Syntax formatting (`:Format`, <leader>f) uses an LSP formatter when the server
 provides one, otherwise falls back to a command-line formatter on PATH:

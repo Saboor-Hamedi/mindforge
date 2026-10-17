@@ -271,7 +271,7 @@ impl App {
                         }
                         self.set_status(
                             if self.misc.zen_mode {
-                                "Zen Mode ON (Ctrl+.)"
+                                "Zen Mode ON (:zen to exit)"
                             } else {
                                 "Zen Mode OFF"
                             },

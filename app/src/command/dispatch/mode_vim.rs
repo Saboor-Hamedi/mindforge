@@ -227,29 +227,38 @@ pub fn handle_fallback(app: &mut App, cmd: &str, raw: &str, now: f64) {
 
         match result {
             Ok(output) => {
-                // Force Neovim to redraw and sync modified text immediately (:sort, :%s, :g/.../d, :.,$d)
-                let _ = backend.execute_command("redraw");
+                let modifies_text = matches!(
+                    cmd,
+                    "sort" | "g" | "v" | "norm" | "normal" | "substitute" | "s"
+                ) || raw.starts_with("%s")
+                    || raw.starts_with(".,$")
+                    || raw.contains("s/");
+
+                // Asynchronously tell Neovim to redraw without stalling egui UI thread
+                let _ = backend.notify_redraw();
                 if let Some(ln) = backend.line_numbers_enabled {
                     app.editor.show_line_numbers = ln;
                 }
-                if let Some(new_text) = backend.force_sync_text() {
-                    let current_text = if app.misc.mode == Mode::Doc {
-                        app.editor.doc_ed.text()
-                    } else {
-                        app.editor.ed.text()
-                    };
-                    if new_text != current_text {
-                        if app.misc.mode == Mode::Doc {
-                            let cur = app.editor.doc_ed.cur;
-                            app.editor.doc_ed.set_text(&new_text);
-                            app.editor.doc_ed.cur = cur.min(app.editor.doc_ed.buf.len());
+                if modifies_text {
+                    if let Some(new_text) = backend.force_sync_text() {
+                        let current_text = if app.misc.mode == Mode::Doc {
+                            app.editor.doc_ed.text()
                         } else {
-                            let cur = app.editor.ed.cur;
-                            app.editor.ed.set_text(&new_text);
-                            app.editor.ed.cur = cur.min(app.editor.ed.buf.len());
-                            app.editor.is_dirty = true;
-                            app.misc.last_char_time = now;
-                            app.sync_active_tab();
+                            app.editor.ed.text()
+                        };
+                        if new_text != current_text {
+                            if app.misc.mode == Mode::Doc {
+                                let cur = app.editor.doc_ed.cur;
+                                app.editor.doc_ed.set_text(&new_text);
+                                app.editor.doc_ed.cur = cur.min(app.editor.doc_ed.buf.len());
+                            } else {
+                                let cur = app.editor.ed.cur;
+                                app.editor.ed.set_text(&new_text);
+                                app.editor.ed.cur = cur.min(app.editor.ed.buf.len());
+                                app.editor.is_dirty = true;
+                                app.misc.last_char_time = now;
+                                app.sync_active_tab();
+                            }
                         }
                     }
                 }

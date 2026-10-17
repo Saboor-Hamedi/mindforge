@@ -5,8 +5,11 @@
 //! mode-reactive dynamic colors, and customizable components (word count, reading time,
 //! cursor position, progress percentage, encoding badge, and dirty indicators).
 
+pub mod language_detection;
 pub mod render;
 pub mod types;
 
+#[allow(unused_imports)]
+pub use language_detection::render_language_detection_dropdown;
 pub use render::{render_lunaline, render_lunaline_preview, LunaLineRenderParams};
 pub use types::{LunaColorMode, LunaLineConfig, LunaStyle};

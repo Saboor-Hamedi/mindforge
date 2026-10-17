@@ -81,7 +81,9 @@ pub fn handle_event(
                             | egui::Key::PageUp
                             | egui::Key::PageDown
                     );
-                if is_special || modifiers.ctrl || modifiers.command || modifiers.alt {
+                if (modifiers.ctrl || modifiers.command) && *key == egui::Key::Period {
+                    false
+                } else if is_special || modifiers.ctrl || modifiers.command || modifiers.alt {
                     send_key(
                         app,
                         EditorKeyEvent {
@@ -213,6 +215,15 @@ fn key_label(key: egui::Key, modifiers: egui::Modifiers) -> String {
         egui::Key::PageDown => "PageDown".to_string(),
         egui::Key::OpenBracket => "[".to_string(),
         egui::Key::CloseBracket => "]".to_string(),
+        egui::Key::Period => ".".to_string(),
+        egui::Key::Comma => ",".to_string(),
+        egui::Key::Semicolon => ";".to_string(),
+        egui::Key::Slash => "/".to_string(),
+        egui::Key::Backslash => "\\".to_string(),
+        egui::Key::Backtick => "`".to_string(),
+        egui::Key::Minus => "-".to_string(),
+        egui::Key::Equals => "=".to_string(),
+        egui::Key::Quote => "'".to_string(),
         egui::Key::Space => "Space".to_string(),
         other => format!("{other:?}"),
     };

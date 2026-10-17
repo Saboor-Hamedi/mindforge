@@ -99,7 +99,7 @@ pub fn render_welcome_dashboard(
         ("I", "AI Assistant", "Ctrl+Shift+I", DashboardAction::OpenAi),
         ("D", "Documentation", ":doc", DashboardAction::OpenDocs),
         ("S", "Preferences", "Ctrl+,", DashboardAction::OpenSettings),
-        ("Z", "Zen Focus Mode", "Ctrl+.", DashboardAction::ToggleZen),
+        ("Z", "Zen Focus Mode", ":zen", DashboardAction::ToggleZen),
     ];
 
     // Determine how many buttons fit comfortably in the available height

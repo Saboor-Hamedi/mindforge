@@ -87,7 +87,12 @@ Preferences Dialog ([Ctrl+,]):
 9. SHOWCMD KEYSTROKE HUD
 --------------------------------------------------------------------------------
 MindForge includes a floating Heads-Up Display in the bottom-right corner:
-  * [VIM]   Tracks multi-key operators in progress (e.g. "ci\"", "3dd", "d$").
-  * [VIS]   Visual mode selection chords.
+  * [VIM]   Tracks multi-key operators, counts, and text objects (e.g. "ci\"", "3dd", "d$", "40j", "gd").
+  * [VIS]   Visual mode selection chords (e.g. "vi(", "va{", "vpw").
   * [FIND]  Active search queries (/needle, ?pattern).
-  * [CMD]   Live command-line buffer tracking.
+  * [CMD]   Live command-line buffer tracking (:w, :doc, :format).
+  * Smart Replacement: Completed commands (like "vi(" or "40j") remain visible
+    during their full timeout, and automatically replace as soon as a new action
+    begins (e.g. typing "yp" replaces "vi(" with "yp" rather than concatenating).
+  * Navigation Safety: Repeated navigation keys (j, k, h, l, <Down>, <Up>) never
+    stack repeatedly unless completing an active count or operator (e.g. "20j", "dj").

@@ -34,10 +34,7 @@ function M.setup(refresh)
     vim.api.nvim_create_user_command(name, fn, opts)
     local lower = name:lower()
     if lower ~= name then
-      pcall(vim.cmd, string.format(
-        "cnoreabbrev <expr> %s (getcmdtype() == ':' && getcmdline() =~# '^%s\\>') ? '%s' : '%s'",
-        lower, lower, name, lower
-      ))
+      pcall(vim.cmd, string.format('cabbrev %s %s', lower, name))
     end
   end
 
@@ -242,7 +239,7 @@ return {
 
   cmd('CodeAction', function()
     if #vim.lsp.get_clients({ bufnr = 0 }) == 0 then
-      return say('no LSP server attached for code action')
+      return say('no LSP server attached for code action. Use :LspInstall or :LspList')
     end
     if not supports('textDocument/codeAction') then
       return say('code actions are not supported for this filetype')
@@ -252,7 +249,7 @@ return {
 
   cmd('References', function()
     if #vim.lsp.get_clients({ bufnr = 0 }) == 0 then
-      return say('no LSP server attached to find references')
+      return say('no LSP server attached to find references. Use :LspInstall or :LspList')
     end
     if not supports('textDocument/references') then
       return say('find references is not supported for this filetype')
@@ -262,7 +259,7 @@ return {
 
   cmd('Hover', function()
     if #vim.lsp.get_clients({ bufnr = 0 }) == 0 then
-      return say('no LSP server attached for hover documentation')
+      return say('no LSP server attached for hover documentation. Use :LspInstall or :LspList')
     end
     if not supports('textDocument/hover') then
       return say('hover documentation is not supported for this filetype')
@@ -272,7 +269,7 @@ return {
 
   cmd('Definition', function()
     if #vim.lsp.get_clients({ bufnr = 0 }) == 0 then
-      return say('no LSP server attached to go to definition')
+      return say('no LSP server attached to go to definition. Use :LspInstall or :LspList')
     end
     if not supports('textDocument/definition') then
       return say('go to definition is not supported for this filetype')

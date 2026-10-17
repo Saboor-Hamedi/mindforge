@@ -361,7 +361,7 @@ pub const BUILTIN_COMMANDS: &[BuiltinCommand] = &[
     BuiltinCommand {
         title: "Toggle Zen Focus Mode",
         snippet: "Distraction-free pure canvas writing environment",
-        badge: "Ctrl+.",
+        badge: ":zen",
         icon: "👁",
         action: PaletteAction::ToggleZen,
     },

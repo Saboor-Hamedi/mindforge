@@ -50,7 +50,7 @@ mindforge/
 │   │   ├── app.rs (1076)
 │   │   ├── app/
 │   │   │   ├── init.rs (526)
-│   │   │   ├── modals.rs (652)
+│   │   │   ├── modals.rs (672)
 │   │   │   ├── notes.rs (888)
 │   │   │   ├── panes.rs (733)
 │   │   │   ├── right_pane.rs (218)
@@ -79,10 +79,10 @@ mindforge/
 │   │   │       ├── appearance.rs (117)
 │   │   │       ├── file_ops.rs (410)
 │   │   │       ├── mod.rs (107)
-│   │   │       ├── mode_vim.rs (275)
+│   │   │       ├── mode_vim.rs (283)
 │   │   │       ├── tools.rs (211)
 │   │   │       ├── types.rs (167)
-│   │   │       └── view_settings.rs (442)
+│   │   │       └── view_settings.rs (441)
 │   │   ├── editor/
 │   │   │   ├── backend.rs (32)
 │   │   │   ├── editing.rs (1372)
@@ -99,7 +99,7 @@ mindforge/
 │   │   │   ├── mod.rs (328)
 │   │   │   └── global/
 │   │   │       ├── clipboard.rs (226)
-│   │   │       ├── editing.rs (193)
+│   │   │       ├── editing.rs (169)
 │   │   │       ├── mod.rs (112)
 │   │   │       ├── navigation.rs (246)
 │   │   │       ├── panels.rs (289)
@@ -108,8 +108,9 @@ mindforge/
 │   │   ├── language.rs (193)
 │   │   ├── layout.rs (246)
 │   │   ├── lunaline/
-│   │   │   ├── mod.rs (12)
-│   │   │   ├── render.rs (1203)
+│   │   │   ├── language_detection.rs (227)
+│   │   │   ├── mod.rs (15)
+│   │   │   ├── render.rs (1014)
 │   │   │   └── types.rs (160)
 │   │   ├── main.rs (95)
 │   │   ├── modals/
@@ -127,7 +128,7 @@ mindforge/
 │   │   ├── services/
 │   │   │   ├── blur.rs (290)
 │   │   │   ├── font_manager.rs (369)
-│   │   │   ├── fuzzy.rs (819)
+│   │   │   ├── fuzzy.rs (827)
 │   │   │   ├── mod.rs (19)
 │   │   │   ├── settings_store.rs (251)
 │   │   │   ├── sound.rs (443)
@@ -191,7 +192,7 @@ mindforge/
 │   │   │   ├── help_panel.rs (162)
 │   │   │   ├── mod.rs (26)
 │   │   │   ├── palette.rs (311)
-│   │   │   ├── showcmd.rs (744)
+│   │   │   ├── showcmd.rs (949)
 │   │   │   ├── theme.rs (452)
 │   │   │   ├── zoom.rs (225)
 │   │   │   └── menu/
@@ -245,16 +246,16 @@ mindforge/
 │   │   │       ├── journal.rs (160)
 │   │   │       └── mod.rs (120)
 │   │   ├── vim/
-│   │   │   ├── backend.rs (1248)
-│   │   │   ├── bootstrap.rs (293)
+│   │   │   ├── backend.rs (1275)
+│   │   │   ├── bootstrap.rs (300)
 │   │   │   ├── client.rs (630)
-│   │   │   ├── editor_backend.rs (183)
-│   │   │   ├── input.rs (280)
+│   │   │   ├── editor_backend.rs (192)
+│   │   │   ├── input.rs (290)
 │   │   │   ├── lsp_panel.rs (329)
 │   │   │   ├── mod.rs (15)
-│   │   │   ├── render.rs (1247)
-│   │   │   ├── runtime.rs (324)
-│   │   │   ├── state.rs (71)
+│   │   │   ├── render.rs (1243)
+│   │   │   ├── runtime.rs (327)
+│   │   │   ├── state.rs (73)
 │   │   │   └── theme.rs (299)
 │   │   ├── wikilink/
 │   │   │   ├── hover_wikilink.rs (402)
@@ -304,7 +305,7 @@ mindforge/
 │   ├── filesystem-audit.md (29)
 │   ├── filesystem.md (612)
 │   ├── performance.md (242)
-│   ├── polish-1.md (616)
+│   ├── polish-1.md (217)
 │   ├── polish-2.md (807)
 │   └── rootCause.md (643)
 └── webscan/

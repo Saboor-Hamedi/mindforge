@@ -247,6 +247,17 @@ impl VimBackend {
             self.lsp_status = (arg(0), arg(1));
         } else if items.get(1).and_then(Value::as_str) == Some("mindforge_lsp_list") {
             self.apply_lsp_list(items.get(2));
+        } else if items.get(1).and_then(Value::as_str) == Some("mindforge_status") {
+            let msg = items
+                .get(2)
+                .and_then(Value::as_array)
+                .and_then(|args| args.first())
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            self.grid.message = msg.to_owned();
+            self.grid.message_at = Some(std::time::Instant::now());
+            self.grid.message_copied_at = None;
+            self.grid.message_is_error = false;
         } else if items.get(1).and_then(Value::as_str) == Some("nvim_buf_lines_event") {
             self.apply_lines_event(items.get(2).unwrap_or(&Value::Nil));
         }
@@ -459,6 +470,7 @@ impl VimBackend {
                 "cmdline_hide" => self.grid.command_line.clear(),
                 "msg_showcmd" if !args.is_empty() => {
                     self.grid.showcmd = cmdline_text(&args[0]);
+                    self.grid.showcmd_dirty = true;
                 }
                 "popupmenu_show" if !args.is_empty() => {
                     self.grid.popup_items = super::render::popupmenu_items(&args[0]);
@@ -704,6 +716,15 @@ impl VimBackend {
 
     pub fn take_error(&mut self) -> Option<String> {
         self.error.take()
+    }
+
+    pub fn take_showcmd_update(&mut self) -> Option<String> {
+        if self.grid.showcmd_dirty {
+            self.grid.showcmd_dirty = false;
+            Some(self.grid.showcmd.clone())
+        } else {
+            None
+        }
     }
 
     pub fn paste(&mut self, text: &str) -> EditorResult<()> {
@@ -1028,10 +1049,11 @@ if m:find('^[vV\22]') then vim.cmd('normal! >gv') else vim.cmd('normal! >>') end
     /// Execute an arbitrary Neovim Ex-command synchronously via MessagePack-RPC.
     pub fn execute_command(&mut self, command: &str) -> Result<String, String> {
         let res = self.client.execute_command(command);
-        if let Ok(Value::Array(pos)) = self
-            .client
-            .request("nvim_win_get_cursor", vec![Value::from(0)])
-        {
+        if let Ok(Value::Array(pos)) = self.client.request_timeout(
+            "nvim_win_get_cursor",
+            vec![Value::from(0)],
+            Duration::from_millis(60),
+        ) {
             if pos.len() >= 2 {
                 let win_row = pos[0].as_u64().unwrap_or(1).saturating_sub(1) as usize;
                 let win_col = pos[1].as_u64().unwrap_or(0) as usize;
@@ -1051,13 +1073,19 @@ if m:find('^[vV\22]') then vim.cmd('normal! >gv') else vim.cmd('normal! >>') end
         res
     }
 
+    /// Asynchronously requests Neovim to redraw without blocking the UI thread.
+    pub fn notify_redraw(&mut self) -> Result<(), String> {
+        self.client.notify("nvim_command", vec![Value::from("redraw")])
+    }
+
     /// Execute arbitrary Lua code synchronously in Neovim via MessagePack-RPC.
     pub fn execute_lua(&mut self, code: &str) -> Result<String, String> {
         let res = self.client.execute_lua(code, vec![]);
-        if let Ok(Value::Array(pos)) = self
-            .client
-            .request("nvim_win_get_cursor", vec![Value::from(0)])
-        {
+        if let Ok(Value::Array(pos)) = self.client.request_timeout(
+            "nvim_win_get_cursor",
+            vec![Value::from(0)],
+            Duration::from_millis(60),
+        ) {
             if pos.len() >= 2 {
                 let win_row = pos[0].as_u64().unwrap_or(1).saturating_sub(1) as usize;
                 let win_col = pos[1].as_u64().unwrap_or(0) as usize;

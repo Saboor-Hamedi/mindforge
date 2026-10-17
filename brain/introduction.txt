@@ -26,7 +26,7 @@ local filesystem. Your thoughts and files remain 100% private and yours.
   [Ctrl+E]          Toggle between Inline Live Markdown and Raw Plaintext mode.
   [Ctrl+J]          Open the embedded interactive terminal dock (:term).
   [Ctrl+Shift+I]    Open the DeepSeek AI Assistant right pane.
-  [Ctrl+.]          Enter distraction-free Zen focus mode (:zen).
+  :zen              Enter distraction-free Zen focus mode.
   [Ctrl+B]          Toggle the notes sidebar library.
   [Ctrl+P]          Fast fuzzy search across all notes by title or content.
   [Ctrl+,]          Open preferences (themes, carets, sounds, keys, AI).

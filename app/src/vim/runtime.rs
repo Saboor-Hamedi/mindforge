@@ -252,7 +252,7 @@ pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
         note_id,
         backend_error,
         line_numbers_enabled,
-        rpc_showcmd,
+        rpc_showcmd_update,
         rpc_cmdline,
         rpc_mode,
     ) = {
@@ -264,7 +264,7 @@ pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
         let cursor = Some(backend.cursor_char_index());
         let backend_error = backend.take_error();
         let line_numbers_enabled = backend.line_numbers_enabled;
-        let rpc_showcmd = backend.grid.showcmd.clone();
+        let rpc_showcmd_update = backend.take_showcmd_update();
         let rpc_cmdline = backend.grid.command_line.clone();
         let rpc_mode = backend.grid.mode.clone();
         (
@@ -274,14 +274,17 @@ pub(crate) fn sync_neovim_changes(app: &mut App, now: f64) {
             app.services.vim_runtime.note_id,
             backend_error,
             line_numbers_enabled,
-            rpc_showcmd,
+            rpc_showcmd_update,
             rpc_cmdline,
             rpc_mode,
         )
     };
-    app.misc
-        .showcmd
-        .sync_from_rpc(&rpc_showcmd, &rpc_cmdline, &rpc_mode, now);
+    app.misc.showcmd.sync_from_rpc(
+        rpc_showcmd_update.as_deref(),
+        &rpc_cmdline,
+        &rpc_mode,
+        now,
+    );
     if let Some(show_numbers) = line_numbers_enabled {
         app.editor.show_line_numbers = show_numbers;
     }

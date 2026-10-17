@@ -40,7 +40,7 @@ Press [Ctrl+E] to switch between two viewing experiences:
 
 4. DISTRACTION-FREE ZEN MODE
 --------------------------------------------------------------------------------
-Press [Ctrl+.] (or type ":zen") to clear away window chrome (titlebar, tabs,
+Type ":zen" on the command bar to clear away window chrome (titlebar, tabs,
 sidebar, preview) and enter pure distraction-free focus:
   * Only your active editor canvas and the bottom status dock remain visible.
   * If you need the sidebar or AI assistant while in Zen mode, press [Ctrl+B]

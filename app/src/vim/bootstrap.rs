@@ -156,7 +156,7 @@ pub const INIT_LUA: &str = r#"
             vim.opt.relativenumber = false
             local ok, err = pcall(dofile, init_path)
             if not ok then
-                local clean_err = tostring(err):gsub('^.*[/\\]', '')
+                local clean_err = tostring(err):gsub('^.*[/\\]', ''):gsub('^_?options%.lua:%d+:%s*', '')
                 vim.notify('Error in init.lua: ' .. clean_err, vim.log.levels.ERROR)
             end
         else
@@ -208,8 +208,16 @@ pub const INIT_LUA: &str = r#"
         end
     end, { silent = true })
 
-    -- Clear search highlight and active snippet session on Escape in normal mode
-    vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR><cmd>lua if vim.w._mindforge_live_search_id then pcall(vim.fn.matchdelete, vim.w._mindforge_live_search_id); vim.w._mindforge_live_search_id = nil end; if vim.snippet and vim.snippet.stop then pcall(vim.snippet.stop) end<CR>', { silent = true })
+    -- Clear search highlight, close quickfix/references, and clear active snippet on Escape in normal mode
+    vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR><cmd>lua if vim.w._mindforge_live_search_id then pcall(vim.fn.matchdelete, vim.w._mindforge_live_search_id); vim.w._mindforge_live_search_id = nil end; if vim.snippet and vim.snippet.stop then pcall(vim.snippet.stop) end; pcall(vim.cmd, "cclose"); pcall(vim.cmd, "lclose")<CR>', { silent = true })
+
+    vim.api.nvim_create_autocmd('FileType', {
+        pattern = 'qf',
+        callback = function(ev)
+            vim.keymap.set('n', '<Esc>', '<cmd>cclose<CR>', { buffer = ev.buf, silent = true })
+            vim.keymap.set('n', 'q', '<cmd>cclose<CR>', { buffer = ev.buf, silent = true })
+        end,
+    })
 
     -- Enforce identical gutter layout and hidden statusline regardless of filetype or window events
     vim.api.nvim_create_autocmd({ 'FileType', 'BufEnter', 'BufWinEnter', 'WinEnter', 'WinNew' }, {

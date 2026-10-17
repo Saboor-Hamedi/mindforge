@@ -101,7 +101,7 @@ pub fn get_mode_colors(mode: &str, color_mode: LunaColorMode, theme: &Theme) -> 
 }
 
 /// Renders the complete LunaLine dock.
-pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
+pub fn render_lunaline(params: LunaLineRenderParams) -> LunaLineAction {
     let ui = params.ui;
     let painter = params.painter;
     let dock_rect = params.dock_rect;
@@ -924,205 +924,16 @@ pub fn render_lunaline(mut params: LunaLineRenderParams) -> LunaLineAction {
         );
     }
 
-    // ── 5. Empty-Space Window Dragging ────────────────────────────────────────
-    if params.language_selector.open {
-        let selector = &mut params.language_selector;
-        let mut choices = vec![(None, "Auto Detect")];
-        choices.extend(
-            FileLanguage::ALL
-                .into_iter()
-                .map(|language| (Some(language), language.label())),
-        );
-        let query = selector.query.trim().to_ascii_lowercase();
-        let filtered: Vec<_> = choices
-            .into_iter()
-            .filter(|(_, label)| query.is_empty() || label.to_ascii_lowercase().contains(&query))
-            .collect();
-        selector.selected_index = selector
-            .selected_index
-            .min(filtered.len().saturating_sub(1));
-
-        if ui.input(|input| input.key_pressed(egui::Key::Escape)) {
-            selector.open = false;
-        } else if !filtered.is_empty() {
-            if ui.input(|input| input.key_pressed(egui::Key::ArrowDown)) {
-                selector.selected_index = (selector.selected_index + 1).min(filtered.len() - 1);
-            }
-            if ui.input(|input| input.key_pressed(egui::Key::ArrowUp)) {
-                selector.selected_index = selector.selected_index.saturating_sub(1);
-            }
-            if ui.input(|input| input.key_pressed(egui::Key::Enter)) {
-                let (language, _) = filtered[selector.selected_index];
-                action.language_selection = Some(match language {
-                    Some(language) => LanguageSelection::Language(language),
-                    None => LanguageSelection::AutoDetect,
-                });
-                selector.open = false;
-            }
-        }
-
-        if selector.open {
-            let popup_width = 260.0;
-            let popup_height = 320.0;
-            let screen = ui.ctx().screen_rect();
-            let max_x = (screen.max.x - popup_width - 8.0).max(screen.min.x + 8.0);
-            let popup_pos = pos2(
-                language_rect.min.x.clamp(screen.min.x + 8.0, max_x),
-                (language_rect.min.y - popup_height - 6.0).max(screen.min.y + 8.0),
-            );
-            let popup_rect = Rect::from_min_size(popup_pos, vec2(popup_width, popup_height));
-
-            // Outside click dismiss
-            if ui.input(|i| i.pointer.primary_clicked() || i.pointer.secondary_clicked()) {
-                if let Some(pos) =
-                    ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos()))
-                {
-                    if !popup_rect.contains(pos) && !language_rect.contains(pos) {
-                        selector.open = false;
-                    }
-                }
-            }
-
-            if selector.open {
-                egui::Area::new(egui::Id::new("mindforge-language-selector"))
-                    .order(egui::Order::Foreground)
-                    .fixed_pos(popup_pos)
-                    .show(ui.ctx(), |ui| {
-                        // Sharp IDE frame: 0px radius, subtle border
-                        let painter = ui.painter();
-                        painter.rect(
-                            popup_rect,
-                            0.0,
-                            theme.surface(),
-                            Stroke::new(1.0, theme.border().gamma_multiply(0.75)),
-                            egui::StrokeKind::Inside,
-                        );
-
-                        ui.allocate_new_ui(
-                            egui::UiBuilder::new()
-                                .max_rect(popup_rect.shrink(1.0))
-                                .layout(egui::Layout::top_down(egui::Align::Min)),
-                            |ui| {
-                                ui.add_space(6.0);
-                                ui.horizontal(|ui| {
-                                    ui.add_space(8.0);
-                                    ui.label(
-                                        egui::RichText::new("🔍").size(12.0).color(theme.muted),
-                                    );
-                                    let search = ui.add(
-                                        egui::TextEdit::singleline(&mut selector.query)
-                                            .id_salt("mindforge-language-search")
-                                            .hint_text("Select language mode...")
-                                            .desired_width(popup_width - 44.0)
-                                            .font(FontId::proportional(12.5)),
-                                    );
-                                    if selector.focus_search {
-                                        search.request_focus();
-                                        selector.focus_search = false;
-                                    }
-                                });
-
-                                ui.add_space(4.0);
-                                let sep_y = ui.cursor().min.y;
-                                ui.painter().line_segment(
-                                    [pos2(popup_rect.min.x, sep_y), pos2(popup_rect.max.x, sep_y)],
-                                    Stroke::new(1.0, theme.border().gamma_multiply(0.35)),
-                                );
-                                ui.add_space(4.0);
-
-                                egui::ScrollArea::vertical()
-                                    .max_height(popup_height - 50.0)
-                                    .auto_shrink([false, false])
-                                    .show(ui, |ui| {
-                                        for (index, (language, label)) in
-                                            filtered.iter().enumerate()
-                                        {
-                                            let is_selected = match language {
-                                                Some(language) => {
-                                                    params.language_override == Some(*language)
-                                                }
-                                                None => params.language_override.is_none(),
-                                            };
-                                            let is_highlighted = index == selector.selected_index;
-                                            let row_w = popup_width - 2.0;
-                                            let row_h = 25.0;
-                                            let (row_rect, resp) = ui.allocate_exact_size(
-                                                vec2(row_w, row_h),
-                                                egui::Sense::click(),
-                                            );
-
-                                            if is_highlighted || resp.hovered() {
-                                                ui.painter().rect_filled(
-                                                    row_rect,
-                                                    0.0,
-                                                    if theme.is_light() {
-                                                        Color32::from_rgba_unmultiplied(0, 0, 0, 14)
-                                                    } else {
-                                                        Color32::from_rgba_unmultiplied(
-                                                            255, 255, 255, 14,
-                                                        )
-                                                    },
-                                                );
-                                            }
-
-                                            let text_x = row_rect.min.x + 10.0;
-                                            let text_y = row_rect.center().y;
-
-                                            // Checkmark indicator
-                                            if is_selected {
-                                                ui.painter().text(
-                                                    pos2(text_x, text_y),
-                                                    Align2::LEFT_CENTER,
-                                                    "✓",
-                                                    FontId::proportional(12.0),
-                                                    theme.accent,
-                                                );
-                                            }
-
-                                            let label_x = text_x + 16.0;
-                                            let display_name = if language.is_none() {
-                                                format!(
-                                                    "{label} ({})",
-                                                    params.detected_language.label()
-                                                )
-                                            } else {
-                                                (*label).to_string()
-                                            };
-
-                                            ui.painter().text(
-                                                pos2(label_x, text_y),
-                                                Align2::LEFT_CENTER,
-                                                &display_name,
-                                                FontId::proportional(12.5),
-                                                if is_selected {
-                                                    theme.highlight
-                                                } else if is_highlighted || resp.hovered() {
-                                                    theme.text
-                                                } else {
-                                                    theme.muted
-                                                },
-                                            );
-
-                                            if is_highlighted {
-                                                resp.scroll_to_me(Some(egui::Align::Center));
-                                            }
-
-                                            if resp.clicked() {
-                                                action.language_selection = Some(match language {
-                                                    Some(language) => {
-                                                        LanguageSelection::Language(*language)
-                                                    }
-                                                    None => LanguageSelection::AutoDetect,
-                                                });
-                                                selector.open = false;
-                                            }
-                                        }
-                                    });
-                            },
-                        );
-                    });
-            }
-        }
+    // ── 5. Language Detection Dropdown ───────────────────────────────────────
+    if let Some(selection) = super::language_detection::render_language_detection_dropdown(
+        ui,
+        params.language_selector,
+        language_rect,
+        params.language_override,
+        params.detected_language,
+        theme,
+    ) {
+        action.language_selection = Some(selection);
     }
 
     let is_empty_dock_hovered = ui.rect_contains_pointer(actual_bar_rect)

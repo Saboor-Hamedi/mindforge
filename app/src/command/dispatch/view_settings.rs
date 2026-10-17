@@ -205,7 +205,7 @@ pub fn handle(app: &mut App, cmd: &str, args: &str, _raw: &str, now: f64) -> boo
                 val: if app.misc.zen_mode { "true" } else { "false" }.into(),
             });
             let msg = if app.misc.zen_mode {
-                "Zen Mode Enabled (Ctrl+. to exit)"
+                "Zen Mode Enabled (:zen to exit)"
             } else {
                 "Zen Mode Disabled"
             };

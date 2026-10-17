@@ -40,7 +40,7 @@ The Right Pane (Preview, AI Assistant, Backlinks, Outline):
   * Bidirectional Backlinks indexing and Document Outline tree navigation.
 
 Zen Mode & Modular Layout:
-  * Ctrl+. strips away all window framing (titlebar, tabs, sidebar, preview)
+  * :zen strips away all window framing (titlebar, tabs, sidebar, preview)
     leaving only your writing canvas and statusline.
   * Granular surface controls (:titlebar, :sidebar, :tabs, :ai, :preview).
 

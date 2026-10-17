@@ -162,7 +162,7 @@ pub fn render_shortcuts_tab(
                 ("Ctrl + L / l", "Focus editor (right)"),
                 ("Ctrl + I", "Toggle backlinks sidebar"),
                 ("Ctrl+Shift+O", "Toggle outline (H1-H6) sidebar"),
-                ("Ctrl + .", "Toggle Zen mode (distraction-free editor)"),
+                (":zen", "Toggle Zen mode (distraction-free editor)"),
                 ("Ctrl + J", "Toggle interactive terminal dock"),
                 ("Ctrl + ,", "Open preferences & keybindings"),
                 ("Esc", "Dismiss modal / return to Normal mode"),

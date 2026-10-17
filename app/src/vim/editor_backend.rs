@@ -60,6 +60,15 @@ impl EditorBackend for VimBackend {
             egui::Key::PageDown => "<PageDown>".into(),
             egui::Key::OpenBracket => "[".into(),
             egui::Key::CloseBracket => "]".into(),
+            egui::Key::Period => ".".into(),
+            egui::Key::Comma => ",".into(),
+            egui::Key::Semicolon => ";".into(),
+            egui::Key::Slash => "/".into(),
+            egui::Key::Backslash => "\\".into(),
+            egui::Key::Backtick => "`".into(),
+            egui::Key::Minus => "-".into(),
+            egui::Key::Equals => "=".into(),
+            egui::Key::Quote => "'".into(),
             other => {
                 let name = format!("{other:?}");
                 if name.starts_with('F') && name[1..].parse::<u8>().is_ok() {

@@ -339,7 +339,17 @@ local function setup_keys()
       pcall(vim.snippet.stop)
     end
     close_floating_windows()
+    pcall(vim.cmd, 'cclose')
+    pcall(vim.cmd, 'lclose')
   end)
+
+  vim.api.nvim_create_autocmd('FileType', {
+    pattern = 'qf',
+    callback = function(event)
+      vim.keymap.set('n', '<Esc>', '<cmd>cclose<CR>', { buffer = event.buf, silent = true })
+      vim.keymap.set('n', 'q', '<cmd>cclose<CR>', { buffer = event.buf, silent = true })
+    end,
+  })
   map('i', '<C-Space>', request_completion)
   map('n', 'gd', safe_definition)
   map('n', 'K', safe_hover)

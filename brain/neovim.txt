@@ -28,8 +28,10 @@ THE CONFIG FILE -- init.lua
 --------------------------------------------------------------------------------
 Location: %APPDATA%\mindforge\mindforge\nvim\init.lua
 
-This is a real Neovim init.lua. Everything you can do in Neovim config works.
-MindForge hot-reloads this file automatically when it is saved.
+Type ":config" or ":init" on the command bar to open init.lua directly on an editor tab.
+This is a real Neovim init.lua. Everything you can do in native Neovim works.
+Saving the tab (:w or Ctrl+S) or typing ":so" / ":source" immediately hot-reloads
+your options and keymaps live with zero restarts needed.
 
 EXAMPLE -- basic quality-of-life config:
 
@@ -69,10 +71,13 @@ EXAMPLE -- Ex commands:
     :set nowrap             -- turn word-wrap off
     :set spell              -- enable spell checking
     :noh                    -- clear current search highlight (or press <Esc> in Normal mode)
-    :Format                 -- format document using active LSP server
-    :Rename                 -- rename symbol under cursor
-    :Hover                  -- show hover documentation (or press K)
-    :CodeAction             -- trigger code action quick-fixes (or press Alt+Enter)
+    :format / :Format       -- format document using active LSP server (or fallback formatter)
+    :rename / :Rename       -- rename symbol under cursor
+    :hover / :Hover         -- show hover documentation (or press K)
+    :codeaction / :CodeAction -- trigger code action quick-fixes (or press Alt+Enter)
+    :config / :init         -- open init.lua on an editor tab
+    :so / :source           -- reload configuration live
+    :zen                    -- toggle distraction-free Zen focus mode
     :w                      -- write buffer (saves note in MindForge)
     :sort                   -- sort lines alphabetically
     :g/TODO/d               -- delete every line that contains TODO

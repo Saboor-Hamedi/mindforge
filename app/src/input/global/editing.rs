@@ -164,30 +164,6 @@ pub fn handle_editing_shortcuts(app: &mut App, ctx: &egui::Context, now: f64) ->
         return Some(false);
     }
 
-    // Zen Mode Toggle: Ctrl+Shift+F
-    let toggle_zen = ctx.input(|i| {
-        (i.modifiers.ctrl || i.modifiers.command)
-            && i.modifiers.shift
-            && !i.modifiers.alt
-            && i.key_pressed(egui::Key::F)
-    });
-    if toggle_zen {
-        let is_zen = !app.sidebar.open && !app.editor.preview_open && !app.misc.show_titlebar;
-        if is_zen {
-            app.sidebar.open = true;
-            app.misc.show_titlebar = true;
-            app.set_status("Exited Zen Mode (Ctrl+Shift+F)", now);
-        } else {
-            app.sidebar.open = false;
-            app.editor.preview_open = false;
-            app.misc.show_titlebar = false;
-            app.set_status(
-                "Zen Mode: distraction-free writing (Ctrl+Shift+F to exit)",
-                now,
-            );
-        }
-        return Some(false);
-    }
-
     None
 }
+

@@ -18,7 +18,7 @@ off the home row.
   [Ctrl+B]          Toggle notes sidebar open or closed
   [Ctrl+I]          Toggle Backlinks panel in right pane (:backlinks, :bl)
   [Ctrl+Shift+O]    Toggle Document Outline (H1-H6) in right pane (:outline)
-  [Ctrl+.]          Toggle Zen mode (distraction-free writing canvas)
+  :zen              Toggle Zen mode (distraction-free writing canvas)
   [Ctrl+P]          Open fast fuzzy note search
   [Ctrl+Shift+P]    Open Command Palette (: commands, theme/sound pickers)
   [Ctrl+R]          Quick rename active note
@@ -45,8 +45,9 @@ MindForge provides granular control over every UI surface:
   :preview          Toggle side-by-side Markdown preview (:set preview)
   :blur             Toggle Windows Acrylic/Mica backdrop blur
   :opacity <0.2-1>  Set window transparency percentage (:opacity 0.95)
-  :font <name>      Switch editor typography (JetBrains Mono, Fira Code, etc.)
   :settings         Open Preferences & Settings modal (:pref, :set)
+  :config / :init   Open user init.lua in editor tab
+  :so / :source     Reload Neovim configuration live
 
 
 3. TASK LISTS & CHECKLIST TOGGLES

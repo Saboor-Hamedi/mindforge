@@ -128,7 +128,8 @@ impl ShowCmdState {
     }
 
     /// Appends a keystroke to the active sequence or starts a new one.
-    /// Navigation keys never repeat or chain unless a count/operator is pending in Neovim.
+    /// Accumulates multi-key sequences (`vi(`, `vpw`, `gd`, `ciw`, `20j`, `"ayy`) while the HUD is visible,
+    /// and never stacks repeated navigation keys (`j`, `k`, `<Down>`, `<Up>`).
     pub fn push_key(&mut self, key: &str, now: f64) {
         if !self.enabled || key.is_empty() {
             if !self.enabled {
@@ -145,22 +146,29 @@ impl ShowCmdState {
             return;
         }
 
+        let timeout = if self.is_pending { 4.5 } else { 3.0 };
         let elapsed = now - self.last_change_time;
+        let card_visible = !self.text.is_empty() && elapsed <= timeout;
         let is_seq_kind = matches!(self.kind, ShowCmdKind::Keystroke | ShowCmdKind::Visual);
         let is_nav = is_navigation_key(key);
+        let token_count = tokenize_keycaps(&self.text).len();
+        let awaiting_motion = is_incomplete_sequence(&self.text);
 
-        // Navigation keys (`j`, `k`, `h`, `l`, `<Up>`, `<Down>`, etc.) only append
-        // when Neovim has a pending operator/count (e.g. `20j`, `dj`); otherwise they
-        // replace the display so holding/repeating `j` or `<Down>` never stacks.
-        let can_append = !self.text.is_empty()
+        // A key can ONLY append to an existing sequence if:
+        // 1. The HUD card is currently visible
+        // 2. The previous sequence is INCOMPLETE / PENDING (awaiting_motion)
+        // 3. The previous sequence is not <Esc> or a finished action
+        // 4. Token limit hasn't been exceeded
+        let can_append = card_visible
             && self.text != "<Esc>"
             && is_seq_kind
-            && !is_navigation_key(&self.text)
-            && ((self.is_pending && elapsed <= 2.0)
-                || (!is_nav
-                    && elapsed <= 0.9
-                    && !key.starts_with('<')
-                    && self.text.chars().count() < 6));
+            && awaiting_motion
+            && token_count < 8
+            && if is_nav {
+                awaiting_motion
+            } else {
+                !ends_with_navigation_key(&self.text)
+            };
 
         let next_text = if can_append {
             format!("{}{}", self.text, key)
@@ -169,16 +177,26 @@ impl ShowCmdState {
         };
 
         self.text = Self::truncate(&next_text);
-        self.kind = infer_kind(&self.text);
-        self.last_change_time = now;
-        if is_nav {
-            self.is_pending = false;
+        if !can_append || self.kind != ShowCmdKind::Visual {
+            self.kind = infer_kind(&self.text);
         }
+        self.last_change_time = now;
+        self.is_pending = if is_nav {
+            false
+        } else {
+            is_incomplete_sequence(&self.text)
+        };
     }
 
     /// Synchronizes the HUD directly with Neovim's MessagePack-RPC state
-    /// (`msg_showcmd`, `cmdline_show`, and `mode_change`).
-    pub fn sync_from_rpc(&mut self, rpc_showcmd: &str, rpc_cmdline: &str, rpc_mode: &str, now: f64) {
+    /// (`msg_showcmd` event, `cmdline_show`, and `mode_change`).
+    pub fn sync_from_rpc(
+        &mut self,
+        rpc_showcmd_update: Option<&str>,
+        rpc_cmdline: &str,
+        rpc_mode: &str,
+        now: f64,
+    ) {
         if !self.enabled {
             self.text.clear();
             self.is_pending = false;
@@ -205,59 +223,71 @@ impl ShowCmdState {
             self.last_change_time = now;
         }
 
-        // 2. Insert mode clears keystroke HUD
+        // 2. When entering Insert mode (e.g. after `i`, `a`, `ciw`, `ci(`), mark the
+        //    sequence as completed (`is_pending = false`) instead of wiping `self.text`
+        //    so the command that entered Insert mode stays visible for its full duration.
         if rpc_mode.starts_with("insert") {
-            self.clear();
-            return;
-        }
-
-        // 3. Pending operator / count / prefix from Neovim `msg_showcmd`
-        let trimmed_showcmd = rpc_showcmd.trim();
-        let is_visual_mode = rpc_mode.starts_with("visual");
-        // In Visual mode without a pending operator, Neovim's `showcmd` reports
-        // selection dimensions (digits or `RxC`), which shouldn't overwrite typed keys.
-        let is_visual_size_only = is_visual_mode
-            && !trimmed_showcmd.is_empty()
-            && trimmed_showcmd
-                .chars()
-                .all(|c| c.is_ascii_digit() || c == 'x');
-
-        if !trimmed_showcmd.is_empty() && !is_visual_size_only {
-            let truncated = Self::truncate(trimmed_showcmd);
-            let next_kind = if is_visual_mode {
-                ShowCmdKind::Visual
-            } else {
-                infer_kind(&truncated)
-            };
-            if self.text != truncated || !self.is_pending || self.kind != next_kind {
-                self.text = truncated;
-                self.kind = next_kind;
-                self.last_change_time = now;
-                self.is_pending = true;
-            }
-        } else {
-            if self.is_pending && matches!(self.kind, ShowCmdKind::Keystroke | ShowCmdKind::Visual) {
+            if self.is_pending {
                 self.is_pending = false;
                 self.last_change_time = now;
             }
-            if is_visual_mode && !self.text.is_empty() && self.kind == ShowCmdKind::Keystroke {
-                self.kind = ShowCmdKind::Visual;
+            return;
+        }
+
+        let is_visual_mode = rpc_mode.starts_with("visual");
+        if is_visual_mode && !self.text.is_empty() && self.kind == ShowCmdKind::Keystroke {
+            self.kind = ShowCmdKind::Visual;
+        }
+
+        // 3. Process event-driven `msg_showcmd` update from Neovim when one arrives.
+        //    Never overwrite a non-empty `self.text` with `trimmed_showcmd` because Neovim's
+        //    internal `showcmd_buf` omits mode-entering prefixes (such as `v` in `vi(`),
+        //    which would clobber `"vi"` into `"i"`.
+        if let Some(raw_showcmd) = rpc_showcmd_update {
+            let trimmed_showcmd = raw_showcmd.trim();
+            let is_visual_size_only = is_visual_mode
+                && !trimmed_showcmd.is_empty()
+                && trimmed_showcmd
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == 'x');
+
+            if is_visual_size_only {
+                // In visual mode, Neovim sends selection dimensions (e.g. "1" or "3x5").
+                // Visual mode is actively running; do not clear pending state.
+            } else if !trimmed_showcmd.is_empty() {
+                let truncated = Self::truncate(trimmed_showcmd);
+                let next_kind = if is_visual_mode || self.kind == ShowCmdKind::Visual {
+                    ShowCmdKind::Visual
+                } else {
+                    infer_kind(&truncated)
+                };
+                if self.text.is_empty() {
+                    self.text = truncated;
+                }
+                self.kind = next_kind;
+                self.last_change_time = now;
+                self.is_pending = true;
+            } else if self.is_pending
+                && matches!(self.kind, ShowCmdKind::Keystroke | ShowCmdKind::Visual)
+            {
+                self.is_pending = false;
+                self.last_change_time = now;
             }
         }
     }
 
-    /// Clears the card display immediately (e.g. on Escape).
+    /// Clears the card display immediately (e.g. on Escape in command bar).
     pub fn clear(&mut self) {
         self.text.clear();
         self.is_pending = false;
     }
 
-    /// Ticks timeouts: 2.0s for pending keys/search/command, 1.2s for completed actions.
+    /// Ticks timeouts: 4.5s for pending keys/search/command, 3.0s for completed actions.
     pub fn update(&mut self, now: f64) {
         if self.text.is_empty() {
             return;
         }
-        let timeout = if self.is_pending { 2.0 } else { 1.2 };
+        let timeout = if self.is_pending { 4.5 } else { 3.0 };
         if (now - self.last_change_time) > timeout {
             self.text.clear();
             self.is_pending = false;
@@ -270,7 +300,7 @@ impl ShowCmdState {
         if !self.enabled || self.text.is_empty() {
             return false;
         }
-        let timeout = if self.is_pending { 2.0 } else { 1.2 };
+        let timeout = if self.is_pending { 4.5 } else { 3.0 };
         (now - self.last_change_time) <= timeout
     }
 
@@ -287,7 +317,7 @@ impl ShowCmdState {
             return None;
         }
 
-        let timeout = if self.is_pending { 2.0 } else { 1.2 };
+        let timeout = if self.is_pending { 4.5 } else { 3.0 };
         let elapsed = now - self.last_change_time;
         if elapsed > timeout {
             return None;
@@ -568,6 +598,85 @@ fn is_navigation_key(key: &str) -> bool {
     )
 }
 
+/// Returns true if the current sequence ends with a navigation key (e.g. `"20j"` or `"dj"`).
+fn ends_with_navigation_key(text: &str) -> bool {
+    tokenize_keycaps(text)
+        .last()
+        .is_some_and(|tok| is_navigation_key(tok))
+}
+
+/// Returns true if `text` is an incomplete key sequence awaiting further keystrokes
+/// (e.g. operators `"d"`, `"c"`, `"y"`, counts `"20"`, text-object prefixes `"ci"`, `"vi"`, `"da"`,
+/// or character-taking commands `"f"`, `"r"`, `"g"`).
+pub fn is_incomplete_sequence(text: &str) -> bool {
+    if text.is_empty() {
+        return false;
+    }
+    // Completed doubled operators: "dd", "cc", "yy", ">>", "<<", "=="
+    if matches!(text, "dd" | "cc" | "yy" | ">>" | "<<" | "==") {
+        return false;
+    }
+    let mut s = text;
+    if let Some(after_quote) = s.strip_prefix('"') {
+        let mut chars = after_quote.chars();
+        if chars.next().is_none() {
+            return true;
+        }
+        s = chars.as_str();
+    }
+    // Only digits -> incomplete count (e.g. "2", "20")
+    let after_digits = s.trim_start_matches(|c: char| c.is_ascii_digit());
+    if after_digits.is_empty() {
+        return true;
+    }
+    // Check text object prefixes: [dcyv][ia] or with count (e.g. "di", "ci", "vi", "da", "va", "ya")
+    // If it's just "di" / "vi" / "ci", it's awaiting target object (e.g. '(', '"', 'w').
+    // If it already has the target object (3 chars or more like "vi(", "ciw", "da]"), it is COMPLETE!
+    let after_op_digits = after_digits.trim_start_matches(|c: char| c.is_ascii_digit());
+    if let Some(prefix) = after_op_digits.strip_prefix(['d', 'c', 'y', 'v']) {
+        if prefix == "i" || prefix == "a" {
+            return true;
+        }
+        if (prefix.starts_with('i') || prefix.starts_with('a')) && prefix.len() >= 2 {
+            return false;
+        }
+    }
+    // Standalone visual mode starter awaiting motion / target, or single visual motion (e.g. "vp")
+    if after_op_digits == "v" || after_op_digits == "V" || after_op_digits == "<C-v>" {
+        return true;
+    }
+    if let Some(rest) = after_op_digits.strip_prefix('v') {
+        if rest.chars().count() == 1 && rest != "i" && rest != "a" {
+            return true;
+        }
+    }
+    // Operators waiting for a motion
+    matches!(
+        after_op_digits,
+        "d" | "c"
+            | "y"
+            | "g"
+            | "z"
+            | ">"
+            | "<"
+            | "="
+            | "!"
+            | "m"
+            | "r"
+            | "f"
+            | "F"
+            | "t"
+            | "T"
+            | "<C-w>"
+            | "gu"
+            | "gU"
+            | "g~"
+            | "gq"
+            | "gw"
+            | "z="
+    )
+}
+
 /// Splits a raw keystroke string like `"<C-w>v"`, `"20dd"`, or `"vpw"` into keycap tokens.
 fn tokenize_keycaps(text: &str) -> Vec<String> {
     let mut tokens = Vec::new();
@@ -612,25 +721,25 @@ mod tests {
         assert_eq!(hud.text, "ci\"");
         assert!(hud.is_pending);
         assert!(hud.is_visible(10.0));
-        assert!(hud.is_visible(11.5)); // still within 2.0s
+        assert!(hud.is_visible(14.0)); // still within 4.5s
 
         // Still visible before timeout
-        hud.update(11.0);
+        hud.update(13.5);
         assert_eq!(hud.text, "ci\"");
 
-        // Expires after 2.0s
-        hud.update(12.1);
+        // Expires after 4.5s
+        hud.update(14.6);
         assert_eq!(hud.text, "");
-        assert!(!hud.is_visible(12.1));
+        assert!(!hud.is_visible(14.6));
 
-        // Completed action — 1.2s timeout
+        // Completed action — 3.0s timeout
         hud.record_action("40j", 20.0);
         assert_eq!(hud.text, "40j");
         assert!(!hud.is_pending);
-        assert!(hud.is_visible(20.5));
-        hud.update(21.0);
+        assert!(hud.is_visible(22.0));
+        hud.update(22.5);
         assert_eq!(hud.text, "40j");
-        hud.update(21.3);
+        hud.update(23.1);
         assert_eq!(hud.text, "");
 
         // Command + search
@@ -668,37 +777,94 @@ mod tests {
     fn test_showcmd_multi_key_and_rpc_sync() {
         let mut hud = ShowCmdState::new(true);
 
-        // Pressing `v`, `p`, `w` accumulates all 3 letters into `"vpw"`
+        // 1. Pressing `v`, `p`, `w` (even with >1s pause while visible) accumulates `"vpw"`
         hud.push_key("v", 1.0);
         assert_eq!(hud.text, "v");
         assert_eq!(hud.kind, ShowCmdKind::Visual);
+        hud.sync_from_rpc(Some("1"), "", "visual", 1.05);
+        assert_eq!(hud.text, "v");
 
-        hud.push_key("p", 1.2);
+        hud.push_key("p", 2.2);
         assert_eq!(hud.text, "vp");
         assert_eq!(hud.kind, ShowCmdKind::Visual);
 
-        hud.push_key("w", 1.4);
+        hud.push_key("w", 3.0);
         assert_eq!(hud.text, "vpw");
         assert_eq!(hud.kind, ShowCmdKind::Visual);
 
-        // Repeated navigation keys (`j`, `<Down>`) never stack
-        hud.push_key("j", 2.0);
-        assert_eq!(hud.text, "j");
-        hud.push_key("j", 2.1);
-        assert_eq!(hud.text, "j");
-        hud.push_key("<Down>", 2.2);
-        assert_eq!(hud.text, "<Down>");
-        hud.push_key("<Down>", 2.3);
-        assert_eq!(hud.text, "<Down>");
+        // 2. Pressing `v`, `i`, `(` with Neovim sending `Some("i")` in Visual mode preserves `"vi("`
+        let mut vi_hud = ShowCmdState::new(true);
+        vi_hud.push_key("v", 5.0);
+        vi_hud.sync_from_rpc(Some(""), "", "visual", 5.01);
+        assert_eq!(vi_hud.text, "v");
+        vi_hud.push_key("i", 5.2);
+        assert_eq!(vi_hud.text, "vi");
+        // Neovim in visual mode only reports `"i"` in msg_showcmd — must NOT clobber `"vi"` to `"i"`
+        vi_hud.sync_from_rpc(Some("i"), "", "visual", 5.21);
+        assert_eq!(vi_hud.text, "vi");
+        vi_hud.push_key("(", 5.4);
+        assert_eq!(vi_hud.text, "vi(");
+        vi_hud.sync_from_rpc(Some(""), "", "visual", 5.41);
+        assert_eq!(vi_hud.text, "vi(");
 
-        // Neovim MessagePack-RPC `msg_showcmd` drives pending operator/count state
-        hud.sync_from_rpc("20", "", "normal", 5.0);
-        assert_eq!(hud.text, "20");
-        assert!(hud.is_pending);
-        hud.push_key("j", 5.1);
-        hud.sync_from_rpc("", "", "normal", 5.1);
-        assert_eq!(hud.text, "20j");
-        assert!(!hud.is_pending);
+        // Typing a new command like `y` then `p` immediately replaces completed `vi(`, never producing `vi( yp`
+        vi_hud.push_key("y", 6.0);
+        assert_eq!(vi_hud.text, "y");
+        assert!(vi_hud.is_pending);
+        vi_hud.push_key("p", 6.2);
+        assert_eq!(vi_hud.text, "yp");
+        assert!(!vi_hud.is_pending);
+
+        // 3. Pressing `c`, `i`, `(` entering Insert mode keeps `"ci("` visible instead of clearing
+        let mut ci_hud = ShowCmdState::new(true);
+        ci_hud.push_key("c", 7.0);
+        ci_hud.sync_from_rpc(Some("c"), "", "operator", 7.01);
+        ci_hud.push_key("i", 7.2);
+        ci_hud.sync_from_rpc(Some("ci"), "", "operator", 7.21);
+        ci_hud.push_key("(", 7.4);
+        assert_eq!(ci_hud.text, "ci(");
+        ci_hud.sync_from_rpc(Some(""), "", "insert", 7.41);
+        assert_eq!(ci_hud.text, "ci(");
+        assert!(!ci_hud.is_pending);
+        assert!(ci_hud.is_visible(9.5));
+
+        // 4. Pressing `g` then `d` with interleaved RPC frames never clobbers `"gd"` back to `"g"`
+        let mut gd_hud = ShowCmdState::new(true);
+        gd_hud.push_key("g", 10.0);
+        assert_eq!(gd_hud.text, "g");
+        gd_hud.sync_from_rpc(Some("g"), "", "normal", 10.01);
+        assert_eq!(gd_hud.text, "g");
+        assert!(gd_hud.is_pending);
+
+        gd_hud.push_key("d", 10.4);
+        assert_eq!(gd_hud.text, "gd");
+        // Intermediate frame before Neovim finishes processing `d` (no new showcmd event)
+        gd_hud.sync_from_rpc(None, "", "normal", 10.41);
+        assert_eq!(gd_hud.text, "gd");
+        // Even if a duplicate `Some("g")` arrived, `"gd"` is preserved
+        gd_hud.sync_from_rpc(Some("g"), "", "normal", 10.42);
+        assert_eq!(gd_hud.text, "gd");
+        // Neovim finishes `gd` and clears showcmd -> `"gd"` stays visible as completed action
+        gd_hud.sync_from_rpc(Some(""), "", "normal", 10.45);
+        assert_eq!(gd_hud.text, "gd");
+        assert!(!gd_hud.is_pending);
+
+        // 5. Repeated navigation keys (`j`, `<Down>`) never stack
+        gd_hud.push_key("j", 11.0);
+        assert_eq!(gd_hud.text, "j");
+        gd_hud.push_key("j", 11.1);
+        assert_eq!(gd_hud.text, "j");
+        gd_hud.push_key("<Down>", 11.2);
+        assert_eq!(gd_hud.text, "<Down>");
+        gd_hud.push_key("<Down>", 11.3);
+        assert_eq!(gd_hud.text, "<Down>");
+
+        // 6. Count + motion (`20j`)
+        gd_hud.push_key("2", 15.0);
+        gd_hud.push_key("0", 15.1);
+        gd_hud.push_key("j", 15.2);
+        assert_eq!(gd_hud.text, "20j");
+        assert!(!gd_hud.is_pending);
     }
 
     #[test]
@@ -770,14 +936,14 @@ mod tests {
     fn test_showcmd_timeout_values() {
         let mut hud = ShowCmdState::new(true);
 
-        // Pending: 2.0s timeout
+        // Pending: 4.5s timeout
         hud.set_pending("d", 100.0);
-        assert!(hud.is_visible(101.9));
-        assert!(!hud.is_visible(102.1));
+        assert!(hud.is_visible(104.4));
+        assert!(!hud.is_visible(104.6));
 
-        // Completed action: 1.2s timeout
+        // Completed action: 3.0s timeout
         hud.record_action("dd", 200.0);
-        assert!(hud.is_visible(201.1));
-        assert!(!hud.is_visible(201.3));
+        assert!(hud.is_visible(202.9));
+        assert!(!hud.is_visible(203.1));
     }
 }

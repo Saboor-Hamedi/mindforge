@@ -44,6 +44,8 @@ pub struct GridState {
     pub message_is_error: bool,
     /// Partial command sequence reported by Neovim `msg_showcmd` over MessagePack-RPC.
     pub showcmd: String,
+    /// Set to true whenever a new `msg_showcmd` redraw event arrives from Neovim.
+    pub showcmd_dirty: bool,
 }
 
 impl GridState {
